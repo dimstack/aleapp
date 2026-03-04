@@ -1,0 +1,90 @@
+# ================================
+# Android / Gradle
+# ================================
+*.iml
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+*.jar
+*.aar
+
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+gradle.properties
+!android/gradle.properties
+
+# Local config (contains SIGNALING_SERVER_IP_ADDRESS etc.)
+local.properties
+
+# Signing
+*.jks
+*.keystore
+signing.properties
+
+# Google Services (if ever used)
+google-services.json
+
+# ================================
+# Kotlin / Ktor Backend
+# ================================
+server/build/
+server/.gradle/
+server/out/
+
+# ================================
+# Docker
+# ================================
+docker/.env
+docker/coturn/certs/
+
+# ================================
+# IDE — Android Studio / IntelliJ
+# ================================
+.idea/
+!.idea/codeStyles/
+!.idea/inspectionProfiles/
+*.swp
+*~
+
+# VS Code
+.vscode/
+
+# ================================
+# OS
+# ================================
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ================================
+# Secrets & Environment
+# ================================
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+
+# ================================
+# Claude Code
+# ================================
+.claude/
+.clauderc
+.claude_history
+.cursorrules
+
+# ================================
+# Misc
+# ================================
+*.log
+*.tmp
+*.bak
+*.orig
+node_modules/
