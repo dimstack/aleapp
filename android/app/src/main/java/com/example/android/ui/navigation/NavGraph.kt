@@ -20,6 +20,21 @@ import androidx.navigation.navArgument
 import com.example.android.ui.components.AleAppButton
 import com.example.android.ui.components.AleAppButtonVariant
 import com.example.android.ui.screens.home.HomeScreen
+import com.example.android.ui.screens.server.ServerDetailScreen
+import com.example.android.ui.screens.server.sampleMembersCreative
+import com.example.android.ui.screens.server.sampleMembers
+import com.example.android.ui.screens.server.sampleJoinRequests
+import com.example.android.ui.screens.server.sampleServerAdmin
+import com.example.android.ui.screens.server.sampleServerRegular
+import com.example.android.ui.screens.joinrequests.JoinRequestsScreen
+import com.example.android.ui.screens.joinrequests.sampleRequests
+import com.example.android.ui.screens.servermanage.ServerManagementScreen
+import com.example.android.ui.screens.servermanage.ServerManageData
+import com.example.android.ui.screens.servermanage.sampleManageData
+import com.example.android.ui.screens.profile.MyProfileScreen
+import com.example.android.ui.screens.profile.MyProfileData
+import com.example.android.ui.screens.profile.UserProfileScreen
+import com.example.android.ui.screens.profile.UserProfileData
 
 @Composable
 fun AppNavGraph(
@@ -48,6 +63,9 @@ fun AppNavGraph(
                 onAddServerClick = {
                     // TODO: navigate to AddServer screen
                 },
+                onContactClick = { serverId, userId ->
+                    navController.navigate(Route.UserProfile.createRoute(serverId, userId))
+                },
             )
         }
 
@@ -56,10 +74,155 @@ fun AppNavGraph(
             arguments = listOf(navArgument("serverId") { type = NavType.StringType })
         ) { backStackEntry ->
             val serverId = backStackEntry.arguments?.getString("serverId") ?: ""
-            StubScreen(
-                title = "Сервер",
-                subtitle = "serverId: $serverId",
-                onBack = { navController.popBackStack() }
+
+            // Pick mock data based on serverId
+            val isAdmin = serverId == "s1" || serverId == "s3"
+            val server = when (serverId) {
+                "s1" -> sampleServerAdmin
+                "s2" -> sampleServerRegular
+                else -> sampleServerAdmin.copy(id = serverId, name = "Server $serverId")
+            }
+            val members = if (serverId == "s2") sampleMembersCreative else sampleMembers
+            val requests = if (isAdmin) sampleJoinRequests else emptyList()
+
+            ServerDetailScreen(
+                server = server,
+                members = members,
+                isAdmin = isAdmin,
+                pendingRequests = requests,
+                onBack = { navController.popBackStack() },
+                onCallClick = { userId ->
+                    navController.navigate(Route.Call.createRoute(userId))
+                },
+                onProfileClick = {
+                    navController.navigate(Route.MyProfile.createRoute(serverId))
+                },
+                onContactClick = { userId ->
+                    navController.navigate(Route.UserProfile.createRoute(serverId, userId))
+                },
+                onManageServer = {
+                    navController.navigate(Route.ServerManagement.createRoute(serverId))
+                },
+                onViewRequests = {
+                    navController.navigate(Route.JoinRequests.createRoute(serverId))
+                },
+            )
+        }
+
+        composable(
+            route = Route.JoinRequests.route,
+            arguments = listOf(navArgument("serverId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val serverId = backStackEntry.arguments?.getString("serverId") ?: ""
+            val serverName = when (serverId) {
+                "s1" -> "Tech Community"
+                "s2" -> "Creative Studio"
+                "s3" -> "Game Dev Hub"
+                else -> "Server"
+            }
+
+            JoinRequestsScreen(
+                serverName = serverName,
+                requests = sampleRequests,
+                onBack = { navController.popBackStack() },
+                onApprove = { requestId ->
+                    // TODO: handle approve
+                },
+                onDecline = { requestId ->
+                    // TODO: handle decline
+                },
+            )
+        }
+
+        composable(
+            route = Route.ServerManagement.route,
+            arguments = listOf(navArgument("serverId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val serverId = backStackEntry.arguments?.getString("serverId") ?: ""
+            val manageData = when (serverId) {
+                "s1" -> sampleManageData
+                "s2" -> ServerManageData(
+                    id = "s2",
+                    name = "Creative Studio",
+                    username = "creative_studio",
+                    description = "Творческая студия для дизайнеров, художников и креативных профессионалов.",
+                    imageUrl = "",
+                )
+                else -> sampleManageData.copy(id = serverId)
+            }
+
+            ServerManagementScreen(
+                initial = manageData,
+                onBack = { navController.popBackStack() },
+                onSave = { _, _, _, _ ->
+                    navController.popBackStack()
+                },
+                onDeleteServer = {
+                    // TODO: handle delete — pop to Home
+                },
+            )
+        }
+
+        composable(
+            route = Route.MyProfile.route,
+            arguments = listOf(navArgument("serverId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val serverId = backStackEntry.arguments?.getString("serverId") ?: ""
+            val isAdmin = serverId == "s1" || serverId == "s3"
+            val serverName = when (serverId) {
+                "s1" -> "Tech Community"
+                "s2" -> "Creative Studio"
+                "s3" -> "Game Dev Hub"
+                else -> "Server"
+            }
+
+            MyProfileScreen(
+                profile = MyProfileData(
+                    name = if (serverId == "s2") "Александр Дизайнер" else "Александр",
+                    username = if (serverId == "s2") "alex_creative" else "alex_tech",
+                    serverName = serverName,
+                    isAdmin = isAdmin,
+                ),
+                onBack = { navController.popBackStack() },
+                onSaveProfile = { _, _ ->
+                    // TODO: handle save
+                },
+            )
+        }
+
+        composable(
+            route = Route.UserProfile.route,
+            arguments = listOf(
+                navArgument("serverId") { type = NavType.StringType },
+                navArgument("userId") { type = NavType.StringType },
+            )
+        ) { backStackEntry ->
+            val serverId = backStackEntry.arguments?.getString("serverId") ?: ""
+            val userId = backStackEntry.arguments?.getString("userId") ?: ""
+            val serverName = when (serverId) {
+                "s1" -> "Tech Community"
+                "s2" -> "Creative Studio"
+                "s3" -> "Game Dev Hub"
+                else -> "Server"
+            }
+
+            // Mock: pick user data based on userId
+            val userData = when (userId) {
+                "u1" -> UserProfileData("u1", "Анна Смирнова", "anna_s", serverName, false, true)
+                "u2" -> UserProfileData("u2", "Алексей Козлов", "alexey_k", serverName, false, false)
+                "u3" -> UserProfileData("u3", "Сергей Новиков", "sergey_n", serverName, false, false)
+                "u4" -> UserProfileData("u4", "Дмитрий Петров", "dmitry_p", serverName, false, true)
+                "u5" -> UserProfileData("u5", "Мария Волкова", "maria_v", serverName, false, false)
+                "u6" -> UserProfileData("u6", "Наталья Попова", "natasha_p", serverName, false, false)
+                else -> UserProfileData(userId, "Пользователь", "user", serverName, false, false)
+            }
+
+            UserProfileScreen(
+                user = userData,
+                onBack = { navController.popBackStack() },
+                onToggleFavorite = { _ ->
+                    // TODO: handle toggle favorite
+                },
             )
         }
 

@@ -13,4 +13,16 @@ sealed class Route(val route: String) {
     data object IncomingCall : Route("incoming_call/{userId}") {
         fun createRoute(userId: String) = "incoming_call/$userId"
     }
+    data object JoinRequests : Route("join_requests/{serverId}") {
+        fun createRoute(serverId: String) = "join_requests/$serverId"
+    }
+    data object ServerManagement : Route("server_management/{serverId}") {
+        fun createRoute(serverId: String) = "server_management/$serverId"
+    }
+    data object MyProfile : Route("my_profile/{serverId}") {
+        fun createRoute(serverId: String) = "my_profile/$serverId"
+    }
+    data object UserProfile : Route("user_profile/{serverId}/{userId}") {
+        fun createRoute(serverId: String, userId: String) = "user_profile/$serverId/$userId"
+    }
 }

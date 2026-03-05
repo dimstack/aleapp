@@ -689,3 +689,4 @@ curl -sSL https://callapp.example/install.sh | bash
 ## Code Conventions
 
 - **Previews**: Every Compose UI component and screen MUST include `@Preview` composables (light + dark theme at minimum). Add previews for individual components, not just full screens.
+- **Commit messages**: Use Conventional Commits format — `type: description`. Types: `feat`, `fix`, `refactor`, `style`, `docs`, `chore`, `test`. No `Co-Authored-By`. Description in English, body as bullet list of changes.

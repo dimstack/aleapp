@@ -64,6 +64,7 @@ data class FavoriteContact(
     val name: String,
     val username: String,
     val status: ContactStatus,
+    val serverId: String = "",
 )
 
 data class ServerUiItem(
@@ -75,9 +76,9 @@ data class ServerUiItem(
 // ── Hardcoded sample data ────────────────────────────────────────────────────
 
 internal val sampleFavorites = listOf(
-    FavoriteContact("u1", "Анна Смирнова", "@tech_community", ContactStatus.ONLINE),
-    FavoriteContact("u2", "Дмитрий Петров", "@creative_studio", ContactStatus.ONLINE),
-    FavoriteContact("u3", "Елена Иванова", "@music_prod", ContactStatus.OFFLINE),
+    FavoriteContact("u1", "Анна Смирнова", "@tech_community", ContactStatus.ONLINE, "s1"),
+    FavoriteContact("u2", "Дмитрий Петров", "@creative_studio", ContactStatus.ONLINE, "s2"),
+    FavoriteContact("u3", "Елена Иванова", "@music_prod", ContactStatus.OFFLINE, "s3"),
 )
 
 internal val sampleServers = listOf(
@@ -120,6 +121,7 @@ fun HomeScreen(
     onNotificationsClick: () -> Unit = {},
     onCallClick: (String) -> Unit = {},
     onAddServerClick: () -> Unit = {},
+    onContactClick: (serverId: String, userId: String) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
 ) {
     val colors = AleAppTheme.colors
@@ -164,6 +166,7 @@ fun HomeScreen(
                     FavoriteContactRow(
                         contact = contact,
                         onCallClick = { onCallClick(contact.id) },
+                        onContactClick = { onContactClick(contact.serverId, contact.id) },
                     )
                     if (index < favorites.lastIndex) {
                         HorizontalDivider(
@@ -340,6 +343,7 @@ private fun CountBadge(
 private fun FavoriteContactRow(
     contact: FavoriteContact,
     onCallClick: () -> Unit,
+    onContactClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val colors = AleAppTheme.colors
@@ -347,6 +351,7 @@ private fun FavoriteContactRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .clickable(onClick = onContactClick)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
