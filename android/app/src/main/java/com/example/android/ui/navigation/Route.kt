@@ -6,6 +6,7 @@ sealed class Route(val route: String) {
         fun createRoute(serverId: String) = "server_detail/$serverId"
     }
     data object Settings : Route("settings")
+    data object Notifications : Route("notifications")
     data object Call : Route("call/{userId}") {
         fun createRoute(userId: String) = "call/$userId"
     }

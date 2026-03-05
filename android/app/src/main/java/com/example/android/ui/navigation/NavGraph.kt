@@ -19,6 +19,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.example.android.ui.components.AleAppButton
 import com.example.android.ui.components.AleAppButtonVariant
+import com.example.android.ui.screens.home.HomeScreen
 
 @Composable
 fun AppNavGraph(
@@ -31,11 +32,22 @@ fun AppNavGraph(
         modifier = modifier
     ) {
         composable(Route.Home.route) {
-            HomeStub(
-                onOpenServer = { navController.navigate(Route.ServerDetail.createRoute("demo-server")) },
-                onOpenSettings = { navController.navigate(Route.Settings.route) },
-                onStartCall = { navController.navigate(Route.Call.createRoute("demo-user")) },
-                onIncomingCall = { navController.navigate(Route.IncomingCall.createRoute("demo-caller")) }
+            HomeScreen(
+                onServerClick = { serverId ->
+                    navController.navigate(Route.ServerDetail.createRoute(serverId))
+                },
+                onSettingsClick = {
+                    navController.navigate(Route.Settings.route)
+                },
+                onNotificationsClick = {
+                    navController.navigate(Route.Notifications.route)
+                },
+                onCallClick = { userId ->
+                    navController.navigate(Route.Call.createRoute(userId))
+                },
+                onAddServerClick = {
+                    // TODO: navigate to AddServer screen
+                },
             )
         }
 
@@ -55,6 +67,14 @@ fun AppNavGraph(
             StubScreen(
                 title = "Настройки",
                 subtitle = "Тема, статус, о приложении",
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Route.Notifications.route) {
+            StubScreen(
+                title = "Уведомления",
+                subtitle = "Список уведомлений",
                 onBack = { navController.popBackStack() }
             )
         }
@@ -82,43 +102,6 @@ fun AppNavGraph(
                 onBack = { navController.popBackStack() }
             )
         }
-    }
-}
-
-@Composable
-private fun HomeStub(
-    onOpenServer: () -> Unit,
-    onOpenSettings: () -> Unit,
-    onStartCall: () -> Unit,
-    onIncomingCall: () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text(
-            text = "CallApp",
-            style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.onBackground
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "Главный экран",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(modifier = Modifier.height(32.dp))
-
-        AleAppButton(onClick = onOpenServer) { Text("Открыть сервер") }
-        Spacer(modifier = Modifier.height(12.dp))
-        AleAppButton(onClick = onOpenSettings, variant = AleAppButtonVariant.Secondary) { Text("Настройки") }
-        Spacer(modifier = Modifier.height(12.dp))
-        AleAppButton(onClick = onStartCall, variant = AleAppButtonVariant.Outline) { Text("Начать звонок") }
-        Spacer(modifier = Modifier.height(12.dp))
-        AleAppButton(onClick = onIncomingCall, variant = AleAppButtonVariant.Outline) { Text("Входящий звонок") }
     }
 }
 

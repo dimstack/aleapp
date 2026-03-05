@@ -685,3 +685,7 @@ curl -sSL https://callapp.example/install.sh | bash
 - Languages: UI is in Russian (primary), English support planned
 - Android only (no iOS planned for MVP)
 - No message/chat functionality — this is a calling-only app
+
+## Code Conventions
+
+- **Previews**: Every Compose UI component and screen MUST include `@Preview` composables (light + dark theme at minimum). Add previews for individual components, not just full screens.
