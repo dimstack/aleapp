@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -41,7 +40,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -50,6 +48,7 @@ import com.example.android.ui.components.AleAppButton
 import com.example.android.ui.components.AleAppButtonSize
 import com.example.android.ui.components.AleAppButtonVariant
 import com.example.android.ui.components.AleAppCard
+import com.example.android.ui.components.FormField
 import com.example.android.ui.theme.AleAppTheme
 import kotlin.math.absoluteValue
 
@@ -360,97 +359,6 @@ private fun ServerImagePreview(
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════ */
-/*  Form field                                                                */
-/* ═══════════════════════════════════════════════════════════════════════════ */
-
-@Composable
-private fun FormField(
-    label: String,
-    required: Boolean,
-    value: String,
-    onValueChange: (String) -> Unit,
-    placeholder: String,
-    singleLine: Boolean,
-    modifier: Modifier = Modifier,
-    prefix: String? = null,
-    minHeight: Int = 0,
-) {
-    val colors = AleAppTheme.colors
-
-    Column(modifier = modifier) {
-        // Label
-        Row {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontWeight = FontWeight.Medium,
-                ),
-                color = colors.foreground,
-            )
-            if (required) {
-                Spacer(Modifier.width(4.dp))
-                Text(
-                    text = "*",
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontWeight = FontWeight.Medium,
-                    ),
-                    color = colors.destructive,
-                )
-            }
-        }
-
-        Spacer(Modifier.height(6.dp))
-
-        // Input
-        Surface(
-            shape = RoundedCornerShape(10.dp),
-            color = colors.inputBackground,
-            border = BorderStroke(1.dp, colors.border),
-            modifier = if (minHeight > 0) {
-                Modifier.height(minHeight.dp)
-            } else {
-                Modifier
-            },
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalAlignment = if (singleLine) Alignment.CenterVertically else Alignment.Top,
-            ) {
-                if (prefix != null) {
-                    Text(
-                        text = prefix,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = colors.mutedForeground,
-                    )
-                }
-
-                Box(modifier = Modifier.weight(1f)) {
-                    if (value.isEmpty()) {
-                        Text(
-                            text = placeholder,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = colors.mutedForeground,
-                        )
-                    }
-                    BasicTextField(
-                        value = value,
-                        onValueChange = onValueChange,
-                        textStyle = MaterialTheme.typography.bodyLarge.copy(
-                            color = colors.foreground,
-                        ),
-                        singleLine = singleLine,
-                        cursorBrush = SolidColor(colors.primary),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            }
-        }
-    }
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════ */
 /*  Danger zone                                                               */
 /* ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -597,98 +505,6 @@ private fun ServerImagePreviewDark() {
             ServerImagePreview(
                 name = "Creative Studio",
                 modifier = Modifier.padding(24.dp),
-            )
-        }
-    }
-}
-
-@Preview(name = "FormField — filled", showBackground = true)
-@Composable
-private fun FormFieldFilledPreview() {
-    AleAppTheme(darkTheme = false) {
-        Surface(color = AleAppTheme.colors.card) {
-            FormField(
-                label = "Название сервера",
-                required = true,
-                value = "Tech Community",
-                onValueChange = {},
-                placeholder = "Введите название",
-                singleLine = true,
-                modifier = Modifier.padding(16.dp),
-            )
-        }
-    }
-}
-
-@Preview(name = "FormField — empty", showBackground = true)
-@Composable
-private fun FormFieldEmptyPreview() {
-    AleAppTheme(darkTheme = false) {
-        Surface(color = AleAppTheme.colors.card) {
-            FormField(
-                label = "Описание",
-                required = true,
-                value = "",
-                onValueChange = {},
-                placeholder = "Введите описание сервера",
-                singleLine = false,
-                minHeight = 96,
-                modifier = Modifier.padding(16.dp),
-            )
-        }
-    }
-}
-
-@Preview(name = "FormField — with prefix", showBackground = true)
-@Composable
-private fun FormFieldPrefixPreview() {
-    AleAppTheme(darkTheme = false) {
-        Surface(color = AleAppTheme.colors.card) {
-            FormField(
-                label = "Username",
-                required = true,
-                value = "tech_community",
-                onValueChange = {},
-                placeholder = "server_username",
-                singleLine = true,
-                prefix = "@ ",
-                modifier = Modifier.padding(16.dp),
-            )
-        }
-    }
-}
-
-@Preview(name = "FormField — optional", showBackground = true)
-@Composable
-private fun FormFieldOptionalPreview() {
-    AleAppTheme(darkTheme = false) {
-        Surface(color = AleAppTheme.colors.card) {
-            FormField(
-                label = "URL изображения",
-                required = false,
-                value = "https://images.unsplash.com/photo",
-                onValueChange = {},
-                placeholder = "https://example.com/image.jpg",
-                singleLine = true,
-                modifier = Modifier.padding(16.dp),
-            )
-        }
-    }
-}
-
-@Preview(name = "FormField — Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
-@Composable
-private fun FormFieldDarkPreview() {
-    AleAppTheme(darkTheme = true) {
-        Surface(color = AleAppTheme.colors.card) {
-            FormField(
-                label = "Название сервера",
-                required = true,
-                value = "Tech Community",
-                onValueChange = {},
-                placeholder = "Введите название",
-                singleLine = true,
-                modifier = Modifier.padding(16.dp),
             )
         }
     }

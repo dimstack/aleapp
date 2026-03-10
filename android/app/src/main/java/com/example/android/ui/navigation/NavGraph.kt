@@ -1,24 +1,12 @@
 package com.example.android.ui.navigation
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
-import com.example.android.ui.components.AleAppButton
-import com.example.android.ui.components.AleAppButtonVariant
 import com.example.android.ui.screens.home.HomeScreen
 import com.example.android.ui.screens.server.ServerDetailScreen
 import com.example.android.ui.screens.server.sampleMembersCreative
@@ -37,6 +25,11 @@ import com.example.android.ui.screens.profile.UserProfileScreen
 import com.example.android.ui.screens.profile.UserProfileData
 import com.example.android.ui.screens.call.CallScreen
 import com.example.android.ui.screens.call.IncomingCallScreen
+import com.example.android.ui.screens.connect.AddServerScreen
+import com.example.android.ui.screens.connect.CreateProfileScreen
+import com.example.android.ui.screens.connect.PendingRequestScreen
+import com.example.android.ui.screens.connect.RequestStatus
+import com.example.android.ui.screens.notifications.NotificationsScreen
 import com.example.android.ui.screens.settings.SettingsScreen
 import com.example.android.ui.screens.settings.UserStatus
 
@@ -69,7 +62,7 @@ fun AppNavGraph(
                     navController.navigate(Route.Call.createRoute(userId, contactName))
                 },
                 onAddServerClick = {
-                    // TODO: navigate to AddServer screen
+                    navController.navigate(Route.AddServer.route)
                 },
                 onContactClick = { serverId, userId ->
                     navController.navigate(Route.UserProfile.createRoute(serverId, userId))
@@ -234,6 +227,60 @@ fun AppNavGraph(
             )
         }
 
+        // ── Onboarding flow ─────────────────────────────────────────────────
+
+        composable(Route.AddServer.route) {
+            AddServerScreen(
+                onBack = { navController.popBackStack() },
+                onConnect = { ip, apiKey ->
+                    // Mock: derive a server name from the IP for now
+                    val serverName = "Server ${ip.substringBefore(":")}"
+                    navController.navigate(Route.CreateProfile.createRoute(serverName))
+                },
+            )
+        }
+
+        composable(
+            route = Route.CreateProfile.route,
+            arguments = listOf(navArgument("serverName") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val encodedName = backStackEntry.arguments?.getString("serverName") ?: ""
+            val serverName = java.net.URLDecoder.decode(encodedName, "UTF-8")
+
+            CreateProfileScreen(
+                serverName = serverName,
+                onCreateProfile = { username, name, _ ->
+                    navController.navigate(
+                        Route.PendingRequest.createRoute(serverName, "@$username")
+                    )
+                },
+            )
+        }
+
+        composable(
+            route = Route.PendingRequest.route,
+            arguments = listOf(
+                navArgument("serverName") { type = NavType.StringType },
+                navArgument("userName") { type = NavType.StringType },
+            )
+        ) { backStackEntry ->
+            val encodedServer = backStackEntry.arguments?.getString("serverName") ?: ""
+            val serverName = java.net.URLDecoder.decode(encodedServer, "UTF-8")
+            val encodedUser = backStackEntry.arguments?.getString("userName") ?: ""
+            val userName = java.net.URLDecoder.decode(encodedUser, "UTF-8")
+
+            PendingRequestScreen(
+                serverName = serverName,
+                userName = userName,
+                status = RequestStatus.PENDING,
+                onBackToHome = {
+                    navController.navigate(Route.Home.route) {
+                        popUpTo(Route.Home.route) { inclusive = true }
+                    }
+                },
+            )
+        }
+
         composable(Route.Settings.route) {
             SettingsScreen(
                 isDarkTheme = isDarkTheme,
@@ -245,10 +292,14 @@ fun AppNavGraph(
         }
 
         composable(Route.Notifications.route) {
-            StubScreen(
-                title = "Уведомления",
-                subtitle = "Список уведомлений",
-                onBack = { navController.popBackStack() }
+            NotificationsScreen(
+                onBack = { navController.popBackStack() },
+                onMarkAsRead = { notificationId ->
+                    // TODO: handle mark as read
+                },
+                onClearAll = {
+                    // TODO: handle clear all
+                },
             )
         }
 
@@ -288,34 +339,5 @@ fun AppNavGraph(
                 onDecline = { navController.popBackStack() },
             )
         }
-    }
-}
-
-@Composable
-private fun StubScreen(
-    title: String,
-    subtitle: String,
-    onBack: () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.onBackground
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = subtitle,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(modifier = Modifier.height(32.dp))
-        AleAppButton(onClick = onBack, variant = AleAppButtonVariant.Secondary) { Text("Назад") }
     }
 }
