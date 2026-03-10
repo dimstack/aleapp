@@ -157,7 +157,7 @@ fun ServerDetailScreen(
     isAdmin: Boolean = true,
     pendingRequests: List<JoinRequestUi> = sampleJoinRequests,
     onBack: () -> Unit = {},
-    onCallClick: (String) -> Unit = {},
+    onCallClick: (userId: String, contactName: String) -> Unit = { _, _ -> },
     onProfileClick: () -> Unit = {},
     onContactClick: (String) -> Unit = {},
     onManageServer: () -> Unit = {},
@@ -493,7 +493,7 @@ private fun MembersSection(
     isAdmin: Boolean,
     isEditMode: Boolean,
     onToggleEditMode: () -> Unit,
-    onCallClick: (String) -> Unit,
+    onCallClick: (userId: String, contactName: String) -> Unit,
     onContactClick: (String) -> Unit,
     onRemoveMember: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -554,7 +554,7 @@ private fun MembersSection(
                     MemberRow(
                         member = member,
                         isEditMode = isEditMode,
-                        onCallClick = { onCallClick(member.id) },
+                        onCallClick = { onCallClick(member.id, member.name) },
                         onContactClick = { onContactClick(member.id) },
                         onRemoveClick = { onRemoveMember(member.id) },
                     )
@@ -1274,7 +1274,7 @@ private fun MembersCardPreview() {
                 isAdmin = true,
                 isEditMode = false,
                 onToggleEditMode = {},
-                onCallClick = {},
+                onCallClick = { _, _ -> },
                 onContactClick = {},
                 onRemoveMember = {},
             )
@@ -1292,7 +1292,7 @@ private fun MembersEmptyPreview() {
                 isAdmin = false,
                 isEditMode = false,
                 onToggleEditMode = {},
-                onCallClick = {},
+                onCallClick = { _, _ -> },
                 onContactClick = {},
                 onRemoveMember = {},
             )

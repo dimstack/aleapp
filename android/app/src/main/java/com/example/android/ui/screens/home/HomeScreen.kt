@@ -119,7 +119,7 @@ fun HomeScreen(
     onServerClick: (String) -> Unit = {},
     onSettingsClick: () -> Unit = {},
     onNotificationsClick: () -> Unit = {},
-    onCallClick: (String) -> Unit = {},
+    onCallClick: (userId: String, contactName: String) -> Unit = { _, _ -> },
     onAddServerClick: () -> Unit = {},
     onContactClick: (serverId: String, userId: String) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
@@ -165,7 +165,7 @@ fun HomeScreen(
                 favorites.forEachIndexed { index, contact ->
                     FavoriteContactRow(
                         contact = contact,
-                        onCallClick = { onCallClick(contact.id) },
+                        onCallClick = { onCallClick(contact.id, contact.name) },
                         onContactClick = { onContactClick(contact.serverId, contact.id) },
                     )
                     if (index < favorites.lastIndex) {

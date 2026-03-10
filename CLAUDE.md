@@ -1,5 +1,8 @@
 # CallApp — Decentralized P2P Calling Application
 
+## Communication
+- Общение с пользователем ведётся на **русском языке** (пояснения, комментарии, описания).
+
 ## Project Overview
 
 CallApp is a decentralized voice and video calling application for Android built on the **BYOS (Bring Your Own Server)** architecture. Each user (or group admin) deploys their own server instance via a Docker container on a VPS, creating small trusted communities for censorship-resistant communication. Think of it as "WhatsApp calling, but each group runs on its own server."

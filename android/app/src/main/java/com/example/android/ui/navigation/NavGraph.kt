@@ -35,6 +35,8 @@ import com.example.android.ui.screens.profile.MyProfileScreen
 import com.example.android.ui.screens.profile.MyProfileData
 import com.example.android.ui.screens.profile.UserProfileScreen
 import com.example.android.ui.screens.profile.UserProfileData
+import com.example.android.ui.screens.call.CallScreen
+import com.example.android.ui.screens.call.IncomingCallScreen
 import com.example.android.ui.screens.settings.SettingsScreen
 import com.example.android.ui.screens.settings.UserStatus
 
@@ -63,8 +65,8 @@ fun AppNavGraph(
                 onNotificationsClick = {
                     navController.navigate(Route.Notifications.route)
                 },
-                onCallClick = { userId ->
-                    navController.navigate(Route.Call.createRoute(userId))
+                onCallClick = { userId, contactName ->
+                    navController.navigate(Route.Call.createRoute(userId, contactName))
                 },
                 onAddServerClick = {
                     // TODO: navigate to AddServer screen
@@ -97,8 +99,8 @@ fun AppNavGraph(
                 isAdmin = isAdmin,
                 pendingRequests = requests,
                 onBack = { navController.popBackStack() },
-                onCallClick = { userId ->
-                    navController.navigate(Route.Call.createRoute(userId))
+                onCallClick = { userId, contactName ->
+                    navController.navigate(Route.Call.createRoute(userId, contactName))
                 },
                 onProfileClick = {
                     navController.navigate(Route.MyProfile.createRoute(serverId))
@@ -252,25 +254,38 @@ fun AppNavGraph(
 
         composable(
             route = Route.Call.route,
-            arguments = listOf(navArgument("userId") { type = NavType.StringType })
+            arguments = listOf(
+                navArgument("userId") { type = NavType.StringType },
+                navArgument("contactName") { type = NavType.StringType },
+            )
         ) { backStackEntry ->
-            val userId = backStackEntry.arguments?.getString("userId") ?: ""
-            StubScreen(
-                title = "Звонок",
-                subtitle = "userId: $userId",
-                onBack = { navController.popBackStack() }
+            val encodedName = backStackEntry.arguments?.getString("contactName") ?: ""
+            val contactName = java.net.URLDecoder.decode(encodedName, "UTF-8")
+
+            CallScreen(
+                contactName = contactName,
+                onEndCall = { navController.popBackStack() },
             )
         }
 
         composable(
             route = Route.IncomingCall.route,
-            arguments = listOf(navArgument("userId") { type = NavType.StringType })
+            arguments = listOf(
+                navArgument("userId") { type = NavType.StringType },
+                navArgument("contactName") { type = NavType.StringType },
+                navArgument("serverName") { type = NavType.StringType },
+            )
         ) { backStackEntry ->
-            val userId = backStackEntry.arguments?.getString("userId") ?: ""
-            StubScreen(
-                title = "Входящий звонок",
-                subtitle = "от userId: $userId",
-                onBack = { navController.popBackStack() }
+            val encodedName = backStackEntry.arguments?.getString("contactName") ?: ""
+            val contactName = java.net.URLDecoder.decode(encodedName, "UTF-8")
+            val encodedServer = backStackEntry.arguments?.getString("serverName") ?: ""
+            val serverName = java.net.URLDecoder.decode(encodedServer, "UTF-8")
+
+            IncomingCallScreen(
+                contactName = contactName,
+                serverName = serverName,
+                onAccept = { navController.popBackStack() },
+                onDecline = { navController.popBackStack() },
             )
         }
     }
