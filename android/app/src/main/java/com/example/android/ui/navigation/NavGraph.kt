@@ -36,16 +36,15 @@ import com.example.android.ui.screens.profile.MyProfileData
 import com.example.android.ui.screens.profile.UserProfileScreen
 import com.example.android.ui.screens.profile.UserProfileData
 import com.example.android.ui.screens.settings.SettingsScreen
-import com.example.android.ui.screens.settings.ThemeMode
 import com.example.android.ui.screens.settings.UserStatus
 
 @Composable
 fun AppNavGraph(
     navController: NavHostController,
     modifier: Modifier = Modifier,
-    themeMode: ThemeMode = ThemeMode.SYSTEM,
+    isDarkTheme: Boolean = false,
     userStatus: UserStatus = UserStatus.ONLINE,
-    onThemeModeChange: (ThemeMode) -> Unit = {},
+    onThemeChange: (Boolean) -> Unit = {},
     onStatusChange: (UserStatus) -> Unit = {},
 ) {
     NavHost(
@@ -235,10 +234,10 @@ fun AppNavGraph(
 
         composable(Route.Settings.route) {
             SettingsScreen(
-                themeMode = themeMode,
+                isDarkTheme = isDarkTheme,
                 userStatus = userStatus,
                 onBack = { navController.popBackStack() },
-                onThemeModeChange = onThemeModeChange,
+                onThemeChange = onThemeChange,
                 onStatusChange = onStatusChange,
             )
         }
