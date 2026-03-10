@@ -35,11 +35,17 @@ import com.example.android.ui.screens.profile.MyProfileScreen
 import com.example.android.ui.screens.profile.MyProfileData
 import com.example.android.ui.screens.profile.UserProfileScreen
 import com.example.android.ui.screens.profile.UserProfileData
+import com.example.android.ui.screens.settings.SettingsScreen
+import com.example.android.ui.screens.settings.UserStatus
 
 @Composable
 fun AppNavGraph(
     navController: NavHostController,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isDarkTheme: Boolean = false,
+    userStatus: UserStatus = UserStatus.ONLINE,
+    onThemeChange: (Boolean) -> Unit = {},
+    onStatusChange: (UserStatus) -> Unit = {},
 ) {
     NavHost(
         navController = navController,
@@ -227,10 +233,12 @@ fun AppNavGraph(
         }
 
         composable(Route.Settings.route) {
-            StubScreen(
-                title = "Настройки",
-                subtitle = "Тема, статус, о приложении",
-                onBack = { navController.popBackStack() }
+            SettingsScreen(
+                isDarkTheme = isDarkTheme,
+                userStatus = userStatus,
+                onBack = { navController.popBackStack() },
+                onThemeChange = onThemeChange,
+                onStatusChange = onStatusChange,
             )
         }
 
