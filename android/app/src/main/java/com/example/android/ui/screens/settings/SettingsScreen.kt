@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.LightMode
+import androidx.compose.material.icons.outlined.SettingsBrightness
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -49,6 +50,8 @@ import com.example.android.ui.theme.AleAppTheme
 /*  Data                                                                      */
 /* ═══════════════════════════════════════════════════════════════════════════ */
 
+enum class ThemeMode { LIGHT, DARK, SYSTEM }
+
 enum class UserStatus(val label: String, val description: String) {
     ONLINE("В сети", "Вы доступны для звонков"),
     DO_NOT_DISTURB("Не беспокоить", "Не получать звонки"),
@@ -61,10 +64,10 @@ enum class UserStatus(val label: String, val description: String) {
 
 @Composable
 fun SettingsScreen(
-    isDarkTheme: Boolean = false,
+    themeMode: ThemeMode = ThemeMode.SYSTEM,
     userStatus: UserStatus = UserStatus.ONLINE,
     onBack: () -> Unit = {},
-    onThemeChange: (Boolean) -> Unit = {},
+    onThemeModeChange: (ThemeMode) -> Unit = {},
     onStatusChange: (UserStatus) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -88,8 +91,8 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             ThemeSection(
-                isDarkTheme = isDarkTheme,
-                onThemeChange = onThemeChange,
+                themeMode = themeMode,
+                onThemeModeChange = onThemeModeChange,
             )
 
             StatusSection(
@@ -110,8 +113,8 @@ fun SettingsScreen(
 
 @Composable
 private fun ThemeSection(
-    isDarkTheme: Boolean,
-    onThemeChange: (Boolean) -> Unit,
+    themeMode: ThemeMode,
+    onThemeModeChange: (ThemeMode) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = AleAppTheme.colors
@@ -138,13 +141,10 @@ private fun ThemeSection(
 
             Spacer(Modifier.height(16.dp))
 
-            // Theme buttons
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
+            // Theme options
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 ThemeOption(
-                    isSelected = !isDarkTheme,
+                    isSelected = themeMode == ThemeMode.LIGHT,
                     icon = {
                         Icon(
                             imageVector = Icons.Outlined.LightMode,
@@ -156,12 +156,11 @@ private fun ThemeSection(
                     iconBackground = colors.secondary,
                     title = "Светлая",
                     subtitle = "Old Money",
-                    onClick = { onThemeChange(false) },
-                    modifier = Modifier.weight(1f),
+                    onClick = { onThemeModeChange(ThemeMode.LIGHT) },
                 )
 
                 ThemeOption(
-                    isSelected = isDarkTheme,
+                    isSelected = themeMode == ThemeMode.DARK,
                     icon = {
                         Icon(
                             imageVector = Icons.Outlined.DarkMode,
@@ -173,8 +172,23 @@ private fun ThemeSection(
                     iconBackground = colors.primary,
                     title = "Темная",
                     subtitle = "Evening",
-                    onClick = { onThemeChange(true) },
-                    modifier = Modifier.weight(1f),
+                    onClick = { onThemeModeChange(ThemeMode.DARK) },
+                )
+
+                ThemeOption(
+                    isSelected = themeMode == ThemeMode.SYSTEM,
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Outlined.SettingsBrightness,
+                            contentDescription = null,
+                            tint = colors.accent,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    },
+                    iconBackground = colors.secondary,
+                    title = "Системная",
+                    subtitle = "Как в устройстве",
+                    onClick = { onThemeModeChange(ThemeMode.SYSTEM) },
                 )
             }
         }
@@ -198,6 +212,7 @@ private fun ThemeOption(
 
     Surface(
         modifier = modifier
+            .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .border(
                 width = if (isSelected) 2.dp else 1.dp,
@@ -227,7 +242,7 @@ private fun ThemeOption(
 
             Spacer(Modifier.width(12.dp))
 
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
                     style = MaterialTheme.typography.bodyMedium.copy(
@@ -240,6 +255,10 @@ private fun ThemeOption(
                     style = MaterialTheme.typography.labelSmall,
                     color = colors.mutedForeground,
                 )
+            }
+
+            if (isSelected) {
+                RadioIndicator()
             }
         }
     }
@@ -574,7 +593,7 @@ private fun AboutLink(
 @Composable
 private fun SettingsScreenLightPreview() {
     AleAppTheme(darkTheme = false) {
-        SettingsScreen(isDarkTheme = false)
+        SettingsScreen(themeMode = ThemeMode.LIGHT)
     }
 }
 
@@ -587,7 +606,15 @@ private fun SettingsScreenLightPreview() {
 @Composable
 private fun SettingsScreenDarkPreview() {
     AleAppTheme(darkTheme = true) {
-        SettingsScreen(isDarkTheme = true, userStatus = UserStatus.DO_NOT_DISTURB)
+        SettingsScreen(themeMode = ThemeMode.DARK, userStatus = UserStatus.DO_NOT_DISTURB)
+    }
+}
+
+@Preview(name = "SettingsScreen — System theme", showBackground = true, showSystemUi = true)
+@Composable
+private fun SettingsScreenSystemPreview() {
+    AleAppTheme(darkTheme = false) {
+        SettingsScreen(themeMode = ThemeMode.SYSTEM)
     }
 }
 
@@ -597,8 +624,22 @@ private fun ThemeSectionLightPreview() {
     AleAppTheme(darkTheme = false) {
         Surface(color = AleAppTheme.colors.background) {
             ThemeSection(
-                isDarkTheme = false,
-                onThemeChange = {},
+                themeMode = ThemeMode.LIGHT,
+                onThemeModeChange = {},
+                modifier = Modifier.padding(16.dp),
+            )
+        }
+    }
+}
+
+@Preview(name = "ThemeSection — System selected", showBackground = true)
+@Composable
+private fun ThemeSectionSystemPreview() {
+    AleAppTheme(darkTheme = false) {
+        Surface(color = AleAppTheme.colors.background) {
+            ThemeSection(
+                themeMode = ThemeMode.SYSTEM,
+                onThemeModeChange = {},
                 modifier = Modifier.padding(16.dp),
             )
         }
@@ -611,8 +652,8 @@ private fun ThemeSectionDarkPreview() {
     AleAppTheme(darkTheme = true) {
         Surface(color = AleAppTheme.colors.background) {
             ThemeSection(
-                isDarkTheme = true,
-                onThemeChange = {},
+                themeMode = ThemeMode.DARK,
+                onThemeModeChange = {},
                 modifier = Modifier.padding(16.dp),
             )
         }
@@ -711,9 +752,9 @@ private fun ThemeOptionPreview() {
     AleAppTheme(darkTheme = false) {
         val colors = AleAppTheme.colors
         Surface(color = AleAppTheme.colors.background) {
-            Row(
+            Column(
                 modifier = Modifier.padding(16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 ThemeOption(
                     isSelected = true,
@@ -728,7 +769,6 @@ private fun ThemeOptionPreview() {
                     title = "Светлая",
                     subtitle = "Old Money",
                     onClick = {},
-                    modifier = Modifier.weight(1f),
                 )
                 ThemeOption(
                     isSelected = false,
@@ -743,7 +783,20 @@ private fun ThemeOptionPreview() {
                     title = "Темная",
                     subtitle = "Evening",
                     onClick = {},
-                    modifier = Modifier.weight(1f),
+                )
+                ThemeOption(
+                    isSelected = false,
+                    icon = {
+                        Icon(
+                            Icons.Outlined.SettingsBrightness, null,
+                            tint = colors.accent,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    },
+                    iconBackground = colors.secondary,
+                    title = "Системная",
+                    subtitle = "Как в устройстве",
+                    onClick = {},
                 )
             }
         }
