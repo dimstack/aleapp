@@ -49,44 +49,13 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.android.data.SampleData
+import com.example.android.domain.model.Server
+import com.example.android.domain.model.User
+import com.example.android.domain.model.UserStatus
 import com.example.android.ui.components.AleAppCard
 import com.example.android.ui.theme.AleAppTheme
 import kotlin.math.absoluteValue
-
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/*  Data                                                                      */
-/* ═══════════════════════════════════════════════════════════════════════════ */
-
-enum class ContactStatus { ONLINE, OFFLINE, BUSY }
-
-data class FavoriteContact(
-    val id: String,
-    val name: String,
-    val username: String,
-    val status: ContactStatus,
-    val serverId: String = "",
-)
-
-data class ServerUiItem(
-    val id: String,
-    val name: String,
-    val username: String,
-)
-
-// ── Hardcoded sample data ────────────────────────────────────────────────────
-
-internal val sampleFavorites = listOf(
-    FavoriteContact("u1", "Анна Смирнова", "@tech_community", ContactStatus.ONLINE, "s1"),
-    FavoriteContact("u2", "Дмитрий Петров", "@creative_studio", ContactStatus.ONLINE, "s2"),
-    FavoriteContact("u3", "Елена Иванова", "@music_prod", ContactStatus.OFFLINE, "s3"),
-)
-
-internal val sampleServers = listOf(
-    ServerUiItem("s1", "Tech Community", "@tech_community"),
-    ServerUiItem("s2", "Creative Studio", "@creative_studio"),
-    ServerUiItem("s3", "Music Production", "@music_prod"),
-    ServerUiItem("s4", "Game Dev Hub", "@gamedev_hub"),
-)
 
 /* ═══════════════════════════════════════════════════════════════════════════ */
 /*  Color helpers                                                             */
@@ -113,8 +82,8 @@ private fun serverImageColor(name: String): Color =
 
 @Composable
 fun HomeScreen(
-    favorites: List<FavoriteContact> = sampleFavorites,
-    servers: List<ServerUiItem> = sampleServers,
+    favorites: List<User> = SampleData.favorites,
+    servers: List<Server> = SampleData.servers,
     notificationCount: Int = 1,
     onServerClick: (String) -> Unit = {},
     onSettingsClick: () -> Unit = {},
@@ -162,11 +131,11 @@ fun HomeScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp),
             ) {
-                favorites.forEachIndexed { index, contact ->
+                favorites.forEachIndexed { index, user ->
                     FavoriteContactRow(
-                        contact = contact,
-                        onCallClick = { onCallClick(contact.id, contact.name) },
-                        onContactClick = { onContactClick(contact.serverId, contact.id) },
+                        user = user,
+                        onCallClick = { onCallClick(user.id, user.name) },
+                        onContactClick = { onContactClick(user.serverId, user.id) },
                     )
                     if (index < favorites.lastIndex) {
                         HorizontalDivider(
@@ -341,7 +310,7 @@ private fun CountBadge(
 
 @Composable
 private fun FavoriteContactRow(
-    contact: FavoriteContact,
+    user: User,
     onCallClick: () -> Unit,
     onContactClick: () -> Unit = {},
     modifier: Modifier = Modifier,
@@ -356,8 +325,8 @@ private fun FavoriteContactRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         ContactAvatar(
-            name = contact.name,
-            status = contact.status,
+            name = user.name,
+            status = user.status,
             size = 56.dp,
         )
 
@@ -365,7 +334,7 @@ private fun FavoriteContactRow(
 
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = contact.name,
+                text = user.name,
                 style = MaterialTheme.typography.bodyLarge.copy(
                     fontWeight = FontWeight.Medium,
                 ),
@@ -374,7 +343,7 @@ private fun FavoriteContactRow(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = contact.username,
+                text = user.username,
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.mutedForeground,
                 maxLines = 1,
@@ -385,7 +354,7 @@ private fun FavoriteContactRow(
         IconButton(onClick = onCallClick) {
             Icon(
                 imageVector = Icons.Default.Phone,
-                contentDescription = "Позвонить ${contact.name}",
+                contentDescription = "Позвонить ${user.name}",
                 tint = colors.primary,
             )
         }
@@ -399,7 +368,7 @@ private fun FavoriteContactRow(
 @Composable
 private fun ContactAvatar(
     name: String,
-    status: ContactStatus,
+    status: UserStatus,
     modifier: Modifier = Modifier,
     size: Dp = 56.dp,
 ) {
@@ -436,14 +405,14 @@ private fun ContactAvatar(
 
 @Composable
 private fun StatusDot(
-    status: ContactStatus,
+    status: UserStatus,
     modifier: Modifier = Modifier,
 ) {
     val colors = AleAppTheme.colors
     val dotColor = when (status) {
-        ContactStatus.ONLINE -> colors.statusOnline
-        ContactStatus.BUSY -> colors.statusBusy
-        ContactStatus.OFFLINE -> colors.statusOffline
+        UserStatus.ONLINE -> colors.statusOnline
+        UserStatus.DO_NOT_DISTURB -> colors.statusBusy
+        UserStatus.INVISIBLE -> colors.statusOffline
     }
 
     Box(
@@ -463,7 +432,7 @@ private fun StatusDot(
 
 @Composable
 private fun ServerRow(
-    server: ServerUiItem,
+    server: Server,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -623,7 +592,7 @@ private fun FavoriteOnlinePreview() {
     AleAppTheme(darkTheme = false) {
         Surface(color = AleAppTheme.colors.card) {
             FavoriteContactRow(
-                contact = FavoriteContact("1", "Анна Смирнова", "@tech_community", ContactStatus.ONLINE),
+                user = SampleData.userAnna,
                 onCallClick = {},
             )
         }
@@ -636,7 +605,7 @@ private fun FavoriteOfflinePreview() {
     AleAppTheme(darkTheme = false) {
         Surface(color = AleAppTheme.colors.card) {
             FavoriteContactRow(
-                contact = FavoriteContact("2", "Елена Иванова", "@music_prod", ContactStatus.OFFLINE),
+                user = SampleData.userMaria,
                 onCallClick = {},
             )
         }
@@ -649,7 +618,7 @@ private fun FavoriteDarkPreview() {
     AleAppTheme(darkTheme = true) {
         Surface(color = AleAppTheme.colors.card) {
             FavoriteContactRow(
-                contact = FavoriteContact("1", "Дмитрий Петров", "@creative_studio", ContactStatus.BUSY),
+                user = SampleData.userDmitry,
                 onCallClick = {},
             )
         }
@@ -664,7 +633,7 @@ private fun AvatarOnlinePreview() {
             color = AleAppTheme.colors.card,
             modifier = Modifier.padding(16.dp),
         ) {
-            ContactAvatar(name = "Анна Смирнова", status = ContactStatus.ONLINE)
+            ContactAvatar(name = "Анна Смирнова", status = UserStatus.ONLINE)
         }
     }
 }
@@ -678,9 +647,9 @@ private fun AvatarStatusesPreview() {
                 modifier = Modifier.padding(16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                ContactAvatar(name = "Анна С", status = ContactStatus.ONLINE)
-                ContactAvatar(name = "Дмитрий П", status = ContactStatus.BUSY)
-                ContactAvatar(name = "Елена И", status = ContactStatus.OFFLINE)
+                ContactAvatar(name = "Анна С", status = UserStatus.ONLINE)
+                ContactAvatar(name = "Дмитрий П", status = UserStatus.DO_NOT_DISTURB)
+                ContactAvatar(name = "Елена И", status = UserStatus.INVISIBLE)
             }
         }
     }
@@ -692,7 +661,7 @@ private fun ServerRowPreview() {
     AleAppTheme(darkTheme = false) {
         Surface(color = AleAppTheme.colors.card) {
             ServerRow(
-                server = ServerUiItem("1", "Tech Community", "@tech_community"),
+                server = SampleData.serverTech,
                 onClick = {},
             )
         }
@@ -705,7 +674,7 @@ private fun ServerRowDarkPreview() {
     AleAppTheme(darkTheme = true) {
         Surface(color = AleAppTheme.colors.card) {
             ServerRow(
-                server = ServerUiItem("2", "Creative Studio", "@creative_studio"),
+                server = SampleData.serverCreative,
                 onClick = {},
             )
         }
@@ -752,11 +721,11 @@ private fun FavoritesCardPreview() {
     AleAppTheme(darkTheme = false) {
         Surface(color = AleAppTheme.colors.background) {
             Column(modifier = Modifier.padding(16.dp)) {
-                SectionHeader(title = "Избранные", count = sampleFavorites.size)
+                SectionHeader(title = "Избранные", count = SampleData.favorites.size)
                 AleAppCard(modifier = Modifier.fillMaxWidth()) {
-                    sampleFavorites.forEachIndexed { index, contact ->
-                        FavoriteContactRow(contact = contact, onCallClick = {})
-                        if (index < sampleFavorites.lastIndex) {
+                    SampleData.favorites.forEachIndexed { index, user ->
+                        FavoriteContactRow(user = user, onCallClick = {})
+                        if (index < SampleData.favorites.lastIndex) {
                             HorizontalDivider(
                                 color = AleAppTheme.colors.border,
                                 modifier = Modifier.padding(horizontal = 16.dp),
@@ -775,11 +744,11 @@ private fun ServersCardPreview() {
     AleAppTheme(darkTheme = false) {
         Surface(color = AleAppTheme.colors.background) {
             Column(modifier = Modifier.padding(16.dp)) {
-                SectionHeader(title = "Серверы", count = sampleServers.size)
+                SectionHeader(title = "Серверы", count = SampleData.servers.size)
                 AleAppCard(modifier = Modifier.fillMaxWidth()) {
-                    sampleServers.forEachIndexed { index, server ->
+                    SampleData.servers.forEachIndexed { index, server ->
                         ServerRow(server = server, onClick = {})
-                        if (index < sampleServers.lastIndex) {
+                        if (index < SampleData.servers.lastIndex) {
                             HorizontalDivider(
                                 color = AleAppTheme.colors.border,
                                 modifier = Modifier.padding(horizontal = 16.dp),

@@ -57,75 +57,17 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.android.data.SampleData
+import com.example.android.domain.model.JoinRequest
+import com.example.android.domain.model.Server
+import com.example.android.domain.model.User
+import com.example.android.domain.model.UserStatus
 import com.example.android.ui.components.AleAppButton
 import com.example.android.ui.components.AleAppButtonSize
 import com.example.android.ui.components.AleAppButtonVariant
 import com.example.android.ui.components.AleAppCard
 import com.example.android.ui.theme.AleAppTheme
 import kotlin.math.absoluteValue
-
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/*  Data models                                                               */
-/* ═══════════════════════════════════════════════════════════════════════════ */
-
-enum class MemberStatus { ONLINE, OFFLINE, BUSY }
-
-data class ServerInfo(
-    val id: String,
-    val name: String,
-    val username: String,
-    val description: String,
-    val imageUrl: String? = null,
-)
-
-data class MemberUi(
-    val id: String,
-    val name: String,
-    val username: String,
-    val status: MemberStatus,
-)
-
-data class JoinRequestUi(
-    val id: String,
-    val userName: String,
-    val username: String,
-    val dateText: String,
-)
-
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/*  Mock data                                                                 */
-/* ═══════════════════════════════════════════════════════════════════════════ */
-
-internal val sampleServerAdmin = ServerInfo(
-    id = "s1",
-    name = "Tech Community",
-    username = "@tech_community",
-    description = "Сообщество разработчиков и технических специалистов. Обсуждаем последние технологии и делимся опытом.",
-)
-
-internal val sampleServerRegular = ServerInfo(
-    id = "s2",
-    name = "Creative Studio",
-    username = "@creative_studio",
-    description = "Творческая студия для дизайнеров, художников и креативных профессионалов.",
-)
-
-internal val sampleMembers = listOf(
-    MemberUi("u1", "Анна Смирнова", "@anna_s", MemberStatus.ONLINE),
-    MemberUi("u2", "Алексей Козлов", "@alexey_k", MemberStatus.ONLINE),
-    MemberUi("u3", "Сергей Новиков", "@sergey_n", MemberStatus.ONLINE),
-)
-
-internal val sampleMembersCreative = listOf(
-    MemberUi("u4", "Дмитрий Петров", "@dmitry_p", MemberStatus.ONLINE),
-    MemberUi("u5", "Мария Волкова", "@maria_v", MemberStatus.OFFLINE),
-    MemberUi("u6", "Наталья Попова", "@natasha_p", MemberStatus.ONLINE),
-)
-
-internal val sampleJoinRequests = listOf(
-    JoinRequestUi("r1", "Иван Петров", "@ivan_petrov", "2 марта в 10:30"),
-    JoinRequestUi("r2", "Мария Сидорова", "@maria_sidorova", "3 марта в 09:15"),
-)
 
 /* ═══════════════════════════════════════════════════════════════════════════ */
 /*  Color helpers                                                             */
@@ -152,10 +94,10 @@ private fun serverImageColor(name: String): Color =
 
 @Composable
 fun ServerDetailScreen(
-    server: ServerInfo = sampleServerAdmin,
-    members: List<MemberUi> = sampleMembers,
+    server: Server = SampleData.serverTech,
+    members: List<User> = SampleData.techMembers,
     isAdmin: Boolean = true,
-    pendingRequests: List<JoinRequestUi> = sampleJoinRequests,
+    pendingRequests: List<JoinRequest> = SampleData.joinRequests,
     onBack: () -> Unit = {},
     onCallClick: (userId: String, contactName: String) -> Unit = { _, _ -> },
     onProfileClick: () -> Unit = {},
@@ -323,7 +265,7 @@ private fun ServerDetailTopBar(
 
 @Composable
 private fun ServerInfoSection(
-    server: ServerInfo,
+    server: Server,
     isAdmin: Boolean,
     modifier: Modifier = Modifier,
 ) {
@@ -489,7 +431,7 @@ private fun SearchBar(
 
 @Composable
 private fun MembersSection(
-    members: List<MemberUi>,
+    members: List<User>,
     isAdmin: Boolean,
     isEditMode: Boolean,
     onToggleEditMode: () -> Unit,
@@ -613,7 +555,7 @@ private fun CountBadge(
 
 @Composable
 private fun MemberRow(
-    member: MemberUi,
+    member: User,
     isEditMode: Boolean,
     onCallClick: () -> Unit,
     onContactClick: () -> Unit,
@@ -623,9 +565,9 @@ private fun MemberRow(
     val colors = AleAppTheme.colors
 
     val statusLabel = when (member.status) {
-        MemberStatus.ONLINE -> "В сети"
-        MemberStatus.OFFLINE -> "Не в сети"
-        MemberStatus.BUSY -> "Занят"
+        UserStatus.ONLINE -> "В сети"
+        UserStatus.INVISIBLE -> "Не в сети"
+        UserStatus.DO_NOT_DISTURB -> "Занят"
     }
 
     Row(
@@ -688,7 +630,7 @@ private fun MemberRow(
 @Composable
 private fun MemberAvatar(
     name: String,
-    status: MemberStatus,
+    status: UserStatus,
     modifier: Modifier = Modifier,
     size: Dp = 56.dp,
 ) {
@@ -725,14 +667,14 @@ private fun MemberAvatar(
 
 @Composable
 private fun StatusDot(
-    status: MemberStatus,
+    status: UserStatus,
     modifier: Modifier = Modifier,
 ) {
     val colors = AleAppTheme.colors
     val dotColor = when (status) {
-        MemberStatus.ONLINE -> colors.statusOnline
-        MemberStatus.BUSY -> colors.statusBusy
-        MemberStatus.OFFLINE -> colors.statusOffline
+        UserStatus.ONLINE -> colors.statusOnline
+        UserStatus.DO_NOT_DISTURB -> colors.statusBusy
+        UserStatus.INVISIBLE -> colors.statusOffline
     }
 
     Box(
@@ -747,13 +689,12 @@ private fun StatusDot(
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════ */
-/*  Join requests section (shown inline for admin on the same screen          */
-/*  OR as a standalone screen — both options are valid)                        */
+/*  Join requests section                                                     */
 /* ═══════════════════════════════════════════════════════════════════════════ */
 
 @Composable
 fun JoinRequestsSection(
-    requests: List<JoinRequestUi>,
+    requests: List<JoinRequest>,
     onApprove: (String) -> Unit,
     onDecline: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -845,7 +786,7 @@ fun JoinRequestsSection(
 
 @Composable
 private fun JoinRequestRow(
-    request: JoinRequestUi,
+    request: JoinRequest,
     onApprove: () -> Unit,
     onDecline: () -> Unit,
     modifier: Modifier = Modifier,
@@ -884,7 +825,7 @@ private fun JoinRequestRow(
             )
             Spacer(Modifier.height(2.dp))
             Text(
-                text = request.dateText,
+                text = request.createdAt,
                 style = MaterialTheme.typography.labelSmall,
                 color = colors.mutedForeground,
             )
@@ -978,10 +919,10 @@ private fun RequestAvatar(
 private fun ServerDetailAdminLightPreview() {
     AleAppTheme(darkTheme = false) {
         ServerDetailScreen(
-            server = sampleServerAdmin,
-            members = sampleMembers,
+            server = SampleData.serverTech,
+            members = SampleData.techMembers,
             isAdmin = true,
-            pendingRequests = sampleJoinRequests,
+            pendingRequests = SampleData.joinRequests,
         )
     }
 }
@@ -996,10 +937,10 @@ private fun ServerDetailAdminLightPreview() {
 private fun ServerDetailAdminDarkPreview() {
     AleAppTheme(darkTheme = true) {
         ServerDetailScreen(
-            server = sampleServerAdmin,
-            members = sampleMembers,
+            server = SampleData.serverTech,
+            members = SampleData.techMembers,
             isAdmin = true,
-            pendingRequests = sampleJoinRequests,
+            pendingRequests = SampleData.joinRequests,
         )
     }
 }
@@ -1009,8 +950,8 @@ private fun ServerDetailAdminDarkPreview() {
 private fun ServerDetailRegularLightPreview() {
     AleAppTheme(darkTheme = false) {
         ServerDetailScreen(
-            server = sampleServerRegular,
-            members = sampleMembersCreative,
+            server = SampleData.serverCreative,
+            members = SampleData.creativeMembers,
             isAdmin = false,
             pendingRequests = emptyList(),
         )
@@ -1027,8 +968,8 @@ private fun ServerDetailRegularLightPreview() {
 private fun ServerDetailRegularDarkPreview() {
     AleAppTheme(darkTheme = true) {
         ServerDetailScreen(
-            server = sampleServerRegular,
-            members = sampleMembersCreative,
+            server = SampleData.serverCreative,
+            members = SampleData.creativeMembers,
             isAdmin = false,
             pendingRequests = emptyList(),
         )
@@ -1090,7 +1031,7 @@ private fun TopBarAdminDarkPreview() {
 private fun ServerInfoAdminPreview() {
     AleAppTheme(darkTheme = false) {
         Surface(color = AleAppTheme.colors.background) {
-            ServerInfoSection(server = sampleServerAdmin, isAdmin = true)
+            ServerInfoSection(server = SampleData.serverTech, isAdmin = true)
         }
     }
 }
@@ -1100,7 +1041,7 @@ private fun ServerInfoAdminPreview() {
 private fun ServerInfoRegularPreview() {
     AleAppTheme(darkTheme = false) {
         Surface(color = AleAppTheme.colors.background) {
-            ServerInfoSection(server = sampleServerRegular, isAdmin = false)
+            ServerInfoSection(server = SampleData.serverCreative, isAdmin = false)
         }
     }
 }
@@ -1110,7 +1051,7 @@ private fun ServerInfoRegularPreview() {
 private fun ServerInfoDarkPreview() {
     AleAppTheme(darkTheme = true) {
         Surface(color = AleAppTheme.colors.background) {
-            ServerInfoSection(server = sampleServerAdmin, isAdmin = true)
+            ServerInfoSection(server = SampleData.serverTech, isAdmin = true)
         }
     }
 }
@@ -1169,7 +1110,7 @@ private fun MemberRowOnlinePreview() {
     AleAppTheme(darkTheme = false) {
         Surface(color = AleAppTheme.colors.card) {
             MemberRow(
-                member = MemberUi("1", "Анна Смирнова", "@anna_s", MemberStatus.ONLINE),
+                member = SampleData.userAnna,
                 isEditMode = false,
                 onCallClick = {},
                 onContactClick = {},
@@ -1185,7 +1126,7 @@ private fun MemberRowOfflinePreview() {
     AleAppTheme(darkTheme = false) {
         Surface(color = AleAppTheme.colors.card) {
             MemberRow(
-                member = MemberUi("2", "Мария Волкова", "@maria_v", MemberStatus.OFFLINE),
+                member = SampleData.userMaria,
                 isEditMode = false,
                 onCallClick = {},
                 onContactClick = {},
@@ -1201,7 +1142,7 @@ private fun MemberRowEditModePreview() {
     AleAppTheme(darkTheme = false) {
         Surface(color = AleAppTheme.colors.card) {
             MemberRow(
-                member = MemberUi("1", "Анна Смирнова", "@anna_s", MemberStatus.ONLINE),
+                member = SampleData.userAnna,
                 isEditMode = true,
                 onCallClick = {},
                 onContactClick = {},
@@ -1217,7 +1158,10 @@ private fun MemberRowDarkPreview() {
     AleAppTheme(darkTheme = true) {
         Surface(color = AleAppTheme.colors.card) {
             MemberRow(
-                member = MemberUi("1", "Алексей Козлов", "@alexey_k", MemberStatus.BUSY),
+                member = User(
+                    id = "u2", name = "Алексей Козлов", username = "@alexey_k",
+                    status = UserStatus.DO_NOT_DISTURB, serverId = "s1",
+                ),
                 isEditMode = false,
                 onCallClick = {},
                 onContactClick = {},
@@ -1236,9 +1180,9 @@ private fun MemberAvatarStatusesPreview() {
                 modifier = Modifier.padding(16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                MemberAvatar(name = "Анна С", status = MemberStatus.ONLINE)
-                MemberAvatar(name = "Алексей К", status = MemberStatus.BUSY)
-                MemberAvatar(name = "Мария В", status = MemberStatus.OFFLINE)
+                MemberAvatar(name = "Анна С", status = UserStatus.ONLINE)
+                MemberAvatar(name = "Алексей К", status = UserStatus.DO_NOT_DISTURB)
+                MemberAvatar(name = "Мария В", status = UserStatus.INVISIBLE)
             }
         }
     }
@@ -1270,7 +1214,7 @@ private fun MembersCardPreview() {
     AleAppTheme(darkTheme = false) {
         Surface(color = AleAppTheme.colors.background) {
             MembersSection(
-                members = sampleMembers,
+                members = SampleData.techMembers,
                 isAdmin = true,
                 isEditMode = false,
                 onToggleEditMode = {},
@@ -1306,7 +1250,7 @@ private fun JoinRequestsPreview() {
     AleAppTheme(darkTheme = false) {
         Surface(color = AleAppTheme.colors.background) {
             JoinRequestsSection(
-                requests = sampleJoinRequests,
+                requests = SampleData.joinRequests,
                 onApprove = {},
                 onDecline = {},
             )
@@ -1320,7 +1264,7 @@ private fun JoinRequestsDarkPreview() {
     AleAppTheme(darkTheme = true) {
         Surface(color = AleAppTheme.colors.background) {
             JoinRequestsSection(
-                requests = sampleJoinRequests,
+                requests = SampleData.joinRequests,
                 onApprove = {},
                 onDecline = {},
             )
@@ -1348,7 +1292,7 @@ private fun JoinRequestRowPreview() {
     AleAppTheme(darkTheme = false) {
         Surface(color = AleAppTheme.colors.card) {
             JoinRequestRow(
-                request = JoinRequestUi("r1", "Иван Петров", "@ivan_petrov", "2 марта в 10:30"),
+                request = SampleData.joinRequests.first(),
                 onApprove = {},
                 onDecline = {},
             )

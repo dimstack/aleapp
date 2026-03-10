@@ -1,19 +1,20 @@
 package com.example.android.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.example.android.ui.screens.home.HomeScreen
+import com.example.android.ui.screens.home.HomeViewModel
 import com.example.android.ui.screens.server.ServerDetailScreen
-import com.example.android.ui.screens.server.sampleMembersCreative
-import com.example.android.ui.screens.server.sampleMembers
-import com.example.android.ui.screens.server.sampleJoinRequests
-import com.example.android.ui.screens.server.sampleServerAdmin
-import com.example.android.ui.screens.server.sampleServerRegular
+import com.example.android.ui.screens.server.ServerDetailViewModel
 import com.example.android.ui.screens.joinrequests.JoinRequestsScreen
 import com.example.android.ui.screens.joinrequests.sampleRequests
 import com.example.android.ui.screens.servermanage.ServerManagementScreen
@@ -23,7 +24,10 @@ import com.example.android.ui.screens.profile.MyProfileScreen
 import com.example.android.ui.screens.profile.MyProfileData
 import com.example.android.ui.screens.profile.UserProfileScreen
 import com.example.android.ui.screens.profile.UserProfileData
+import com.example.android.ui.screens.call.CallPhase
 import com.example.android.ui.screens.call.CallScreen
+import com.example.android.ui.screens.call.CallStatus
+import com.example.android.ui.screens.call.CallViewModel
 import com.example.android.ui.screens.call.IncomingCallScreen
 import com.example.android.ui.screens.connect.AddServerScreen
 import com.example.android.ui.screens.connect.CreateProfileScreen
@@ -48,7 +52,15 @@ fun AppNavGraph(
         modifier = modifier
     ) {
         composable(Route.Home.route) {
+            val viewModel: HomeViewModel = viewModel()
+            val favorites by viewModel.favorites.collectAsState()
+            val servers by viewModel.servers.collectAsState()
+            val notificationCount by viewModel.notificationCount.collectAsState()
+
             HomeScreen(
+                favorites = favorites,
+                servers = servers,
+                notificationCount = notificationCount,
                 onServerClick = { serverId ->
                     navController.navigate(Route.ServerDetail.createRoute(serverId))
                 },
@@ -73,38 +85,36 @@ fun AppNavGraph(
         composable(
             route = Route.ServerDetail.route,
             arguments = listOf(navArgument("serverId") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val serverId = backStackEntry.arguments?.getString("serverId") ?: ""
-
-            // Pick mock data based on serverId
-            val isAdmin = serverId == "s1" || serverId == "s3"
-            val server = when (serverId) {
-                "s1" -> sampleServerAdmin
-                "s2" -> sampleServerRegular
-                else -> sampleServerAdmin.copy(id = serverId, name = "Server $serverId")
-            }
-            val members = if (serverId == "s2") sampleMembersCreative else sampleMembers
-            val requests = if (isAdmin) sampleJoinRequests else emptyList()
+        ) {
+            val viewModel: ServerDetailViewModel = viewModel()
+            val server by viewModel.server.collectAsState()
+            val members by viewModel.members.collectAsState()
+            val isAdmin by viewModel.isAdmin.collectAsState()
+            val pendingRequests by viewModel.pendingRequests.collectAsState()
 
             ServerDetailScreen(
                 server = server,
                 members = members,
                 isAdmin = isAdmin,
-                pendingRequests = requests,
+                pendingRequests = pendingRequests,
                 onBack = { navController.popBackStack() },
                 onCallClick = { userId, contactName ->
                     navController.navigate(Route.Call.createRoute(userId, contactName))
                 },
                 onProfileClick = {
+                    val serverId = server.id
                     navController.navigate(Route.MyProfile.createRoute(serverId))
                 },
                 onContactClick = { userId ->
+                    val serverId = server.id
                     navController.navigate(Route.UserProfile.createRoute(serverId, userId))
                 },
                 onManageServer = {
+                    val serverId = server.id
                     navController.navigate(Route.ServerManagement.createRoute(serverId))
                 },
                 onViewRequests = {
+                    val serverId = server.id
                     navController.navigate(Route.JoinRequests.createRoute(serverId))
                 },
             )
@@ -309,14 +319,33 @@ fun AppNavGraph(
                 navArgument("userId") { type = NavType.StringType },
                 navArgument("contactName") { type = NavType.StringType },
             )
-        ) { backStackEntry ->
-            val encodedName = backStackEntry.arguments?.getString("contactName") ?: ""
-            val contactName = java.net.URLDecoder.decode(encodedName, "UTF-8")
+        ) {
+            val viewModel: CallViewModel = viewModel()
+            val callPhase by viewModel.callPhase.collectAsState()
+            val elapsedSeconds by viewModel.elapsedSeconds.collectAsState()
+            val isMicOn by viewModel.isMicOn.collectAsState()
+            val isCameraOn by viewModel.isCameraOn.collectAsState()
 
-            CallScreen(
-                contactName = contactName,
-                onEndCall = { navController.popBackStack() },
-            )
+            if (callPhase == CallPhase.ENDED) {
+                LaunchedEffect(Unit) { navController.popBackStack() }
+            } else {
+                val callStatus = when (callPhase) {
+                    CallPhase.CALLING -> CallStatus.CALLING
+                    CallPhase.RINGING -> CallStatus.RINGING
+                    else -> CallStatus.CONNECTED
+                }
+
+                CallScreen(
+                    contactName = viewModel.contactName,
+                    callStatus = callStatus,
+                    elapsedSeconds = elapsedSeconds,
+                    isMicOn = isMicOn,
+                    isCameraOn = isCameraOn,
+                    onMicToggle = viewModel::toggleMic,
+                    onCameraToggle = viewModel::toggleCamera,
+                    onEndCall = viewModel::endCall,
+                )
+            }
         }
 
         composable(
@@ -326,18 +355,40 @@ fun AppNavGraph(
                 navArgument("contactName") { type = NavType.StringType },
                 navArgument("serverName") { type = NavType.StringType },
             )
-        ) { backStackEntry ->
-            val encodedName = backStackEntry.arguments?.getString("contactName") ?: ""
-            val contactName = java.net.URLDecoder.decode(encodedName, "UTF-8")
-            val encodedServer = backStackEntry.arguments?.getString("serverName") ?: ""
-            val serverName = java.net.URLDecoder.decode(encodedServer, "UTF-8")
+        ) {
+            val viewModel: CallViewModel = viewModel()
+            val callPhase by viewModel.callPhase.collectAsState()
+            val elapsedSeconds by viewModel.elapsedSeconds.collectAsState()
+            val isMicOn by viewModel.isMicOn.collectAsState()
+            val isCameraOn by viewModel.isCameraOn.collectAsState()
 
-            IncomingCallScreen(
-                contactName = contactName,
-                serverName = serverName,
-                onAccept = { navController.popBackStack() },
-                onDecline = { navController.popBackStack() },
-            )
+            when (callPhase) {
+                CallPhase.ENDED -> {
+                    LaunchedEffect(Unit) { navController.popBackStack() }
+                }
+                CallPhase.CONNECTED -> {
+                    // After accepting: show active call UI
+                    CallScreen(
+                        contactName = viewModel.contactName,
+                        callStatus = CallStatus.CONNECTED,
+                        elapsedSeconds = elapsedSeconds,
+                        isMicOn = isMicOn,
+                        isCameraOn = isCameraOn,
+                        onMicToggle = viewModel::toggleMic,
+                        onCameraToggle = viewModel::toggleCamera,
+                        onEndCall = viewModel::endCall,
+                    )
+                }
+                else -> {
+                    // INCOMING phase: show accept/decline
+                    IncomingCallScreen(
+                        contactName = viewModel.contactName,
+                        serverName = viewModel.serverName ?: "",
+                        onAccept = viewModel::acceptCall,
+                        onDecline = viewModel::declineCall,
+                    )
+                }
+            }
         }
     }
 }
