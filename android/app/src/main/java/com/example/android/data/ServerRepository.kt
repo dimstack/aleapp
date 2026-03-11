@@ -32,6 +32,16 @@ class ServerRepository(private val connectionManager: ServerConnectionManager) {
         return connectionManager.getClient(serverAddress).auth(inviteToken, displayName)
     }
 
+    /** POST /api/auth/login — вход в существующий аккаунт. */
+    suspend fun login(
+        serverAddress: String,
+        inviteToken: String,
+        username: String,
+        password: String,
+    ): ApiResult<AuthResponse> {
+        return connectionManager.getClient(serverAddress).login(inviteToken, username, password)
+    }
+
     // ── Invite Tokens (Admin) ─────────────────────────────────────────
 
     /** POST /api/invite-tokens — создать токен приглашения. */

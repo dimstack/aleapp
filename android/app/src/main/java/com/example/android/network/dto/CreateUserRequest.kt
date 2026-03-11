@@ -7,6 +7,7 @@ import kotlinx.serialization.Serializable
 data class CreateUserRequest(
     val name: String,
     val username: String,
+    val password: String,
     @SerialName("avatar_url") val avatarUrl: String? = null,
 )
 

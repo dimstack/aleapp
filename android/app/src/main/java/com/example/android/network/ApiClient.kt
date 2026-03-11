@@ -8,6 +8,7 @@ import com.example.android.network.dto.AuthRequest
 import com.example.android.network.dto.AuthResponse
 import com.example.android.network.dto.CreateInviteTokenRequest
 import com.example.android.network.dto.CreateUserRequest
+import com.example.android.network.dto.LoginRequest
 import com.example.android.network.dto.InviteTokenDto
 import com.example.android.network.dto.JoinRequestAction
 import com.example.android.network.dto.JoinRequestDto
@@ -71,12 +72,30 @@ class ApiClient(private val baseUrl: String) {
         response
     }
 
+    /** POST /api/auth/login — вход в существующий аккаунт. */
+    suspend fun login(
+        inviteToken: String,
+        username: String,
+        password: String,
+    ): ApiResult<AuthResponse> = request {
+        val response: AuthResponse = httpClient.post("api/auth/login") {
+            setBody(LoginRequest(inviteToken = inviteToken, username = username, password = password))
+        }.body()
+        sessionToken = response.sessionToken
+        response
+    }
+
     // ── Users ────────────────────────────────────────────────────────────
 
     /** POST /api/users — создание профиля на сервере. */
-    suspend fun createUser(name: String, username: String, avatarUrl: String? = null): ApiResult<User> = request {
+    suspend fun createUser(
+        name: String,
+        username: String,
+        password: String,
+        avatarUrl: String? = null,
+    ): ApiResult<User> = request {
         val dto: UserDto = httpClient.post("api/users") {
-            setBody(CreateUserRequest(name = name, username = username, avatarUrl = avatarUrl))
+            setBody(CreateUserRequest(name = name, username = username, password = password, avatarUrl = avatarUrl))
         }.body()
         dto.toDomain()
     }

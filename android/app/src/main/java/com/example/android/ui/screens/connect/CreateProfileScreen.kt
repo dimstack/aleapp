@@ -51,14 +51,16 @@ import com.example.android.ui.theme.AleAppTheme
 @Composable
 fun CreateProfileScreen(
     serverName: String = "New Server",
-    onCreateProfile: (username: String, name: String, avatarUrl: String?) -> Unit =
-        { _, _, _ -> },
+    onCreateProfile: (username: String, name: String, password: String, avatarUrl: String?) -> Unit =
+        { _, _, _, _ -> },
     modifier: Modifier = Modifier,
 ) {
     val colors = AleAppTheme.colors
 
     var username by remember { mutableStateOf("") }
     var name by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
     var avatarUrl by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
 
@@ -107,6 +109,29 @@ fun CreateProfileScreen(
                         singleLine = true,
                     )
 
+                    // Password field
+                    FormField(
+                        label = "Пароль",
+                        required = true,
+                        value = password,
+                        onValueChange = { password = it; error = null },
+                        placeholder = "Минимум 8 символов",
+                        singleLine = true,
+                        isPassword = true,
+                        helperText = "Пароль понадобится для входа с другого устройства",
+                    )
+
+                    // Confirm password field
+                    FormField(
+                        label = "Подтвердите пароль",
+                        required = true,
+                        value = confirmPassword,
+                        onValueChange = { confirmPassword = it; error = null },
+                        placeholder = "Повторите пароль",
+                        singleLine = true,
+                        isPassword = true,
+                    )
+
                     // Avatar URL field
                     FormField(
                         label = "URL аватара",
@@ -145,11 +170,16 @@ fun CreateProfileScreen(
                                 !isValidUsername(username.trim()) ->
                                     error = "Username может содержать только буквы, цифры и подчёркивание"
                                 name.isBlank() -> error = "Имя обязательно"
+                                password.length < MIN_PASSWORD_LENGTH ->
+                                    error = "Пароль должен содержать минимум $MIN_PASSWORD_LENGTH символов"
+                                password != confirmPassword ->
+                                    error = "Пароли не совпадают"
                                 else -> {
                                     error = null
                                     onCreateProfile(
                                         username.trim(),
                                         name.trim(),
+                                        password,
                                         avatarUrl.trim().ifEmpty { null },
                                     )
                                 }
@@ -177,6 +207,8 @@ fun CreateProfileScreen(
 /* ═══════════════════════════════════════════════════════════════════════════ */
 /*  Validation                                                                */
 /* ═══════════════════════════════════════════════════════════════════════════ */
+
+private const val MIN_PASSWORD_LENGTH = 8
 
 private val usernamePattern = Regex("^[a-zA-Z0-9_]+$")
 

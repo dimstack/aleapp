@@ -3,9 +3,17 @@ package com.example.android.ui.navigation
 sealed class Route(val route: String) {
     data object Home : Route("home")
     data object AddServer : Route("add_server")
+    data object AuthChoice : Route("auth_choice/{serverName}") {
+        fun createRoute(serverName: String) =
+            "auth_choice/${java.net.URLEncoder.encode(serverName, "UTF-8")}"
+    }
     data object CreateProfile : Route("create_profile/{serverName}") {
         fun createRoute(serverName: String) =
             "create_profile/${java.net.URLEncoder.encode(serverName, "UTF-8")}"
+    }
+    data object Login : Route("login/{serverName}") {
+        fun createRoute(serverName: String) =
+            "login/${java.net.URLEncoder.encode(serverName, "UTF-8")}"
     }
     data object PendingRequest : Route("pending_request/{serverName}/{userName}") {
         fun createRoute(serverName: String, userName: String) =

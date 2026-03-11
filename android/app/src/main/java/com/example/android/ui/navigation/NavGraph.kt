@@ -32,7 +32,9 @@ import com.example.android.ui.screens.call.CallStatus
 import com.example.android.ui.screens.call.CallViewModel
 import com.example.android.ui.screens.call.IncomingCallScreen
 import com.example.android.ui.screens.connect.AddServerScreen
+import com.example.android.ui.screens.connect.AuthChoiceScreen
 import com.example.android.ui.screens.connect.CreateProfileScreen
+import com.example.android.ui.screens.connect.LoginScreen
 import com.example.android.ui.screens.connect.PendingRequestScreen
 import com.example.android.ui.screens.connect.RequestStatus
 import com.example.android.ui.screens.notifications.NotificationsScreen
@@ -274,9 +276,27 @@ fun AppNavGraph(
                 onBack = { navController.popBackStack() },
                 onConnect = { token ->
                     // TODO: parse token, call auth, handle joined/pending
-                    // For now: navigate to profile creation with mock server name
+                    // For now: navigate to auth choice with mock server name
                     val serverName = "Server"
+                    navController.navigate(Route.AuthChoice.createRoute(serverName))
+                },
+            )
+        }
+
+        composable(
+            route = Route.AuthChoice.route,
+            arguments = listOf(navArgument("serverName") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val encodedName = backStackEntry.arguments?.getString("serverName") ?: ""
+            val serverName = java.net.URLDecoder.decode(encodedName, "UTF-8")
+
+            AuthChoiceScreen(
+                serverName = serverName,
+                onCreateAccount = {
                     navController.navigate(Route.CreateProfile.createRoute(serverName))
+                },
+                onLogin = {
+                    navController.navigate(Route.Login.createRoute(serverName))
                 },
             )
         }
@@ -290,10 +310,28 @@ fun AppNavGraph(
 
             CreateProfileScreen(
                 serverName = serverName,
-                onCreateProfile = { username, name, _ ->
+                onCreateProfile = { username, name, _, _ ->
                     navController.navigate(
                         Route.PendingRequest.createRoute(serverName, "@$username")
                     )
+                },
+            )
+        }
+
+        composable(
+            route = Route.Login.route,
+            arguments = listOf(navArgument("serverName") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val encodedName = backStackEntry.arguments?.getString("serverName") ?: ""
+            val serverName = java.net.URLDecoder.decode(encodedName, "UTF-8")
+
+            LoginScreen(
+                serverName = serverName,
+                onLogin = { _, _ ->
+                    // TODO: call ConnectViewModel.login()
+                    navController.navigate(Route.Home.route) {
+                        popUpTo(Route.Home.route) { inclusive = true }
+                    }
                 },
             )
         }

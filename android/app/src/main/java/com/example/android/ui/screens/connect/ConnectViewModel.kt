@@ -14,9 +14,15 @@ import kotlinx.coroutines.launch
 sealed class ConnectUiState {
     data object Idle : ConnectUiState()
     data object Loading : ConnectUiState()
+    data class AuthChoice(
+        val serverAddress: String,
+        val serverName: String,
+        val tokenCode: String,
+    ) : ConnectUiState()
     data class NeedsProfile(val serverAddress: String, val serverName: String) : ConnectUiState()
     data class Joined(val serverAddress: String) : ConnectUiState()
     data class Pending(val serverAddress: String, val serverName: String) : ConnectUiState()
+    data class LoginError(val message: String) : ConnectUiState()
     data class Error(val message: String) : ConnectUiState()
 }
 
@@ -26,6 +32,10 @@ class ConnectViewModel(
 
     private val _state = MutableStateFlow<ConnectUiState>(ConnectUiState.Idle)
     val state: StateFlow<ConnectUiState> = _state.asStateFlow()
+
+    /** Текущий адрес сервера и токен для повторного использования в login. */
+    private var currentServerAddress: String = ""
+    private var currentTokenCode: String = ""
 
     fun connectWithToken(rawToken: String) {
         val parsed = ServerConnectionManager.parseInviteToken(rawToken)
@@ -41,6 +51,8 @@ class ConnectViewModel(
             when (val result = repository.auth(serverAddress, tokenCode, "")) {
                 is ApiResult.Success -> {
                     val response = result.data
+                    currentServerAddress = serverAddress
+                    currentTokenCode = tokenCode
                     when {
                         response.isPending -> {
                             _state.value = ConnectUiState.Pending(
@@ -52,15 +64,44 @@ class ConnectViewModel(
                             _state.value = ConnectUiState.Joined(serverAddress = serverAddress)
                         }
                         else -> {
-                            _state.value = ConnectUiState.NeedsProfile(
+                            _state.value = ConnectUiState.AuthChoice(
                                 serverAddress = serverAddress,
                                 serverName = "Server",
+                                tokenCode = tokenCode,
                             )
                         }
                     }
                 }
                 is ApiResult.Failure -> {
                     _state.value = ConnectUiState.Error("Не удалось подключиться к серверу")
+                }
+            }
+        }
+    }
+
+    /** Вход в существующий аккаунт. */
+    fun login(username: String, password: String) {
+        if (currentServerAddress.isEmpty() || currentTokenCode.isEmpty()) {
+            _state.value = ConnectUiState.Error("Сервер не определён")
+            return
+        }
+
+        _state.value = ConnectUiState.Loading
+
+        viewModelScope.launch {
+            when (val result = repository.login(
+                serverAddress = currentServerAddress,
+                inviteToken = currentTokenCode,
+                username = username,
+                password = password,
+            )) {
+                is ApiResult.Success -> {
+                    _state.value = ConnectUiState.Joined(serverAddress = currentServerAddress)
+                }
+                is ApiResult.Failure -> {
+                    _state.value = ConnectUiState.LoginError(
+                        "Неверный username или пароль",
+                    )
                 }
             }
         }

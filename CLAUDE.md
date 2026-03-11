@@ -23,7 +23,9 @@ The repository includes a web-based design prototype in the `design-reference/` 
 - `CallScreen.tsx` — outgoing/active call
 - `IncomingCallScreen.tsx` — incoming call with accept/decline
 - `ContactCard.tsx` — favorite contact card
-- `CreateProfileScreen.tsx` — profile creation on server
+- `AuthChoiceScreen.tsx` — choose create account or login
+- `CreateProfileScreen.tsx` — profile creation on server (with password)
+- `LoginScreen.tsx` — login to existing account (username + password)
 - `Header.tsx` — top app bar
 - `JoinRequestsScreen.tsx` — admin join request management
 - `NotificationsScreen.tsx` — notifications list
@@ -100,22 +102,40 @@ The repository includes a web-based design prototype in the `design-reference/` 
 
 **Connection is ONLY possible via invite tokens.** No direct IP/port entry.
 
-**How it works:**
+**How it works (new account):**
 1. Admin generates an invite token on the server (via admin panel or API)
 2. Admin shares the token with the user (messenger, in person, etc.)
 3. User pastes the token into the app → app parses server address + token code
 4. Server validates token (not expired, not exhausted, not revoked)
-5. User creates profile (name + username)
-6. If token has `requireApproval: true` → join request is sent, user waits for admin approval
-7. If token has `requireApproval: false` → user is immediately added as a member
+5. User chooses: **"Создать аккаунт"** or **"Войти в существующий"**
+6. **Create**: User fills profile (name, username, password) → account created
+7. **Login**: User enters username + password → authenticated into existing account
+8. If token has `requireApproval: true` (create only) → join request is sent, user waits for admin approval
+9. If token has `requireApproval: false` (create only) → user is immediately added as a member
 
 **Token format:** `server.example.com:3000/ABCD1234` (server address + short alphanumeric code)
 
+**Note:** Invite token is required for BOTH creating and logging into accounts (protects against brute-force). Login does NOT consume token uses (currentUses not incremented).
+
+**Password requirements:** Minimum 8 characters. Hashed server-side with BCrypt (cost factor 12). Rate limiting: 5 failed login attempts → 15 min lockout.
+
 **Screen: "Подключение к серверу"**
 - Single input field for invite token
-- On submit: parse token → connect to server → validate → create profile
+- On submit: parse token → connect to server → validate → show auth choice
 
-**Screen: "Заявка отправлена"** (only if token requires approval)
+**Screen: "Добро пожаловать" (Auth Choice)**
+- Server name displayed at top
+- Two card-buttons:
+  - "Создать аккаунт" → CreateProfileScreen
+  - "Войти в существующий" → LoginScreen
+
+**Screen: "Вход в аккаунт" (Login)**
+- Username field (@-prefix)
+- Password field (with visibility toggle)
+- "Войти" button
+- Error handling: wrong password, user not found, too many attempts
+
+**Screen: "Заявка отправлена"** (only if token requires approval, create flow only)
 - Confirmation that the request was sent, user waits for admin approval
 
 **Admin: Token Generation (in Server Management)**
@@ -246,6 +266,7 @@ User {
     id: String (UUID)
     name: String
     username: String (unique per server, @-prefixed)
+    passwordHash: String (BCrypt, cost 12)
     avatarUrl: String?
     role: Enum (ADMIN, MEMBER)
     status: Enum (ONLINE, DO_NOT_DISTURB, INVISIBLE)
@@ -312,7 +333,8 @@ Notification {
 ### Authentication
 ```
 POST   /api/connect              — Connect to server via invite token { token: "ABCD1234" }
-POST   /api/users                — Create user profile on server (after token validation)
+POST   /api/auth/login           — Login to existing account { invite_token, username, password } → AuthResponse
+POST   /api/users                — Create user profile on server { name, username, password, avatar_url? }
 ```
 
 ### Invite Tokens (Admin Only)
@@ -539,6 +561,8 @@ android/
 │       │   │   │   └── HomeViewModel.kt
 │       │   │   ├── connect/
 │       │   │   │   ├── ConnectScreen.kt
+│       │   │   │   ├── AuthChoiceScreen.kt
+│       │   │   │   ├── LoginScreen.kt
 │       │   │   │   └── ConnectViewModel.kt
 │       │   │   ├── server/
 │       │   │   │   ├── ServerDetailScreen.kt
