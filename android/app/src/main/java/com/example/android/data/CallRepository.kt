@@ -117,17 +117,18 @@ class CallRepository(
 
     fun declineIncomingCall(callerUserId: String) {
         signalingClient.send(
-            SignalMessage.CallResponse(
-                accepted = false,
-                fromUserId = "",
-                targetUserId = callerUserId,
-            )
+            SignalMessage.CallDecline(targetUserId = callerUserId)
         )
     }
 
     // ── End call ─────────────────────────────────────────────────────────
 
     fun endCall() {
+        if (targetUserId.isNotEmpty()) {
+            signalingClient.send(
+                SignalMessage.CallEnd(targetUserId = targetUserId)
+            )
+        }
         _connectionState.value = CallConnectionState.DISCONNECTED
     }
 
@@ -169,9 +170,22 @@ class CallRepository(
                 webRtcManager.addIceCandidate(candidate)
             }
 
+            is SignalMessage.CallEnd -> {
+                _connectionState.value = CallConnectionState.DISCONNECTED
+            }
+
+            is SignalMessage.CallDecline -> {
+                _connectionState.value = CallConnectionState.DISCONNECTED
+            }
+
+            is SignalMessage.CallBusy -> {
+                _connectionState.value = CallConnectionState.DISCONNECTED
+            }
+
             is SignalMessage.CallRequest,
-            is SignalMessage.CallResponse -> {
-                // Handled at a higher level (navigation / incoming call screen)
+            is SignalMessage.CallResponse,
+            is SignalMessage.StatusUpdate -> {
+                // Handled at a higher level (navigation / presence)
             }
         }
     }

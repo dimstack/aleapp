@@ -51,6 +51,32 @@ sealed class SignalMessage {
         @SerialName("target_user_id") override val targetUserId: String,
     ) : SignalMessage()
 
+    @Serializable
+    @SerialName("call_end")
+    data class CallEnd(
+        @SerialName("target_user_id") override val targetUserId: String,
+    ) : SignalMessage()
+
+    @Serializable
+    @SerialName("call_decline")
+    data class CallDecline(
+        @SerialName("target_user_id") override val targetUserId: String,
+    ) : SignalMessage()
+
+    @Serializable
+    @SerialName("call_busy")
+    data class CallBusy(
+        @SerialName("target_user_id") override val targetUserId: String,
+    ) : SignalMessage()
+
+    @Serializable
+    @SerialName("status_update")
+    data class StatusUpdate(
+        @SerialName("user_id") val userId: String,
+        val status: String,
+        @SerialName("target_user_id") override val targetUserId: String = "",
+    ) : SignalMessage()
+
     fun toJson(): String = json.encodeToString(serializer(), this)
 
     companion object {

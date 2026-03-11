@@ -8,5 +8,6 @@ sealed class ApiResult<out T> {
 enum class ApiError {
     NetworkError,
     Unauthorized,
+    NotFound,
     ServerError,
 }
