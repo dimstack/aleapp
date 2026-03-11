@@ -14,6 +14,7 @@ object SampleData {
         name = "Tech Community",
         username = "@tech_community",
         description = "Сообщество разработчиков и технических специалистов. Обсуждаем последние технологии и делимся опытом.",
+        address = "http://192.168.1.10:3000",
     )
 
     val serverCreative = Server(
@@ -21,6 +22,7 @@ object SampleData {
         name = "Creative Studio",
         username = "@creative_studio",
         description = "Творческая студия для дизайнеров, художников и креативных профессионалов.",
+        address = "http://192.168.1.20:3000",
     )
 
     val serverMusic = Server(
@@ -28,6 +30,7 @@ object SampleData {
         name = "Music Production",
         username = "@music_prod",
         description = "Студия музыкального продакшена.",
+        address = "http://192.168.1.30:3000",
     )
 
     val serverGameDev = Server(
@@ -35,6 +38,7 @@ object SampleData {
         name = "Game Dev Hub",
         username = "@gamedev_hub",
         description = "Сообщество разработчиков игр.",
+        address = "http://192.168.1.40:3000",
     )
 
     val servers = listOf(serverTech, serverCreative, serverMusic, serverGameDev)

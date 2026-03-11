@@ -25,8 +25,10 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -36,6 +38,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -53,6 +56,7 @@ import com.example.android.data.SampleData
 import com.example.android.domain.model.Server
 import com.example.android.domain.model.User
 import com.example.android.domain.model.UserStatus
+import com.example.android.ui.common.UiState
 import com.example.android.ui.components.AleAppCard
 import com.example.android.ui.theme.AleAppTheme
 import kotlin.math.absoluteValue
@@ -82,8 +86,8 @@ private fun serverImageColor(name: String): Color =
 
 @Composable
 fun HomeScreen(
-    favorites: List<User> = SampleData.favorites,
-    servers: List<Server> = SampleData.servers,
+    favoritesState: UiState<List<User>> = UiState.Success(SampleData.favorites),
+    serversState: UiState<List<Server>> = UiState.Success(SampleData.servers),
     notificationCount: Int = 1,
     onServerClick: (String) -> Unit = {},
     onSettingsClick: () -> Unit = {},
@@ -91,6 +95,7 @@ fun HomeScreen(
     onCallClick: (userId: String, contactName: String) -> Unit = { _, _ -> },
     onAddServerClick: () -> Unit = {},
     onContactClick: (serverId: String, userId: String) -> Unit = { _, _ -> },
+    onRetry: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val colors = AleAppTheme.colors
@@ -124,24 +129,28 @@ fun HomeScreen(
             Spacer(Modifier.height(8.dp))
 
             // ── Избранные ────────────────────────────────────────────────
-            SectionHeader(title = "Избранные", count = favorites.size)
-
-            AleAppCard(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-            ) {
-                favorites.forEachIndexed { index, user ->
-                    FavoriteContactRow(
-                        user = user,
-                        onCallClick = { onCallClick(user.id, user.name) },
-                        onContactClick = { onContactClick(user.serverId, user.id) },
-                    )
-                    if (index < favorites.lastIndex) {
-                        HorizontalDivider(
-                            color = colors.border,
-                            modifier = Modifier.padding(horizontal = 16.dp),
+            DataSection(
+                state = favoritesState,
+                onRetry = onRetry,
+            ) { favorites ->
+                SectionHeader(title = "Избранные", count = favorites.size)
+                AleAppCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                ) {
+                    favorites.forEachIndexed { index, user ->
+                        FavoriteContactRow(
+                            user = user,
+                            onCallClick = { onCallClick(user.id, user.name) },
+                            onContactClick = { onContactClick(user.serverId, user.id) },
                         )
+                        if (index < favorites.lastIndex) {
+                            HorizontalDivider(
+                                color = colors.border,
+                                modifier = Modifier.padding(horizontal = 16.dp),
+                            )
+                        }
                     }
                 }
             }
@@ -149,29 +158,84 @@ fun HomeScreen(
             Spacer(Modifier.height(20.dp))
 
             // ── Серверы ──────────────────────────────────────────────────
-            SectionHeader(title = "Серверы", count = servers.size)
-
-            AleAppCard(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-            ) {
-                servers.forEachIndexed { index, server ->
-                    ServerRow(
-                        server = server,
-                        onClick = { onServerClick(server.id) },
-                    )
-                    if (index < servers.lastIndex) {
-                        HorizontalDivider(
-                            color = colors.border,
-                            modifier = Modifier.padding(horizontal = 16.dp),
+            DataSection(
+                state = serversState,
+                onRetry = onRetry,
+            ) { servers ->
+                SectionHeader(title = "Серверы", count = servers.size)
+                AleAppCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                ) {
+                    servers.forEachIndexed { index, server ->
+                        ServerRow(
+                            server = server,
+                            onClick = { onServerClick(server.id) },
                         )
+                        if (index < servers.lastIndex) {
+                            HorizontalDivider(
+                                color = colors.border,
+                                modifier = Modifier.padding(horizontal = 16.dp),
+                            )
+                        }
                     }
                 }
             }
 
             Spacer(Modifier.height(88.dp))
         }
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/*  DataSection — Loading / Error / Success                                  */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+@Composable
+private fun <T> DataSection(
+    state: UiState<T>,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable (T) -> Unit,
+) {
+    val colors = AleAppTheme.colors
+
+    when (state) {
+        is UiState.Loading -> {
+            Box(
+                modifier = modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 32.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                CircularProgressIndicator(color = colors.primary)
+            }
+        }
+        is UiState.Error -> {
+            Column(
+                modifier = modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    text = state.message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = colors.mutedForeground,
+                )
+                TextButton(onClick = onRetry) {
+                    Icon(
+                        Icons.Default.Refresh,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text("Повторить")
+                }
+            }
+        }
+        is UiState.Success -> content(state.data)
     }
 }
 
@@ -527,6 +591,28 @@ private fun HomeScreenLightPreview() {
 private fun HomeScreenDarkPreview() {
     AleAppTheme(darkTheme = true) {
         HomeScreen()
+    }
+}
+
+@Preview(name = "HomeScreen — Loading", showBackground = true, showSystemUi = true)
+@Composable
+private fun HomeScreenLoadingPreview() {
+    AleAppTheme(darkTheme = false) {
+        HomeScreen(
+            favoritesState = UiState.Loading,
+            serversState = UiState.Loading,
+        )
+    }
+}
+
+@Preview(name = "HomeScreen — Error", showBackground = true, showSystemUi = true)
+@Composable
+private fun HomeScreenErrorPreview() {
+    AleAppTheme(darkTheme = false) {
+        HomeScreen(
+            favoritesState = UiState.Error("Не удалось загрузить данные"),
+            serversState = UiState.Error("Не удалось загрузить данные"),
+        )
     }
 }
 

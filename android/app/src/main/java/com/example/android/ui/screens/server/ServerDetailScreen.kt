@@ -29,8 +29,10 @@ import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -39,6 +41,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -65,6 +68,7 @@ import com.example.android.domain.model.UserStatus
 import com.example.android.ui.components.AleAppButton
 import com.example.android.ui.components.AleAppButtonSize
 import com.example.android.ui.components.AleAppButtonVariant
+import com.example.android.ui.common.UiState
 import com.example.android.ui.components.AleAppCard
 import com.example.android.ui.theme.AleAppTheme
 import kotlin.math.absoluteValue
@@ -95,7 +99,7 @@ private fun serverImageColor(name: String): Color =
 @Composable
 fun ServerDetailScreen(
     server: Server = SampleData.serverTech,
-    members: List<User> = SampleData.techMembers,
+    membersState: UiState<List<User>> = UiState.Success(SampleData.techMembers),
     isAdmin: Boolean = true,
     pendingRequests: List<JoinRequest> = SampleData.joinRequests,
     onBack: () -> Unit = {},
@@ -107,16 +111,12 @@ fun ServerDetailScreen(
     onRemoveMember: (String) -> Unit = {},
     onApproveRequest: (String) -> Unit = {},
     onDeclineRequest: (String) -> Unit = {},
+    onRetry: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val colors = AleAppTheme.colors
     var searchQuery by remember { mutableStateOf("") }
     var isEditMode by remember { mutableStateOf(false) }
-
-    val filteredMembers = remember(members, searchQuery) {
-        if (searchQuery.isBlank()) members
-        else members.filter { it.name.lowercase().contains(searchQuery.lowercase()) }
-    }
 
     Scaffold(
         containerColor = colors.background,
@@ -141,25 +141,69 @@ fun ServerDetailScreen(
             // ── Server info section ───────────────────────────────────────
             ServerInfoSection(server = server, isAdmin = isAdmin)
 
-            // ── Search bar ────────────────────────────────────────────────
-            SearchBar(
-                query = searchQuery,
-                onQueryChange = { searchQuery = it },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-            )
+            // ── Members ───────────────────────────────────────────────────
+            when (membersState) {
+                is UiState.Loading -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 48.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator(color = colors.primary)
+                    }
+                }
+                is UiState.Error -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 48.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(
+                            text = membersState.message,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = colors.mutedForeground,
+                        )
+                        TextButton(onClick = onRetry) {
+                            Icon(
+                                Icons.Default.Refresh,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text("Повторить")
+                        }
+                    }
+                }
+                is UiState.Success -> {
+                    val members = membersState.data
+                    val filteredMembers = remember(members, searchQuery) {
+                        if (searchQuery.isBlank()) members
+                        else members.filter {
+                            it.name.lowercase().contains(searchQuery.lowercase())
+                        }
+                    }
 
-            // ── Members list ──────────────────────────────────────────────
-            MembersSection(
-                members = filteredMembers,
-                isAdmin = isAdmin,
-                isEditMode = isEditMode,
-                onToggleEditMode = { isEditMode = !isEditMode },
-                onCallClick = onCallClick,
-                onContactClick = onContactClick,
-                onRemoveMember = onRemoveMember,
-            )
+                    SearchBar(
+                        query = searchQuery,
+                        onQueryChange = { searchQuery = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                    )
+
+                    MembersSection(
+                        members = filteredMembers,
+                        isAdmin = isAdmin,
+                        isEditMode = isEditMode,
+                        onToggleEditMode = { isEditMode = !isEditMode },
+                        onCallClick = onCallClick,
+                        onContactClick = onContactClick,
+                        onRemoveMember = onRemoveMember,
+                    )
+                }
+            }
 
             Spacer(Modifier.height(24.dp))
         }
@@ -920,7 +964,7 @@ private fun ServerDetailAdminLightPreview() {
     AleAppTheme(darkTheme = false) {
         ServerDetailScreen(
             server = SampleData.serverTech,
-            members = SampleData.techMembers,
+            membersState = UiState.Success(SampleData.techMembers),
             isAdmin = true,
             pendingRequests = SampleData.joinRequests,
         )
@@ -938,7 +982,7 @@ private fun ServerDetailAdminDarkPreview() {
     AleAppTheme(darkTheme = true) {
         ServerDetailScreen(
             server = SampleData.serverTech,
-            members = SampleData.techMembers,
+            membersState = UiState.Success(SampleData.techMembers),
             isAdmin = true,
             pendingRequests = SampleData.joinRequests,
         )
@@ -951,7 +995,7 @@ private fun ServerDetailRegularLightPreview() {
     AleAppTheme(darkTheme = false) {
         ServerDetailScreen(
             server = SampleData.serverCreative,
-            members = SampleData.creativeMembers,
+            membersState = UiState.Success(SampleData.creativeMembers),
             isAdmin = false,
             pendingRequests = emptyList(),
         )
@@ -969,7 +1013,33 @@ private fun ServerDetailRegularDarkPreview() {
     AleAppTheme(darkTheme = true) {
         ServerDetailScreen(
             server = SampleData.serverCreative,
-            members = SampleData.creativeMembers,
+            membersState = UiState.Success(SampleData.creativeMembers),
+            isAdmin = false,
+            pendingRequests = emptyList(),
+        )
+    }
+}
+
+@Preview(name = "ServerDetail — Loading", showBackground = true, showSystemUi = true)
+@Composable
+private fun ServerDetailLoadingPreview() {
+    AleAppTheme(darkTheme = false) {
+        ServerDetailScreen(
+            server = SampleData.serverTech,
+            membersState = UiState.Loading,
+            isAdmin = false,
+            pendingRequests = emptyList(),
+        )
+    }
+}
+
+@Preview(name = "ServerDetail — Error", showBackground = true, showSystemUi = true)
+@Composable
+private fun ServerDetailErrorPreview() {
+    AleAppTheme(darkTheme = false) {
+        ServerDetailScreen(
+            server = SampleData.serverTech,
+            membersState = UiState.Error("Нет соединения с сервером"),
             isAdmin = false,
             pendingRequests = emptyList(),
         )

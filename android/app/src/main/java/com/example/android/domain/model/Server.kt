@@ -6,4 +6,5 @@ data class Server(
     val username: String,
     val description: String = "",
     val imageUrl: String? = null,
+    val address: String = "",
 )

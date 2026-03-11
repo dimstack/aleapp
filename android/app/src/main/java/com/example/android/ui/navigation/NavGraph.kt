@@ -53,13 +53,13 @@ fun AppNavGraph(
     ) {
         composable(Route.Home.route) {
             val viewModel: HomeViewModel = viewModel()
-            val favorites by viewModel.favorites.collectAsState()
-            val servers by viewModel.servers.collectAsState()
+            val favoritesState by viewModel.favoritesState.collectAsState()
+            val serversState by viewModel.serversState.collectAsState()
             val notificationCount by viewModel.notificationCount.collectAsState()
 
             HomeScreen(
-                favorites = favorites,
-                servers = servers,
+                favoritesState = favoritesState,
+                serversState = serversState,
                 notificationCount = notificationCount,
                 onServerClick = { serverId ->
                     navController.navigate(Route.ServerDetail.createRoute(serverId))
@@ -79,6 +79,7 @@ fun AppNavGraph(
                 onContactClick = { serverId, userId ->
                     navController.navigate(Route.UserProfile.createRoute(serverId, userId))
                 },
+                onRetry = viewModel::loadData,
             )
         }
 
@@ -88,13 +89,13 @@ fun AppNavGraph(
         ) {
             val viewModel: ServerDetailViewModel = viewModel()
             val server by viewModel.server.collectAsState()
-            val members by viewModel.members.collectAsState()
+            val membersState by viewModel.membersState.collectAsState()
             val isAdmin by viewModel.isAdmin.collectAsState()
             val pendingRequests by viewModel.pendingRequests.collectAsState()
 
             ServerDetailScreen(
                 server = server,
-                members = members,
+                membersState = membersState,
                 isAdmin = isAdmin,
                 pendingRequests = pendingRequests,
                 onBack = { navController.popBackStack() },
@@ -117,6 +118,7 @@ fun AppNavGraph(
                     val serverId = server.id
                     navController.navigate(Route.JoinRequests.createRoute(serverId))
                 },
+                onRetry = viewModel::loadMembers,
             )
         }
 
