@@ -40,6 +40,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -98,6 +99,7 @@ fun ServerManagementScreen(
     onSave: (name: String, username: String, description: String, imageUrl: String) -> Unit =
         { _, _, _, _ -> },
     onDeleteServer: () -> Unit = {},
+    onInviteTokens: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val colors = AleAppTheme.colors
@@ -236,6 +238,16 @@ fun ServerManagementScreen(
 
             Spacer(Modifier.height(16.dp))
 
+            // ── Invite tokens link ──────────────────────────────────────
+            InviteTokensCard(
+                onClick = onInviteTokens,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+            )
+
+            Spacer(Modifier.height(16.dp))
+
             // ── Danger zone ───────────────────────────────────────────────
             DangerZone(
                 onDeleteServer = onDeleteServer,
@@ -355,6 +367,53 @@ private fun ServerImagePreview(
             style = MaterialTheme.typography.bodySmall,
             color = colors.mutedForeground,
         )
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/*  Invite tokens card                                                        */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+@Composable
+private fun InviteTokensCard(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = AleAppTheme.colors
+
+    AleAppCard(
+        modifier = modifier,
+        onClick = onClick,
+    ) {
+        Row(
+            modifier = Modifier.padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Токены приглашений",
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.Medium,
+                    ),
+                    color = colors.foreground,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "Управление токенами для приглашения новых участников",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.mutedForeground,
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = null,
+                tint = colors.mutedForeground,
+                modifier = Modifier
+                    .size(20.dp)
+                    .graphicsLayer { rotationZ = 180f },
+            )
+        }
     }
 }
 

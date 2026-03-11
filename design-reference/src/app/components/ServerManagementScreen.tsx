@@ -184,6 +184,22 @@ export function ServerManagementScreen({ server, onBack, onSave }: ServerManagem
           </div>
         </div>
 
+        {/* Invite Tokens Link */}
+        <div
+          className="mt-6 bg-card rounded-xl p-5 shadow-sm border cursor-pointer hover:bg-secondary/50 transition-colors"
+          onClick={() => {/* navigate to invite tokens */}}
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex-1">
+              <h3 className="font-medium text-foreground">Токены приглашений</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Управление токенами для приглашения новых участников
+              </p>
+            </div>
+            <ArrowLeft className="size-5 text-muted-foreground rotate-180" />
+          </div>
+        </div>
+
         {/* Danger Zone */}
         <div className="mt-6 bg-destructive/10 border border-destructive/20 rounded-xl p-6">
           <div className="flex items-start gap-3">

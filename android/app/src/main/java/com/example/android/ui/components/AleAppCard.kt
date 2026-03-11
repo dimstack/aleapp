@@ -49,6 +49,28 @@ fun AleAppCard(
     }
 }
 
+/** Кликабельная версия карточки. */
+@Composable
+fun AleAppCard(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val colors = AleAppTheme.colors
+
+    Surface(
+        onClick = onClick,
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        color = colors.card,
+        contentColor = colors.cardForeground,
+        border = BorderStroke(1.dp, colors.border),
+        shadowElevation = 1.dp,
+    ) {
+        Column(content = content)
+    }
+}
+
 // ── Previews ─────────────────────────────────────────────────────────────────
 
 @Preview(name = "Card — Light", showBackground = true)

@@ -6,29 +6,28 @@ import { Button } from './ui/button';
 
 interface AddServerScreenProps {
   onBack: () => void;
-  onConnect: (ip: string, apiKey?: string) => void;
+  onConnect: (token: string) => void;
 }
 
 export function AddServerScreen({ onBack, onConnect }: AddServerScreenProps) {
-  const [ip, setIp] = useState('');
-  const [apiKey, setApiKey] = useState('');
+  const [token, setToken] = useState('');
   const [error, setError] = useState('');
 
   const handleConnect = () => {
-    if (!ip.trim()) {
-      setError('IP адрес обязателен');
+    if (!token.trim()) {
+      setError('Токен приглашения обязателен');
       return;
     }
 
-    // Basic IP validation
-    const ipPattern = /^(\d{1,3}\.){3}\d{1,3}(:\d+)?$|^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(:\d+)?$/;
-    if (!ipPattern.test(ip.trim())) {
-      setError('Неверный формат IP адреса');
+    // Basic token format validation: address/code
+    const tokenPattern = /^[a-zA-Z0-9._:-]+\/[a-zA-Z0-9]+$/;
+    if (!tokenPattern.test(token.trim())) {
+      setError('Неверный формат токена. Ожидается: server:port/CODE');
       return;
     }
 
     setError('');
-    onConnect(ip.trim(), apiKey.trim() || undefined);
+    onConnect(token.trim());
   };
 
   return (
@@ -69,46 +68,27 @@ export function AddServerScreen({ onBack, onConnect }: AddServerScreenProps) {
               </svg>
             </div>
             <p className="text-muted-foreground">
-              Введите IP адрес сервера для подключения. API ключ нужен только если вы владелец сервера.
+              Вставьте токен приглашения, полученный от администратора сервера.
             </p>
           </div>
 
-          {/* IP Address */}
+          {/* Invite Token */}
           <div>
-            <Label htmlFor="ip" className="mb-2">
-              <span className="font-medium">IP адрес сервера</span>
+            <Label htmlFor="token" className="mb-2">
+              <span className="font-medium">Токен приглашения</span>
               <span className="text-destructive ml-1">*</span>
             </Label>
             <Input
-              id="ip"
+              id="token"
               type="text"
-              placeholder="192.168.1.1:3000 или server.example.com"
-              value={ip}
+              placeholder="server.example.com:3000/ABCD1234"
+              value={token}
               onChange={(e) => {
-                setIp(e.target.value);
+                setToken(e.target.value);
                 setError('');
               }}
               className="mt-1"
             />
-          </div>
-
-          {/* API Key */}
-          <div>
-            <Label htmlFor="apiKey" className="mb-2">
-              <span className="font-medium">API ключ</span>
-              <span className="text-muted-foreground text-sm ml-2">(опционально)</span>
-            </Label>
-            <Input
-              id="apiKey"
-              type="password"
-              placeholder="Введите API ключ если вы владелец"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              className="mt-1"
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              API ключ даёт права администратора сервера
-            </p>
           </div>
 
           {/* Error Message */}
@@ -130,11 +110,11 @@ export function AddServerScreen({ onBack, onConnect }: AddServerScreenProps) {
 
         {/* Info */}
         <div className="mt-6 bg-primary/10 border border-primary/20 rounded-lg p-4">
-          <h3 className="font-medium text-card-foreground mb-2">Как получить IP адрес?</h3>
+          <h3 className="font-medium text-card-foreground mb-2">Как получить токен?</h3>
           <ul className="text-sm text-muted-foreground space-y-1">
-            <li>• Попросите владельца сервера предоставить IP адрес</li>
-            <li>• IP адрес должен быть в формате: xxx.xxx.xxx.xxx:port</li>
-            <li>• Или доменное имя: server.example.com:port</li>
+            <li>• Попросите администратора сервера создать для вас токен приглашения</li>
+            <li>• Токен имеет формат: server.example.com:3000/ABCD1234</li>
+            <li>• Токен может быть одноразовым или многоразовым</li>
           </ul>
         </div>
       </main>

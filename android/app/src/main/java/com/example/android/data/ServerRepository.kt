@@ -1,5 +1,6 @@
 package com.example.android.data
 
+import com.example.android.domain.model.InviteToken
 import com.example.android.domain.model.Server
 import com.example.android.domain.model.User
 import com.example.android.network.ServerConnectionManager
@@ -29,6 +30,30 @@ class ServerRepository(private val connectionManager: ServerConnectionManager) {
         displayName: String,
     ): ApiResult<AuthResponse> {
         return connectionManager.getClient(serverAddress).auth(inviteToken, displayName)
+    }
+
+    // ── Invite Tokens (Admin) ─────────────────────────────────────────
+
+    /** POST /api/invite-tokens — создать токен приглашения. */
+    suspend fun createInviteToken(
+        serverAddress: String,
+        label: String,
+        maxUses: Int = 0,
+        grantedRole: String = "MEMBER",
+        requireApproval: Boolean = false,
+    ): ApiResult<InviteToken> {
+        return connectionManager.getClient(serverAddress)
+            .createInviteToken(label, maxUses, grantedRole, requireApproval)
+    }
+
+    /** GET /api/invite-tokens — список всех токенов. */
+    suspend fun getInviteTokens(serverAddress: String): ApiResult<List<InviteToken>> {
+        return connectionManager.getClient(serverAddress).getInviteTokens()
+    }
+
+    /** DELETE /api/invite-tokens/{id} — отозвать токен. */
+    suspend fun revokeInviteToken(serverAddress: String, tokenId: String): ApiResult<Unit> {
+        return connectionManager.getClient(serverAddress).revokeInviteToken(tokenId)
     }
 
     fun disconnect(serverAddress: String) {

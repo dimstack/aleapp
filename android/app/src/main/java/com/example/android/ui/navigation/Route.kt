@@ -30,6 +30,9 @@ sealed class Route(val route: String) {
     data object ServerManagement : Route("server_management/{serverId}") {
         fun createRoute(serverId: String) = "server_management/$serverId"
     }
+    data object InviteTokens : Route("invite_tokens/{serverId}") {
+        fun createRoute(serverId: String) = "invite_tokens/$serverId"
+    }
     data object MyProfile : Route("my_profile/{serverId}") {
         fun createRoute(serverId: String) = "my_profile/$serverId"
     }

@@ -10,7 +10,7 @@ CallApp is a decentralized voice and video calling application for Android built
 ### Core Philosophy
 - **Decentralized**: No central authority. Each server is independent.
 - **Censorship-resistant**: Anyone can spin up a server; there's no single point to block.
-- **Small trusted groups**: Server admin manually approves each member.
+- **Small trusted groups**: Server admin controls access via invite tokens (with optional approval).
 - **BYOS**: Bring Your Own Server — users deploy their own infrastructure.
 - **Easy deployment**: One-click Docker install, similar to Amnezia VPN's approach.
 
@@ -96,15 +96,35 @@ The repository includes a web-based design prototype in the `design-reference/` 
 
 ## User Flows & Screens
 
-### 1. Server Connection (Onboarding)
+### 1. Server Connection (Onboarding) — Invite Token System
+
+**Connection is ONLY possible via invite tokens.** No direct IP/port entry.
+
+**How it works:**
+1. Admin generates an invite token on the server (via admin panel or API)
+2. Admin shares the token with the user (messenger, in person, etc.)
+3. User pastes the token into the app → app parses server address + token code
+4. Server validates token (not expired, not exhausted, not revoked)
+5. User creates profile (name + username)
+6. If token has `requireApproval: true` → join request is sent, user waits for admin approval
+7. If token has `requireApproval: false` → user is immediately added as a member
+
+**Token format:** `server.example.com:3000/ABCD1234` (server address + short alphanumeric code)
 
 **Screen: "Подключение к серверу"**
+- Single input field for invite token
+- On submit: parse token → connect to server → validate → create profile
 
-- User enters server IP address (format: `xxx.xxx.xxx.xxx:port` or `server.example.com:port`)
-- Optional API key field (grants admin rights if provided)
-- On connect: user creates profile on this server (name + username)
-- After profile creation → join request is sent to admin
-- **Screen: "Заявка отправлена"** — confirmation that the request was sent, user waits for admin approval
+**Screen: "Заявка отправлена"** (only if token requires approval)
+- Confirmation that the request was sent, user waits for admin approval
+
+**Admin: Token Generation (in Server Management)**
+- Token name/label (for admin's reference, e.g., "Для команды дизайна")
+- Max uses (how many people can join via this token; null = unlimited)
+- Role granted: ADMIN or MEMBER
+- Require admin approval: yes/no (protection against token leaks)
+- Generated token displayed with copy/share buttons
+- List of all tokens with usage stats, ability to revoke
 
 ### 2. Main Screen (Home)
 
@@ -234,11 +254,30 @@ User {
 }
 ```
 
+### InviteToken
+```
+InviteToken {
+    id: String (UUID)
+    token: String (unique, 8-12 chars, base62)
+    label: String? (admin's note, e.g., "Для команды дизайна")
+    serverId: String (FK)
+    createdBy: String (FK → User, admin who created it)
+    maxUses: Int? (null = unlimited)
+    currentUses: Int (default 0)
+    grantedRole: Enum (ADMIN, MEMBER) (default MEMBER)
+    requireApproval: Boolean (default false)
+    expiresAt: Timestamp? (null = never expires)
+    isRevoked: Boolean (default false)
+    createdAt: Timestamp
+}
+```
+
 ### JoinRequest
 ```
 JoinRequest {
     id: String (UUID)
     username: String
+    inviteTokenId: String (FK → InviteToken)
     serverId: String (FK)
     status: Enum (PENDING, APPROVED, DECLINED)
     createdAt: Timestamp
@@ -272,8 +311,15 @@ Notification {
 
 ### Authentication
 ```
-POST   /api/connect              — Connect to server (with optional API key for admin)
-POST   /api/users                — Create user profile on server
+POST   /api/connect              — Connect to server via invite token { token: "ABCD1234" }
+POST   /api/users                — Create user profile on server (after token validation)
+```
+
+### Invite Tokens (Admin Only)
+```
+POST   /api/invite-tokens        — Create invite token (label, maxUses, grantedRole, requireApproval, expiresAt)
+GET    /api/invite-tokens        — List all tokens with usage stats
+DELETE /api/invite-tokens/{id}   — Revoke token
 ```
 
 ### Users
@@ -432,12 +478,14 @@ server/
 │   ├── routes/
 │   │   ├── UserRoutes.kt
 │   │   ├── ServerRoutes.kt
+│   │   ├── InviteTokenRoutes.kt
 │   │   ├── JoinRequestRoutes.kt
 │   │   ├── FavoriteRoutes.kt
 │   │   └── NotificationRoutes.kt
 │   ├── models/
 │   │   ├── User.kt
 │   │   ├── Server.kt
+│   │   ├── InviteToken.kt
 │   │   ├── JoinRequest.kt
 │   │   └── Notification.kt
 │   ├── database/
@@ -467,6 +515,7 @@ android/
 │       │   ├── model/
 │       │   │   ├── User.kt
 │       │   │   ├── Server.kt
+│       │   │   ├── InviteToken.kt
 │       │   │   ├── JoinRequest.kt
 │       │   │   └── Notification.kt
 │       │   └── repository/
@@ -675,7 +724,8 @@ curl -sSL https://callapp.example/install.sh | bash
 - **No central registration**: Users create profiles per-server. No global accounts.
 - **Server-scoped identity**: Username uniqueness is per-server, not global.
 - **Cross-server contacts**: Users can be on multiple servers. Favorites aggregate contacts across servers.
-- **API key = admin**: Whoever has the API key (generated at server deploy) gets admin rights.
+- **API key = first admin**: Whoever has the API key (generated at server deploy) gets initial admin rights. Further users join only via invite tokens.
+- **Invite tokens only**: No direct IP connection. Admin generates tokens with configurable: label, max uses, granted role (admin/member), require approval flag. Protects against token leaks via optional approval step.
 - **SQLite over Postgres**: Lightweight, no extra service. Sufficient for small groups (10-50 users per server).
 - **coturn in same container**: Simplifies deployment. Single Docker container = complete server.
 

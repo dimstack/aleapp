@@ -65,6 +65,7 @@ class ServerDetailViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
                     val message = when (result.error) {
                         ApiError.NetworkError -> "Нет соединения с сервером"
                         ApiError.Unauthorized -> "Сессия истекла"
+                        ApiError.NotFound -> "Сервер не найден"
                         ApiError.ServerError -> "Ошибка сервера"
                     }
                     _membersState.value = UiState.Error(message)

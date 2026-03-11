@@ -17,9 +17,11 @@ import com.example.android.ui.screens.server.ServerDetailScreen
 import com.example.android.ui.screens.server.ServerDetailViewModel
 import com.example.android.ui.screens.joinrequests.JoinRequestsScreen
 import com.example.android.ui.screens.joinrequests.sampleRequests
+import com.example.android.ui.screens.servermanage.InviteTokensScreen
 import com.example.android.ui.screens.servermanage.ServerManagementScreen
 import com.example.android.ui.screens.servermanage.ServerManageData
 import com.example.android.ui.screens.servermanage.sampleManageData
+import com.example.android.ui.screens.servermanage.sampleTokens
 import com.example.android.ui.screens.profile.MyProfileScreen
 import com.example.android.ui.screens.profile.MyProfileData
 import com.example.android.ui.screens.profile.UserProfileScreen
@@ -173,6 +175,32 @@ fun AppNavGraph(
                 onDeleteServer = {
                     // TODO: handle delete — pop to Home
                 },
+                onInviteTokens = {
+                    navController.navigate(Route.InviteTokens.createRoute(serverId))
+                },
+            )
+        }
+
+        composable(
+            route = Route.InviteTokens.route,
+            arguments = listOf(navArgument("serverId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val serverId = backStackEntry.arguments?.getString("serverId") ?: ""
+
+            // TODO: replace with real ViewModel data
+            InviteTokensScreen(
+                tokens = sampleTokens,
+                serverAddress = "192.168.1.100:3000",
+                onBack = { navController.popBackStack() },
+                onCreateToken = { label, maxUses, role, approval ->
+                    // TODO: handle create token
+                },
+                onRevokeToken = { tokenId ->
+                    // TODO: handle revoke
+                },
+                onCopyToken = { fullToken ->
+                    // TODO: copy to clipboard
+                },
             )
         }
 
@@ -244,9 +272,10 @@ fun AppNavGraph(
         composable(Route.AddServer.route) {
             AddServerScreen(
                 onBack = { navController.popBackStack() },
-                onConnect = { ip, apiKey ->
-                    // Mock: derive a server name from the IP for now
-                    val serverName = "Server ${ip.substringBefore(":")}"
+                onConnect = { token ->
+                    // TODO: parse token, call auth, handle joined/pending
+                    // For now: navigate to profile creation with mock server name
+                    val serverName = "Server"
                     navController.navigate(Route.CreateProfile.createRoute(serverName))
                 },
             )

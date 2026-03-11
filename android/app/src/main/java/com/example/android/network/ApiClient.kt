@@ -3,11 +3,12 @@ package com.example.android.network
 import com.example.android.domain.model.JoinRequest
 import com.example.android.domain.model.Server
 import com.example.android.domain.model.User
+import com.example.android.domain.model.InviteToken
 import com.example.android.network.dto.AuthRequest
 import com.example.android.network.dto.AuthResponse
-import com.example.android.network.dto.ConnectRequest
-import com.example.android.network.dto.ConnectResponse
+import com.example.android.network.dto.CreateInviteTokenRequest
 import com.example.android.network.dto.CreateUserRequest
+import com.example.android.network.dto.InviteTokenDto
 import com.example.android.network.dto.JoinRequestAction
 import com.example.android.network.dto.JoinRequestDto
 import com.example.android.network.dto.NotificationDto
@@ -60,15 +61,6 @@ class ApiClient(private val baseUrl: String) {
     }
 
     // ── Authentication ───────────────────────────────────────────────────
-
-    /** POST /api/connect — подключение к серверу (с опциональным API-ключом для админа). */
-    suspend fun connect(apiKey: String? = null): ApiResult<ConnectResponse> = request {
-        val response: ConnectResponse = httpClient.post("api/connect") {
-            setBody(ConnectRequest(apiKey = apiKey))
-        }.body()
-        response.sessionToken?.let { sessionToken = it }
-        response
-    }
 
     /** POST /api/auth — авторизация по invite-токену. */
     suspend fun auth(inviteToken: String, displayName: String): ApiResult<AuthResponse> = request {
@@ -168,6 +160,37 @@ class ApiClient(private val baseUrl: String) {
             setBody(JoinRequestAction(status = status))
         }.body()
         dto.toDomain()
+    }
+
+    // ── Invite Tokens (Admin) ─────────────────────────────────────────────
+
+    /** POST /api/invite-tokens — создать токен приглашения (только админ). */
+    suspend fun createInviteToken(
+        label: String,
+        maxUses: Int = 0,
+        grantedRole: String = "MEMBER",
+        requireApproval: Boolean = false,
+    ): ApiResult<InviteToken> = request {
+        val dto: InviteTokenDto = httpClient.post("api/invite-tokens") {
+            setBody(CreateInviteTokenRequest(
+                label = label,
+                maxUses = maxUses,
+                grantedRole = grantedRole,
+                requireApproval = requireApproval,
+            ))
+        }.body()
+        dto.toDomain()
+    }
+
+    /** GET /api/invite-tokens — список всех токенов (только админ). */
+    suspend fun getInviteTokens(): ApiResult<List<InviteToken>> = request {
+        val dtos: List<InviteTokenDto> = httpClient.get("api/invite-tokens").body()
+        dtos.map { it.toDomain() }
+    }
+
+    /** DELETE /api/invite-tokens/{id} — отозвать токен (только админ). */
+    suspend fun revokeInviteToken(tokenId: String): ApiResult<Unit> = request {
+        httpClient.delete("api/invite-tokens/$tokenId")
     }
 
     // ── Favorites ────────────────────────────────────────────────────────

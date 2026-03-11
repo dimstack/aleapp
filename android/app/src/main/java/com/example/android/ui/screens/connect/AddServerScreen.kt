@@ -54,13 +54,12 @@ import com.example.android.ui.theme.AleAppTheme
 @Composable
 fun AddServerScreen(
     onBack: () -> Unit = {},
-    onConnect: (ip: String, apiKey: String?) -> Unit = { _, _ -> },
+    onConnect: (token: String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val colors = AleAppTheme.colors
 
-    var ip by remember { mutableStateOf("") }
-    var apiKey by remember { mutableStateOf("") }
+    var token by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
 
     Scaffold(
@@ -90,26 +89,14 @@ fun AddServerScreen(
                     // Server icon + description
                     ServerIconHeader()
 
-                    // IP Address field
+                    // Invite token field
                     FormField(
-                        label = "IP адрес сервера",
+                        label = "Токен приглашения",
                         required = true,
-                        value = ip,
-                        onValueChange = { ip = it; error = null },
-                        placeholder = "192.168.1.1:3000 или server.example.com",
+                        value = token,
+                        onValueChange = { token = it; error = null },
+                        placeholder = "server.example.com:3000/ABCD1234",
                         singleLine = true,
-                    )
-
-                    // API Key field
-                    FormField(
-                        label = "API ключ",
-                        required = false,
-                        value = apiKey,
-                        onValueChange = { apiKey = it },
-                        placeholder = "Введите API ключ если вы владелец",
-                        singleLine = true,
-                        isPassword = true,
-                        helperText = "API ключ даёт права администратора сервера",
                     )
 
                     // Error message
@@ -133,15 +120,12 @@ fun AddServerScreen(
                     AleAppButton(
                         onClick = {
                             when {
-                                ip.isBlank() -> error = "IP адрес обязателен"
-                                !isValidServerAddress(ip.trim()) ->
-                                    error = "Неверный формат IP адреса"
+                                token.isBlank() -> error = "Токен приглашения обязателен"
+                                !isValidInviteToken(token.trim()) ->
+                                    error = "Неверный формат токена. Ожидается: server:port/CODE"
                                 else -> {
                                     error = null
-                                    onConnect(
-                                        ip.trim(),
-                                        apiKey.trim().ifEmpty { null },
-                                    )
+                                    onConnect(token.trim())
                                 }
                             }
                         },
@@ -172,12 +156,12 @@ fun AddServerScreen(
 /*  Validation                                                                */
 /* ═══════════════════════════════════════════════════════════════════════════ */
 
-private val serverAddressPattern = Regex(
-    """^(\d{1,3}\.){3}\d{1,3}(:\d+)?$|^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(:\d+)?$"""
+private val inviteTokenPattern = Regex(
+    """^[a-zA-Z0-9._:-]+/[a-zA-Z0-9]+$"""
 )
 
-private fun isValidServerAddress(address: String): Boolean =
-    serverAddressPattern.matches(address)
+private fun isValidInviteToken(token: String): Boolean =
+    inviteTokenPattern.matches(token)
 
 /* ═══════════════════════════════════════════════════════════════════════════ */
 /*  Top bar                                                                   */
@@ -249,7 +233,7 @@ private fun ServerIconHeader(modifier: Modifier = Modifier) {
         Spacer(Modifier.height(12.dp))
 
         Text(
-            text = "Введите IP адрес сервера для подключения. API ключ нужен только если вы владелец сервера.",
+            text = "Вставьте токен приглашения, полученный от администратора сервера.",
             style = MaterialTheme.typography.bodyMedium,
             color = colors.mutedForeground,
             textAlign = TextAlign.Center,
@@ -273,7 +257,7 @@ private fun InfoBlock(modifier: Modifier = Modifier) {
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "Как получить IP адрес?",
+                text = "Как получить токен?",
                 style = MaterialTheme.typography.titleSmall.copy(
                     fontWeight = FontWeight.Medium,
                 ),
@@ -283,9 +267,9 @@ private fun InfoBlock(modifier: Modifier = Modifier) {
             Spacer(Modifier.height(8.dp))
 
             val items = listOf(
-                "Попросите владельца сервера предоставить IP адрес",
-                "IP адрес должен быть в формате: xxx.xxx.xxx.xxx:port",
-                "Или доменное имя: server.example.com:port",
+                "Попросите администратора сервера создать для вас токен приглашения",
+                "Токен имеет формат: server.example.com:3000/ABCD1234",
+                "Токен может быть одноразовым или многоразовым",
             )
             items.forEach { item ->
                 Text(

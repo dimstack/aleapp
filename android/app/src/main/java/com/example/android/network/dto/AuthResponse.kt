@@ -6,5 +6,9 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class AuthResponse(
     @SerialName("session_token") val sessionToken: String,
-    val user: UserDto,
-)
+    val user: UserDto? = null,
+    val status: String = "joined",
+) {
+    val isJoined: Boolean get() = status == "joined"
+    val isPending: Boolean get() = status == "pending"
+}
