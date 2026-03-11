@@ -327,6 +327,8 @@ fun AppNavGraph(
             val elapsedSeconds by viewModel.elapsedSeconds.collectAsState()
             val isMicOn by viewModel.isMicOn.collectAsState()
             val isCameraOn by viewModel.isCameraOn.collectAsState()
+            val localVideoTrack by viewModel.localVideoTrack.collectAsState()
+            val remoteVideoTrack by viewModel.remoteVideoTrack.collectAsState()
 
             if (callPhase == CallPhase.ENDED) {
                 LaunchedEffect(Unit) { navController.popBackStack() }
@@ -343,8 +345,12 @@ fun AppNavGraph(
                     elapsedSeconds = elapsedSeconds,
                     isMicOn = isMicOn,
                     isCameraOn = isCameraOn,
+                    localVideoTrack = localVideoTrack,
+                    remoteVideoTrack = remoteVideoTrack,
+                    eglBase = viewModel.eglBase,
                     onMicToggle = viewModel::toggleMic,
                     onCameraToggle = viewModel::toggleCamera,
+                    onSwitchCamera = viewModel::switchCamera,
                     onEndCall = viewModel::endCall,
                 )
             }
@@ -363,26 +369,30 @@ fun AppNavGraph(
             val elapsedSeconds by viewModel.elapsedSeconds.collectAsState()
             val isMicOn by viewModel.isMicOn.collectAsState()
             val isCameraOn by viewModel.isCameraOn.collectAsState()
+            val localVideoTrack by viewModel.localVideoTrack.collectAsState()
+            val remoteVideoTrack by viewModel.remoteVideoTrack.collectAsState()
 
             when (callPhase) {
                 CallPhase.ENDED -> {
                     LaunchedEffect(Unit) { navController.popBackStack() }
                 }
                 CallPhase.CONNECTED -> {
-                    // After accepting: show active call UI
                     CallScreen(
                         contactName = viewModel.contactName,
                         callStatus = CallStatus.CONNECTED,
                         elapsedSeconds = elapsedSeconds,
                         isMicOn = isMicOn,
                         isCameraOn = isCameraOn,
+                        localVideoTrack = localVideoTrack,
+                        remoteVideoTrack = remoteVideoTrack,
+                        eglBase = viewModel.eglBase,
                         onMicToggle = viewModel::toggleMic,
                         onCameraToggle = viewModel::toggleCamera,
+                        onSwitchCamera = viewModel::switchCamera,
                         onEndCall = viewModel::endCall,
                     )
                 }
                 else -> {
-                    // INCOMING phase: show accept/decline
                     IncomingCallScreen(
                         contactName = viewModel.contactName,
                         serverName = viewModel.serverName ?: "",

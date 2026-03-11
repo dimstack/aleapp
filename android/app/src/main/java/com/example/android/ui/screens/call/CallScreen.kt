@@ -4,6 +4,7 @@ import android.content.res.Configuration
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
@@ -34,7 +36,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -43,12 +47,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import com.example.android.ui.components.PulsingAvatar
 import com.example.android.ui.theme.AleAppTheme
+import org.webrtc.EglBase
+import org.webrtc.RendererCommon
+import org.webrtc.VideoTrack
+import kotlin.math.roundToInt
 
 /* ═══════════════════════════════════════════════════════════════════════════ */
 /*  Data                                                                      */
@@ -58,6 +70,39 @@ enum class CallStatus(val label: String) {
     CALLING("Вызов..."),
     RINGING("Звонок..."),
     CONNECTED("Подключено"),
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/*  WebRTC Video Renderer                                                     */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+@Composable
+private fun WebRtcVideoRenderer(
+    videoTrack: VideoTrack,
+    eglBase: EglBase,
+    modifier: Modifier = Modifier,
+    scalingType: RendererCommon.ScalingType = RendererCommon.ScalingType.SCALE_ASPECT_FILL,
+    mirror: Boolean = false,
+) {
+    AndroidView(
+        factory = { context ->
+            org.webrtc.SurfaceViewRenderer(context).apply {
+                init(eglBase.eglBaseContext, null)
+                setScalingType(scalingType)
+                setMirror(mirror)
+                setEnableHardwareScaler(true)
+                videoTrack.addSink(this)
+            }
+        },
+        update = { renderer ->
+            renderer.setMirror(mirror)
+        },
+        onRelease = { renderer ->
+            videoTrack.removeSink(renderer)
+            renderer.release()
+        },
+        modifier = modifier,
+    )
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════ */
@@ -72,6 +117,9 @@ fun CallScreen(
     elapsedSeconds: Int = 0,
     isMicOn: Boolean = true,
     isCameraOn: Boolean = false,
+    localVideoTrack: VideoTrack? = null,
+    remoteVideoTrack: VideoTrack? = null,
+    eglBase: EglBase? = null,
     onMicToggle: () -> Unit = {},
     onCameraToggle: () -> Unit = {},
     onSwitchCamera: () -> Unit = {},
@@ -79,7 +127,6 @@ fun CallScreen(
     modifier: Modifier = Modifier,
 ) {
     val colors = AleAppTheme.colors
-
     var showInfo by remember { mutableStateOf(false) }
 
     Box(
@@ -87,61 +134,76 @@ fun CallScreen(
             .fillMaxSize()
             .background(colors.background),
     ) {
+        // ── Remote video (fullscreen background) ─────────────────────────
+        if (remoteVideoTrack != null && eglBase != null) {
+            WebRtcVideoRenderer(
+                videoTrack = remoteVideoTrack,
+                eglBase = eglBase,
+                modifier = Modifier.fillMaxSize(),
+                scalingType = RendererCommon.ScalingType.SCALE_ASPECT_FILL,
+            )
+        }
+
+        // ── Main UI overlay ──────────────────────────────────────────────
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.statusBars),
         ) {
-            // ── Header ──────────────────────────────────────────────────────
+            // ── Header ───────────────────────────────────────────────────
             Header(
                 callStatus = callStatus,
                 elapsedSeconds = elapsedSeconds,
-                contentColor = colors.foreground,
+                contentColor = if (remoteVideoTrack != null) Color.White else colors.foreground,
                 onInfoClick = { showInfo = !showInfo },
             )
 
-            // ── Center: avatar + name + status ──────────────────────────────
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-            ) {
-                // Avatar with pulse rings during calling/ringing
-                PulsingAvatar(
-                    initials = contactInitials,
-                    isPulsing = callStatus != CallStatus.CONNECTED,
-                    accentColor = colors.accent,
-                    backgroundColor = colors.secondary,
-                    textColor = colors.foreground,
-                )
+            // ── Center: avatar + name (hidden when remote video is active)
+            if (remoteVideoTrack == null) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    PulsingAvatar(
+                        initials = contactInitials,
+                        isPulsing = callStatus != CallStatus.CONNECTED,
+                        accentColor = colors.accent,
+                        backgroundColor = colors.secondary,
+                        textColor = colors.foreground,
+                    )
 
-                Spacer(Modifier.height(24.dp))
+                    Spacer(Modifier.height(24.dp))
 
-                Text(
-                    text = contactName,
-                    style = MaterialTheme.typography.headlineLarge.copy(
-                        fontWeight = FontWeight.SemiBold,
-                    ),
-                    color = colors.foreground,
-                    textAlign = TextAlign.Center,
-                )
+                    Text(
+                        text = contactName,
+                        style = MaterialTheme.typography.headlineLarge.copy(
+                            fontWeight = FontWeight.SemiBold,
+                        ),
+                        color = colors.foreground,
+                        textAlign = TextAlign.Center,
+                    )
 
-                Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(8.dp))
 
-                Text(
-                    text = callStatus.label,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = colors.mutedForeground,
-                )
+                    Text(
+                        text = callStatus.label,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = colors.mutedForeground,
+                    )
+                }
+            } else {
+                Spacer(Modifier.weight(1f))
             }
 
-            // ── Controls ────────────────────────────────────────────────────
+            // ── Controls ─────────────────────────────────────────────────
             ControlBar(
                 isMicOn = isMicOn,
                 isCameraOn = isCameraOn,
                 colors = colors,
+                hasRemoteVideo = remoteVideoTrack != null,
                 onMicToggle = onMicToggle,
                 onCameraToggle = onCameraToggle,
                 onSwitchCamera = onSwitchCamera,
@@ -150,7 +212,19 @@ fun CallScreen(
             )
         }
 
-        // ── Info panel overlay ──────────────────────────────────────────────
+        // ── Local video PiP (draggable, top-end) ─────────────────────────
+        if (localVideoTrack != null && eglBase != null && isCameraOn) {
+            DraggableLocalVideo(
+                videoTrack = localVideoTrack,
+                eglBase = eglBase,
+                modifier = Modifier
+                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .padding(top = 72.dp, end = 16.dp)
+                    .align(Alignment.TopEnd),
+            )
+        }
+
+        // ── Info panel overlay ───────────────────────────────────────────
         if (showInfo) {
             InfoPanel(
                 contactName = contactName,
@@ -161,6 +235,42 @@ fun CallScreen(
                     .padding(top = 64.dp, end = 16.dp),
             )
         }
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/*  DraggableLocalVideo                                                       */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+@Composable
+private fun DraggableLocalVideo(
+    videoTrack: VideoTrack,
+    eglBase: EglBase,
+    modifier: Modifier = Modifier,
+) {
+    var offsetX by remember { mutableFloatStateOf(0f) }
+    var offsetY by remember { mutableFloatStateOf(0f) }
+
+    Box(
+        modifier = modifier
+            .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
+            .size(width = 120.dp, height = 160.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .pointerInput(Unit) {
+                detectDragGestures { change, dragAmount ->
+                    change.consume()
+                    offsetX += dragAmount.x
+                    offsetY += dragAmount.y
+                }
+            },
+    ) {
+        WebRtcVideoRenderer(
+            videoTrack = videoTrack,
+            eglBase = eglBase,
+            modifier = Modifier.fillMaxSize(),
+            scalingType = RendererCommon.ScalingType.SCALE_ASPECT_FILL,
+            mirror = true,
+        )
     }
 }
 
@@ -297,14 +407,25 @@ private fun ControlBar(
     isMicOn: Boolean,
     isCameraOn: Boolean,
     colors: com.example.android.ui.theme.AleAppColors,
+    hasRemoteVideo: Boolean = false,
     onMicToggle: () -> Unit,
     onCameraToggle: () -> Unit,
     onSwitchCamera: () -> Unit,
     onEndCall: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val buttonBg = colors.foreground.copy(alpha = 0.1f)
-    val buttonBgDim = colors.foreground.copy(alpha = 0.05f)
+    // When remote video is active, use semi-transparent white buttons for contrast
+    val buttonBg = if (hasRemoteVideo) {
+        Color.White.copy(alpha = 0.2f)
+    } else {
+        colors.foreground.copy(alpha = 0.1f)
+    }
+    val buttonBgDim = if (hasRemoteVideo) {
+        Color.White.copy(alpha = 0.1f)
+    } else {
+        colors.foreground.copy(alpha = 0.05f)
+    }
+    val iconColor = if (hasRemoteVideo) Color.White else colors.foreground
 
     Row(
         modifier = modifier
@@ -319,7 +440,7 @@ private fun ControlBar(
                 icon = if (isMicOn) Icons.Filled.Mic else Icons.Filled.MicOff,
                 contentDescription = if (isMicOn) "Выключить микрофон" else "Включить микрофон",
                 backgroundColor = if (isMicOn) buttonBg else colors.callDecline,
-                iconTint = if (isMicOn) colors.foreground else colors.destructiveForeground,
+                iconTint = if (isMicOn) iconColor else colors.destructiveForeground,
                 onClick = onMicToggle,
             )
 
@@ -328,7 +449,7 @@ private fun ControlBar(
                 icon = if (isCameraOn) Icons.Filled.Videocam else Icons.Filled.VideocamOff,
                 contentDescription = if (isCameraOn) "Выключить камеру" else "Включить камеру",
                 backgroundColor = if (isCameraOn) buttonBg else buttonBgDim,
-                iconTint = colors.foreground,
+                iconTint = iconColor,
                 onClick = onCameraToggle,
             )
 
@@ -337,7 +458,7 @@ private fun ControlBar(
                 icon = Icons.Filled.Cameraswitch,
                 contentDescription = "Переключить камеру",
                 backgroundColor = buttonBg,
-                iconTint = colors.foreground,
+                iconTint = iconColor,
                 onClick = onSwitchCamera,
             )
 
@@ -464,6 +585,19 @@ private fun CallScreenDarkConnectedPreview() {
             contactName = "Елена Иванова",
             callStatus = CallStatus.CONNECTED,
             elapsedSeconds = 83,
+        )
+    }
+}
+
+@Preview(name = "CallScreen — Light Camera on", showBackground = true, showSystemUi = true)
+@Composable
+private fun CallScreenLightCameraOnPreview() {
+    AleAppTheme(darkTheme = false) {
+        CallScreen(
+            contactName = "Алексей Козлов",
+            callStatus = CallStatus.CONNECTED,
+            elapsedSeconds = 45,
+            isCameraOn = true,
         )
     }
 }
