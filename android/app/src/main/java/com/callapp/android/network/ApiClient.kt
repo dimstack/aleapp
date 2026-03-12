@@ -15,6 +15,7 @@ import com.callapp.android.network.dto.JoinRequestDto
 import com.callapp.android.network.dto.NotificationDto
 import com.callapp.android.network.dto.ServerDto
 import com.callapp.android.network.dto.SubmitJoinRequest
+import com.callapp.android.network.dto.TurnCredentialsDto
 import com.callapp.android.network.dto.UpdateServerRequest
 import com.callapp.android.network.dto.UpdateUserRequest
 import com.callapp.android.network.dto.UserDto
@@ -245,6 +246,13 @@ class ApiClient(private val baseUrl: String) {
     /** DELETE /api/notifications — очистить все уведомления. */
     suspend fun clearNotifications(): ApiResult<Unit> = request {
         httpClient.delete("api/notifications")
+    }
+
+    // ── TURN Credentials ─────────────────────────────────────────────────
+
+    /** GET /api/turn-credentials — получить TURN-креденшалы для WebRTC. */
+    suspend fun getTurnCredentials(): ApiResult<TurnCredentialsDto> = request {
+        httpClient.get("api/turn-credentials").body<TurnCredentialsDto>()
     }
 
     // ── Error handling ───────────────────────────────────────────────────

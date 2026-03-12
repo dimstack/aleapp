@@ -52,8 +52,8 @@ class WebRtcManager(
 
     fun createPeerConnection(
         serverAddress: String,
-        turnUsername: String = DEFAULT_TURN_USERNAME,
-        turnPassword: String = DEFAULT_TURN_PASSWORD,
+        turnUsername: String,
+        turnPassword: String,
     ) {
         this.serverAddress = serverAddress
         val iceServers = buildIceServers(serverAddress, turnUsername, turnPassword)
@@ -268,8 +268,6 @@ class WebRtcManager(
         private const val VIDEO_TRACK_ID = "local_video"
 
         private const val STUN_URL = "stun:stun.l.google.com:19302"
-        private const val DEFAULT_TURN_USERNAME = "callapp"
-        private const val DEFAULT_TURN_PASSWORD = "callapp"
 
         private const val VIDEO_WIDTH = 1280
         private const val VIDEO_HEIGHT = 720

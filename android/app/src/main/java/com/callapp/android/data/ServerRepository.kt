@@ -11,23 +11,16 @@ class ServerRepository(private val connectionManager: ServerConnectionManager) {
 
     /**
      * Список серверов, к которым подключён пользователь.
-     * Reads from persistent SessionStore if available, falls back to SampleData.
+     * Reads from persistent SessionStore.
      */
     fun getConnectedServers(): List<Server> {
-        val store = getSessionStoreOrNull()
-        if (store != null) {
-            val stored = store.getConnectedServers()
-            if (stored.isNotEmpty()) return stored
-        }
-        return SampleData.servers
+        val store = getSessionStoreOrNull() ?: return emptyList()
+        return store.getConnectedServers()
     }
 
     /** Получить сервер по ID из локального списка. */
     fun getServerById(id: String): Server? =
         getConnectedServers().find { it.id == id }
-
-    /** Избранные контакты (пока локальные данные). */
-    fun getFavorites(): List<User> = SampleData.favorites
 
     /** GET /api/users — список участников сервера (сетевой запрос). */
     suspend fun getUsers(serverAddress: String): ApiResult<List<User>> {

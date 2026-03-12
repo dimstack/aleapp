@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.callapp.android.data.ServiceLocator
 import com.callapp.android.domain.model.Server
 import com.callapp.android.domain.model.User
+import com.callapp.android.network.result.ApiResult
 import com.callapp.android.ui.common.UiState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -33,8 +34,18 @@ class HomeViewModel : ViewModel() {
             _serversState.value = UiState.Loading
             _favoritesState.value = UiState.Loading
             try {
-                _serversState.value = UiState.Success(repo.getConnectedServers())
-                _favoritesState.value = UiState.Success(repo.getFavorites())
+                val servers = repo.getConnectedServers()
+                _serversState.value = UiState.Success(servers)
+
+                val activeAddress = ServiceLocator.activeServerAddress
+                if (activeAddress.isNotEmpty()) {
+                    when (val result = repo.getFavoritesRemote(activeAddress)) {
+                        is ApiResult.Success -> _favoritesState.value = UiState.Success(result.data)
+                        is ApiResult.Failure -> _favoritesState.value = UiState.Success(emptyList())
+                    }
+                } else {
+                    _favoritesState.value = UiState.Success(emptyList())
+                }
             } catch (e: Exception) {
                 _serversState.value = UiState.Error("Не удалось загрузить данные")
                 _favoritesState.value = UiState.Error("Не удалось загрузить данные")

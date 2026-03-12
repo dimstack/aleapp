@@ -74,7 +74,7 @@ internal val sampleManageData = ServerManageData(
     name = "Tech Community",
     username = "tech_community",
     description = "Сообщество разработчиков и технических специалистов. Обсуждаем последние технологии и делимся опытом.",
-    imageUrl = "https://images.unsplash.com/photo",
+    imageUrl = "",
 )
 
 /* ═══════════════════════════════════════════════════════════════════════════ */

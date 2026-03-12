@@ -2,6 +2,8 @@ package com.callapp.android.data
 
 import android.content.Context
 import android.util.Log
+import com.callapp.android.network.ServerConnectionManager
+import com.callapp.android.network.result.ApiResult
 import com.callapp.android.network.signaling.SignalingClient
 import com.callapp.android.network.signaling.SignalMessage
 import com.callapp.android.webrtc.WebRtcManager
@@ -29,6 +31,7 @@ class CallRepository(
     context: Context,
     private val signalingClient: SignalingClient,
     private val serverAddress: String,
+    private val connectionManager: ServerConnectionManager = ServiceLocator.connectionManager,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
@@ -91,14 +94,35 @@ class CallRepository(
         }
     }
 
+    // ── TURN credentials ─────────────────────────────────────────────────
+
+    private var turnUsername: String = ""
+    private var turnPassword: String = ""
+
+    private suspend fun fetchTurnCredentials() {
+        val client = connectionManager.getClient(serverAddress)
+        when (val result = client.getTurnCredentials()) {
+            is ApiResult.Success -> {
+                turnUsername = result.data.username
+                turnPassword = result.data.credential
+            }
+            is ApiResult.Failure -> {
+                Log.w(TAG, "Failed to fetch TURN credentials, calls may fail behind strict NAT")
+                turnUsername = ""
+                turnPassword = ""
+            }
+        }
+    }
+
     // ── Outgoing call ────────────────────────────────────────────────────
 
-    fun startOutgoingCall(targetUserId: String, enableVideo: Boolean) {
+    suspend fun startOutgoingCall(targetUserId: String, enableVideo: Boolean) {
         this.targetUserId = targetUserId
         _connectionState.value = CallConnectionState.CONNECTING
 
+        fetchTurnCredentials()
         webRtcManager.startCapture(enableVideo = enableVideo, enableAudio = true)
-        webRtcManager.createPeerConnection(serverAddress)
+        webRtcManager.createPeerConnection(serverAddress, turnUsername, turnPassword)
         peerConnectionReady = true
 
         webRtcManager.createOffer { sdp ->
@@ -113,12 +137,13 @@ class CallRepository(
 
     // ── Incoming call ────────────────────────────────────────────────────
 
-    fun acceptIncomingCall(callerUserId: String, enableVideo: Boolean) {
+    suspend fun acceptIncomingCall(callerUserId: String, enableVideo: Boolean) {
         this.targetUserId = callerUserId
         _connectionState.value = CallConnectionState.CONNECTING
 
+        fetchTurnCredentials()
         webRtcManager.startCapture(enableVideo = enableVideo, enableAudio = true)
-        webRtcManager.createPeerConnection(serverAddress)
+        webRtcManager.createPeerConnection(serverAddress, turnUsername, turnPassword)
         peerConnectionReady = true
 
         // Apply buffered remote offer
