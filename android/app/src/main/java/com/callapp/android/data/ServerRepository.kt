@@ -5,6 +5,7 @@ import com.callapp.android.domain.model.Server
 import com.callapp.android.domain.model.User
 import com.callapp.android.network.ServerConnectionManager
 import com.callapp.android.network.dto.AuthResponse
+import com.callapp.android.network.dto.ConnectResponse
 import com.callapp.android.network.result.ApiResult
 
 class ServerRepository(private val connectionManager: ServerConnectionManager) {
@@ -28,12 +29,11 @@ class ServerRepository(private val connectionManager: ServerConnectionManager) {
     }
 
     /** POST /api/auth — авторизация по invite-токену. */
-    suspend fun auth(
+    suspend fun connect(
         serverAddress: String,
         inviteToken: String,
-        displayName: String,
-    ): ApiResult<AuthResponse> {
-        return connectionManager.getClient(serverAddress).auth(inviteToken, displayName)
+    ): ApiResult<ConnectResponse> {
+        return connectionManager.getClient(serverAddress).connect(inviteToken)
     }
 
     /** POST /api/auth/login — вход в существующий аккаунт. */

@@ -60,8 +60,18 @@ class ServerManagementViewModel(
         if (serverAddress.isEmpty()) return
         _state.value = _state.value.copy(isSaving = true, actionError = null)
         viewModelScope.launch {
-            when (repository.updateServer(serverAddress, name, username, description, imageUrl)) {
+            when (val result = repository.updateServer(serverAddress, name, username, description, imageUrl)) {
                 is ApiResult.Success -> {
+                    try {
+                        ServiceLocator.sessionStore.updateServerMetadata(
+                            serverAddress = serverAddress,
+                            serverId = result.data.id,
+                            serverName = result.data.name,
+                            serverUsername = result.data.username,
+                        )
+                    } catch (_: UninitializedPropertyAccessException) {
+                        // Ignore in previews/tests.
+                    }
                     _state.value = _state.value.copy(isSaving = false, saveSuccess = true)
                 }
                 is ApiResult.Failure -> {
@@ -80,6 +90,15 @@ class ServerManagementViewModel(
         viewModelScope.launch {
             when (repository.deleteServer(serverAddress)) {
                 is ApiResult.Success -> {
+                    try {
+                        ServiceLocator.sessionStore.removeSession(serverAddress)
+                    } catch (_: UninitializedPropertyAccessException) {
+                        // Ignore in previews/tests.
+                    }
+                    if (ServiceLocator.activeServerAddress == serverAddress) {
+                        ServiceLocator.activeServerAddress = ""
+                        ServiceLocator.currentUserId = ""
+                    }
                     _state.value = _state.value.copy(isDeleting = false, deleteSuccess = true)
                 }
                 is ApiResult.Failure -> {

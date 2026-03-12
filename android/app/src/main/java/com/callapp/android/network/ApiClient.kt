@@ -4,8 +4,9 @@ import com.callapp.android.domain.model.JoinRequest
 import com.callapp.android.domain.model.Server
 import com.callapp.android.domain.model.User
 import com.callapp.android.domain.model.InviteToken
-import com.callapp.android.network.dto.AuthRequest
 import com.callapp.android.network.dto.AuthResponse
+import com.callapp.android.network.dto.ConnectRequest
+import com.callapp.android.network.dto.ConnectResponse
 import com.callapp.android.network.dto.CreateInviteTokenRequest
 import com.callapp.android.network.dto.CreateUserRequest
 import com.callapp.android.network.dto.LoginRequest
@@ -65,9 +66,9 @@ class ApiClient(private val baseUrl: String) {
     // ── Authentication ───────────────────────────────────────────────────
 
     /** POST /api/auth — авторизация по invite-токену. */
-    suspend fun auth(inviteToken: String, displayName: String): ApiResult<AuthResponse> = request {
-        val response: AuthResponse = httpClient.post("api/auth") {
-            setBody(AuthRequest(inviteToken = inviteToken, displayName = displayName))
+    suspend fun connect(inviteToken: String): ApiResult<ConnectResponse> = request {
+        val response: ConnectResponse = httpClient.post("api/connect") {
+            setBody(ConnectRequest(token = inviteToken))
         }.body()
         sessionToken = response.sessionToken
         response

@@ -22,7 +22,7 @@ class HomeViewModel : ViewModel() {
     private val _favoritesState = MutableStateFlow<UiState<List<User>>>(UiState.Loading)
     val favoritesState: StateFlow<UiState<List<User>>> = _favoritesState.asStateFlow()
 
-    private val _notificationCount = MutableStateFlow(1)
+    private val _notificationCount = MutableStateFlow(0)
     val notificationCount: StateFlow<Int> = _notificationCount.asStateFlow()
 
     init {
@@ -43,12 +43,23 @@ class HomeViewModel : ViewModel() {
                         is ApiResult.Success -> _favoritesState.value = UiState.Success(result.data)
                         is ApiResult.Failure -> _favoritesState.value = UiState.Success(emptyList())
                     }
+
+                    when (val result = ServiceLocator.connectionManager.getClient(activeAddress).getNotifications()) {
+                        is ApiResult.Success -> {
+                            _notificationCount.value = result.data.count { !it.isRead }
+                        }
+                        is ApiResult.Failure -> {
+                            _notificationCount.value = 0
+                        }
+                    }
                 } else {
                     _favoritesState.value = UiState.Success(emptyList())
+                    _notificationCount.value = 0
                 }
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 _serversState.value = UiState.Error("Не удалось загрузить данные")
                 _favoritesState.value = UiState.Error("Не удалось загрузить данные")
+                _notificationCount.value = 0
             }
         }
     }

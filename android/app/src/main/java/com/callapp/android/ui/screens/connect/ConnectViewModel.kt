@@ -3,7 +3,9 @@ package com.callapp.android.ui.screens.connect
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.callapp.android.data.ServiceLocator
+import com.callapp.android.domain.model.Server
 import com.callapp.android.network.ServerConnectionManager
+import com.callapp.android.network.dto.toDomain
 import com.callapp.android.network.result.ApiError
 import com.callapp.android.network.result.ApiResult
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,7 +40,6 @@ class ConnectViewModel : ViewModel() {
     private val _state = MutableStateFlow<ConnectUiState>(ConnectUiState.Idle)
     val state: StateFlow<ConnectUiState> = _state.asStateFlow()
 
-    /** Current server address and token for reuse in login/create. */
     var currentServerAddress: String = ""
         private set
     var currentTokenCode: String = ""
@@ -57,7 +58,7 @@ class ConnectViewModel : ViewModel() {
         _state.value = ConnectUiState.Loading
 
         viewModelScope.launch {
-            when (val result = repo.auth(serverAddress, tokenCode, "")) {
+            when (val result = repo.connect(serverAddress, tokenCode)) {
                 is ApiResult.Success -> {
                     val response = result.data
                     currentServerAddress = serverAddress
@@ -73,8 +74,12 @@ class ConnectViewModel : ViewModel() {
                             )
                         }
                         response.isJoined && response.user != null -> {
-                            // Already a member — save session and go home
-                            saveSession(serverAddress, response.sessionToken, response.user.id)
+                            saveSession(
+                                serverAddress = serverAddress,
+                                sessionToken = response.sessionToken,
+                                userId = response.user.id,
+                                server = response.server?.toDomain(serverAddress),
+                            )
                             _state.value = ConnectUiState.Joined(
                                 serverAddress = serverAddress,
                                 serverName = currentServerName,
@@ -88,7 +93,6 @@ class ConnectViewModel : ViewModel() {
                             )
                         }
                         else -> {
-                            // Default: show auth choice (register / login)
                             _state.value = ConnectUiState.AuthChoice(
                                 serverAddress = serverAddress,
                                 serverName = currentServerName,
@@ -101,7 +105,7 @@ class ConnectViewModel : ViewModel() {
                     val message = when (result.error) {
                         ApiError.NetworkError -> "Нет соединения с сервером"
                         ApiError.NotFound -> "Сервер не найден"
-                        ApiError.Unauthorized -> "Токен недействителен или истёк"
+                        ApiError.Unauthorized -> "Токен недействителен или истек"
                         ApiError.ServerError -> "Ошибка сервера"
                     }
                     _state.value = ConnectUiState.Error(message)
@@ -110,10 +114,9 @@ class ConnectViewModel : ViewModel() {
         }
     }
 
-    /** Create a new account on the server. */
     fun createProfile(username: String, name: String, password: String) {
         if (currentServerAddress.isEmpty()) {
-            _state.value = ConnectUiState.Error("Сервер не определён")
+            _state.value = ConnectUiState.Error("Сервер не определен")
             return
         }
 
@@ -129,7 +132,21 @@ class ConnectViewModel : ViewModel() {
                 is ApiResult.Success -> {
                     val user = result.data
                     val token = client.sessionToken ?: ""
-                    saveSession(currentServerAddress, token, user.id)
+                    val server = when (val serverResult = client.getServer()) {
+                        is ApiResult.Success -> serverResult.data
+                        is ApiResult.Failure -> Server(
+                            id = currentServerAddress,
+                            name = currentServerName.ifBlank { currentServerAddress },
+                            username = "",
+                            address = currentServerAddress,
+                        )
+                    }
+                    saveSession(
+                        serverAddress = currentServerAddress,
+                        sessionToken = token,
+                        userId = user.id,
+                        server = server,
+                    )
                     _state.value = ConnectUiState.Joined(
                         serverAddress = currentServerAddress,
                         serverName = currentServerName,
@@ -147,10 +164,9 @@ class ConnectViewModel : ViewModel() {
         }
     }
 
-    /** Login with existing credentials. */
     fun login(username: String, password: String) {
         if (currentServerAddress.isEmpty() || currentTokenCode.isEmpty()) {
-            _state.value = ConnectUiState.Error("Сервер не определён")
+            _state.value = ConnectUiState.Error("Сервер не определен")
             return
         }
 
@@ -166,9 +182,10 @@ class ConnectViewModel : ViewModel() {
                 is ApiResult.Success -> {
                     val response = result.data
                     saveSession(
-                        currentServerAddress,
-                        response.sessionToken,
-                        response.user?.id ?: "",
+                        serverAddress = currentServerAddress,
+                        sessionToken = response.sessionToken,
+                        userId = response.user?.id ?: "",
+                        server = response.server?.toDomain(currentServerAddress),
                     )
                     _state.value = ConnectUiState.Joined(
                         serverAddress = currentServerAddress,
@@ -176,9 +193,7 @@ class ConnectViewModel : ViewModel() {
                     )
                 }
                 is ApiResult.Failure -> {
-                    _state.value = ConnectUiState.LoginError(
-                        "Неверный username или пароль",
-                    )
+                    _state.value = ConnectUiState.LoginError("Неверный username или пароль")
                 }
             }
         }
@@ -188,15 +203,26 @@ class ConnectViewModel : ViewModel() {
         _state.value = ConnectUiState.Idle
     }
 
-    private fun saveSession(serverAddress: String, sessionToken: String, userId: String) {
+    private fun saveSession(
+        serverAddress: String,
+        sessionToken: String,
+        userId: String,
+        server: Server? = null,
+    ) {
         ServiceLocator.activeServerAddress = serverAddress
         ServiceLocator.currentUserId = userId
         connectionManager.restoreSession(serverAddress, sessionToken)
-        // Persist session for app restart
         try {
-            ServiceLocator.sessionStore.saveSession(serverAddress, sessionToken, userId)
+            ServiceLocator.sessionStore.saveSession(
+                serverAddress = serverAddress,
+                sessionToken = sessionToken,
+                userId = userId,
+                serverName = server?.name.orEmpty(),
+                serverUsername = server?.username.orEmpty(),
+                serverId = server?.id.orEmpty(),
+            )
         } catch (_: UninitializedPropertyAccessException) {
-            // SessionStore not yet initialized (shouldn't happen in normal flow)
+            // SessionStore is not initialized yet. This should not happen in normal flow.
         }
     }
 }

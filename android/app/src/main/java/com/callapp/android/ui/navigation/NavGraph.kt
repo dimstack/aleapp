@@ -222,7 +222,8 @@ fun AppNavGraph(
 
             InviteTokensScreen(
                 tokens = tokens,
-                serverAddress = "",
+                serverAddress = viewModel.currentServerAddress,
+                isLoading = state is InviteTokensUiState.Loading || isCreating,
                 onBack = { navController.popBackStack() },
                 onCreateToken = { label, maxUses, role, approval ->
                     viewModel.createToken(label, maxUses, role, approval)

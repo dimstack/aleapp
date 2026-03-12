@@ -35,6 +35,9 @@ class InviteTokensViewModel(
     private val _isCreating = MutableStateFlow(false)
     val isCreating: StateFlow<Boolean> = _isCreating.asStateFlow()
 
+    val currentServerAddress: String
+        get() = serverAddress
+
     init {
         val server = repository.getServerById(serverId)
         serverAddress = server?.address ?: ""

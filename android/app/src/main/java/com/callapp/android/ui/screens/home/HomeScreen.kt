@@ -58,6 +58,7 @@ import com.callapp.android.domain.model.User
 import com.callapp.android.domain.model.UserStatus
 import com.callapp.android.ui.common.UiState
 import com.callapp.android.ui.components.AleAppCard
+import com.callapp.android.ui.preview.PreviewData
 import com.callapp.android.ui.theme.AleAppTheme
 import kotlin.math.absoluteValue
 
@@ -86,8 +87,8 @@ private fun serverImageColor(name: String): Color =
 
 @Composable
 fun HomeScreen(
-    favoritesState: UiState<List<User>> = UiState.Success(SampleData.favorites),
-    serversState: UiState<List<Server>> = UiState.Success(SampleData.servers),
+    favoritesState: UiState<List<User>> = UiState.Success(PreviewData.favorites),
+    serversState: UiState<List<Server>> = UiState.Success(PreviewData.servers),
     notificationCount: Int = 1,
     onServerClick: (String) -> Unit = {},
     onSettingsClick: () -> Unit = {},
@@ -678,7 +679,7 @@ private fun FavoriteOnlinePreview() {
     AleAppTheme(darkTheme = false) {
         Surface(color = AleAppTheme.colors.card) {
             FavoriteContactRow(
-                user = SampleData.userAnna,
+                user = PreviewData.userAnna,
                 onCallClick = {},
             )
         }
@@ -691,7 +692,7 @@ private fun FavoriteOfflinePreview() {
     AleAppTheme(darkTheme = false) {
         Surface(color = AleAppTheme.colors.card) {
             FavoriteContactRow(
-                user = SampleData.userMaria,
+                user = PreviewData.userMaria,
                 onCallClick = {},
             )
         }
@@ -704,7 +705,7 @@ private fun FavoriteDarkPreview() {
     AleAppTheme(darkTheme = true) {
         Surface(color = AleAppTheme.colors.card) {
             FavoriteContactRow(
-                user = SampleData.userDmitry,
+                user = PreviewData.userDmitry,
                 onCallClick = {},
             )
         }
@@ -747,7 +748,7 @@ private fun ServerRowPreview() {
     AleAppTheme(darkTheme = false) {
         Surface(color = AleAppTheme.colors.card) {
             ServerRow(
-                server = SampleData.serverTech,
+                server = PreviewData.serverTech,
                 onClick = {},
             )
         }
@@ -760,7 +761,7 @@ private fun ServerRowDarkPreview() {
     AleAppTheme(darkTheme = true) {
         Surface(color = AleAppTheme.colors.card) {
             ServerRow(
-                server = SampleData.serverCreative,
+                server = PreviewData.serverCreative,
                 onClick = {},
             )
         }
