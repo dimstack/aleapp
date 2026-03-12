@@ -77,6 +77,68 @@ class ServerRepository(private val connectionManager: ServerConnectionManager) {
         return connectionManager.getClient(serverAddress).revokeInviteToken(tokenId)
     }
 
+    // ── Server Management ───────────────────────────────────────────
+
+    /** GET /api/server — информация о сервере. */
+    suspend fun getServerRemote(serverAddress: String): ApiResult<Server> {
+        return connectionManager.getClient(serverAddress).getServer()
+    }
+
+    /** PUT /api/server — обновить данные сервера (только админ). */
+    suspend fun updateServer(
+        serverAddress: String,
+        name: String? = null,
+        username: String? = null,
+        description: String? = null,
+        imageUrl: String? = null,
+    ): ApiResult<Server> {
+        return connectionManager.getClient(serverAddress)
+            .updateServer(name, username, description, imageUrl)
+    }
+
+    /** DELETE /api/server — удалить сервер (только админ). */
+    suspend fun deleteServer(serverAddress: String): ApiResult<Unit> {
+        return connectionManager.getClient(serverAddress).deleteServer()
+    }
+
+    // ── User Profile ────────────────────────────────────────────────
+
+    /** GET /api/users/{id} — профиль пользователя. */
+    suspend fun getUser(serverAddress: String, userId: String): ApiResult<User> {
+        return connectionManager.getClient(serverAddress).getUser(userId)
+    }
+
+    /** PUT /api/users/{id} — обновить профиль. */
+    suspend fun updateUser(
+        serverAddress: String,
+        userId: String,
+        name: String? = null,
+        username: String? = null,
+        avatarUrl: String? = null,
+    ): ApiResult<User> {
+        return connectionManager.getClient(serverAddress)
+            .updateUser(userId, name, username, avatarUrl)
+    }
+
+    // ── Favorites ───────────────────────────────────────────────────
+
+    /** GET /api/favorites — список избранных (сетевой запрос). */
+    suspend fun getFavoritesRemote(serverAddress: String): ApiResult<List<User>> {
+        return connectionManager.getClient(serverAddress).getFavorites()
+    }
+
+    /** POST /api/favorites/{userId} — добавить в избранные. */
+    suspend fun addFavorite(serverAddress: String, userId: String): ApiResult<Unit> {
+        return connectionManager.getClient(serverAddress).addFavorite(userId)
+    }
+
+    /** DELETE /api/favorites/{userId} — удалить из избранных. */
+    suspend fun removeFavorite(serverAddress: String, userId: String): ApiResult<Unit> {
+        return connectionManager.getClient(serverAddress).removeFavorite(userId)
+    }
+
+    // ── Disconnect ──────────────────────────────────────────────────
+
     fun disconnect(serverAddress: String) {
         connectionManager.removeClient(serverAddress)
     }

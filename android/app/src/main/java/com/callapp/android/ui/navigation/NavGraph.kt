@@ -9,6 +9,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.callapp.android.ui.IncomingCallHandler
 import com.callapp.android.ui.components.RequestCallPermissions
 import com.callapp.android.ui.components.videoCallPermissions
 import androidx.navigation.NavHostController
@@ -24,14 +25,14 @@ import com.callapp.android.ui.screens.joinrequests.JoinRequestsScreen
 import com.callapp.android.ui.screens.joinrequests.JoinRequestItem
 import com.callapp.android.ui.screens.joinrequests.JoinRequestsViewModel
 import com.callapp.android.ui.screens.servermanage.InviteTokensScreen
+import com.callapp.android.ui.screens.servermanage.InviteTokensUiState
+import com.callapp.android.ui.screens.servermanage.InviteTokensViewModel
 import com.callapp.android.ui.screens.servermanage.ServerManagementScreen
-import com.callapp.android.ui.screens.servermanage.ServerManageData
-import com.callapp.android.ui.screens.servermanage.sampleManageData
-import com.callapp.android.ui.screens.servermanage.sampleTokens
+import com.callapp.android.ui.screens.servermanage.ServerManagementViewModel
 import com.callapp.android.ui.screens.profile.MyProfileScreen
-import com.callapp.android.ui.screens.profile.MyProfileData
+import com.callapp.android.ui.screens.profile.MyProfileViewModel
 import com.callapp.android.ui.screens.profile.UserProfileScreen
-import com.callapp.android.ui.screens.profile.UserProfileData
+import com.callapp.android.ui.screens.profile.UserProfileViewModel
 import com.callapp.android.ui.screens.call.CallPhase
 import com.callapp.android.ui.screens.call.CallScreen
 import com.callapp.android.ui.screens.call.CallStatus
@@ -61,6 +62,15 @@ fun AppNavGraph(
 ) {
     // Shared ConnectViewModel scoped to the nav graph for the onboarding flow
     val connectViewModel: ConnectViewModel = viewModel()
+
+    // Listen for incoming calls globally and navigate to IncomingCallScreen
+    IncomingCallHandler { userId, contactName, serverName ->
+        val encodedName = java.net.URLEncoder.encode(contactName, "UTF-8")
+        val encodedServer = java.net.URLEncoder.encode(serverName, "UTF-8")
+        navController.navigate(
+            Route.IncomingCall.createRoute(userId, encodedName, encodedServer)
+        )
+    }
 
     NavHost(
         navController = navController,
@@ -165,67 +175,80 @@ fun AppNavGraph(
         composable(
             route = Route.ServerManagement.route,
             arguments = listOf(navArgument("serverId") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val serverId = backStackEntry.arguments?.getString("serverId") ?: ""
-            // TODO: replace with ServerManagementViewModel using real API
-            val manageData = sampleManageData.copy(id = serverId)
+        ) {
+            val viewModel: ServerManagementViewModel = viewModel()
+            val state by viewModel.state.collectAsState()
+            val manageData = state.data
 
-            ServerManagementScreen(
-                initial = manageData,
-                onBack = { navController.popBackStack() },
-                onSave = { _, _, _, _ ->
-                    navController.popBackStack()
-                },
-                onDeleteServer = {
-                    // TODO: handle delete — pop to Home
-                },
-                onInviteTokens = {
-                    navController.navigate(Route.InviteTokens.createRoute(serverId))
-                },
-            )
+            LaunchedEffect(state.saveSuccess) {
+                if (state.saveSuccess) navController.popBackStack()
+            }
+            LaunchedEffect(state.deleteSuccess) {
+                if (state.deleteSuccess) {
+                    navController.navigate(Route.Home.route) {
+                        popUpTo(Route.Home.route) { inclusive = true }
+                    }
+                }
+            }
+
+            if (manageData != null) {
+                ServerManagementScreen(
+                    initial = manageData,
+                    onBack = { navController.popBackStack() },
+                    onSave = { name, username, description, imageUrl ->
+                        viewModel.save(name, username, description, imageUrl)
+                    },
+                    onDeleteServer = { viewModel.deleteServer() },
+                    onInviteTokens = {
+                        navController.navigate(Route.InviteTokens.createRoute(manageData.id))
+                    },
+                )
+            }
         }
 
         composable(
             route = Route.InviteTokens.route,
             arguments = listOf(navArgument("serverId") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val serverId = backStackEntry.arguments?.getString("serverId") ?: ""
+        ) {
+            val viewModel: InviteTokensViewModel = viewModel()
+            val state by viewModel.state.collectAsState()
+            val isCreating by viewModel.isCreating.collectAsState()
 
-            // TODO: replace with real InviteTokensViewModel wired to API
+            val tokens = when (val s = state) {
+                is InviteTokensUiState.Success -> s.tokens
+                else -> emptyList()
+            }
+            val actionError = (state as? InviteTokensUiState.Success)?.actionError
+
             InviteTokensScreen(
-                tokens = sampleTokens,
-                serverAddress = "192.168.1.100:3000",
+                tokens = tokens,
+                serverAddress = "",
                 onBack = { navController.popBackStack() },
                 onCreateToken = { label, maxUses, role, approval ->
-                    // TODO: handle create token via API
+                    viewModel.createToken(label, maxUses, role, approval)
                 },
-                onRevokeToken = { tokenId ->
-                    // TODO: handle revoke via API
-                },
-                onCopyToken = { fullToken ->
-                    // TODO: copy to clipboard
-                },
+                onRevokeToken = { tokenId -> viewModel.revokeToken(tokenId) },
+                onCopyToken = { _ -> /* clipboard handled in Screen */ },
             )
         }
 
         composable(
             route = Route.MyProfile.route,
             arguments = listOf(navArgument("serverId") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val serverId = backStackEntry.arguments?.getString("serverId") ?: ""
-            // TODO: replace with ProfileViewModel using real API
-            MyProfileScreen(
-                profile = MyProfileData(
-                    name = "Пользователь",
-                    username = "user",
-                    serverName = "Server",
-                    isAdmin = false,
-                ),
-                onBack = { navController.popBackStack() },
-                onSaveProfile = { _, _ ->
-                    // TODO: handle save via API
-                },
-            )
+        ) {
+            val viewModel: MyProfileViewModel = viewModel()
+            val state by viewModel.state.collectAsState()
+            val profile = state.profile
+
+            if (profile != null) {
+                MyProfileScreen(
+                    profile = profile,
+                    onBack = { navController.popBackStack() },
+                    onSaveProfile = { name, username ->
+                        viewModel.saveProfile(name, username)
+                    },
+                )
+            }
         }
 
         composable(
@@ -234,19 +257,18 @@ fun AppNavGraph(
                 navArgument("serverId") { type = NavType.StringType },
                 navArgument("userId") { type = NavType.StringType },
             )
-        ) { backStackEntry ->
-            val serverId = backStackEntry.arguments?.getString("serverId") ?: ""
-            val userId = backStackEntry.arguments?.getString("userId") ?: ""
-            // TODO: replace with UserProfileViewModel using real API
-            val userData = UserProfileData(userId, "Пользователь", "user", "Server", false, false)
+        ) {
+            val viewModel: UserProfileViewModel = viewModel()
+            val state by viewModel.state.collectAsState()
+            val user = state.user
 
-            UserProfileScreen(
-                user = userData,
-                onBack = { navController.popBackStack() },
-                onToggleFavorite = { _ ->
-                    // TODO: handle toggle favorite via API
-                },
-            )
+            if (user != null) {
+                UserProfileScreen(
+                    user = user,
+                    onBack = { navController.popBackStack() },
+                    onToggleFavorite = { _ -> viewModel.toggleFavorite() },
+                )
+            }
         }
 
         // ── Onboarding flow (driven by ConnectViewModel) ─────────────────────
