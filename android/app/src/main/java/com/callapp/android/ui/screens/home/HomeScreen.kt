@@ -52,7 +52,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.callapp.android.data.SampleData
 import com.callapp.android.domain.model.Server
 import com.callapp.android.domain.model.User
 import com.callapp.android.domain.model.UserStatus
@@ -93,7 +92,7 @@ fun HomeScreen(
     onServerClick: (String) -> Unit = {},
     onSettingsClick: () -> Unit = {},
     onNotificationsClick: () -> Unit = {},
-    onCallClick: (userId: String, contactName: String) -> Unit = { _, _ -> },
+    onCallClick: (serverId: String, userId: String, contactName: String) -> Unit = { _, _, _ -> },
     onAddServerClick: () -> Unit = {},
     onContactClick: (serverId: String, userId: String) -> Unit = { _, _ -> },
     onRetry: () -> Unit = {},
@@ -143,7 +142,7 @@ fun HomeScreen(
                     favorites.forEachIndexed { index, user ->
                         FavoriteContactRow(
                             user = user,
-                            onCallClick = { onCallClick(user.id, user.name) },
+                            onCallClick = { onCallClick(user.serverId, user.id, user.name) },
                             onContactClick = { onContactClick(user.serverId, user.id) },
                         )
                         if (index < favorites.lastIndex) {
@@ -808,11 +807,11 @@ private fun FavoritesCardPreview() {
     AleAppTheme(darkTheme = false) {
         Surface(color = AleAppTheme.colors.background) {
             Column(modifier = Modifier.padding(16.dp)) {
-                SectionHeader(title = "Избранные", count = SampleData.favorites.size)
+                SectionHeader(title = "Избранные", count = PreviewData.favorites.size)
                 AleAppCard(modifier = Modifier.fillMaxWidth()) {
-                    SampleData.favorites.forEachIndexed { index, user ->
+                    PreviewData.favorites.forEachIndexed { index, user ->
                         FavoriteContactRow(user = user, onCallClick = {})
-                        if (index < SampleData.favorites.lastIndex) {
+                        if (index < PreviewData.favorites.lastIndex) {
                             HorizontalDivider(
                                 color = AleAppTheme.colors.border,
                                 modifier = Modifier.padding(horizontal = 16.dp),
@@ -831,11 +830,11 @@ private fun ServersCardPreview() {
     AleAppTheme(darkTheme = false) {
         Surface(color = AleAppTheme.colors.background) {
             Column(modifier = Modifier.padding(16.dp)) {
-                SectionHeader(title = "Серверы", count = SampleData.servers.size)
+                SectionHeader(title = "Серверы", count = PreviewData.servers.size)
                 AleAppCard(modifier = Modifier.fillMaxWidth()) {
-                    SampleData.servers.forEachIndexed { index, server ->
+                    PreviewData.servers.forEachIndexed { index, server ->
                         ServerRow(server = server, onClick = {})
-                        if (index < SampleData.servers.lastIndex) {
+                        if (index < PreviewData.servers.lastIndex) {
                             HorizontalDivider(
                                 color = AleAppTheme.colors.border,
                                 modifier = Modifier.padding(horizontal = 16.dp),

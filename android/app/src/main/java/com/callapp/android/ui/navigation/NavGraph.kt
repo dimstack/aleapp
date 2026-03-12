@@ -17,6 +17,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.callapp.android.data.ServiceLocator
 import com.callapp.android.ui.screens.home.HomeScreen
 import com.callapp.android.ui.screens.home.HomeViewModel
 import com.callapp.android.ui.screens.server.ServerDetailScreen
@@ -64,11 +65,9 @@ fun AppNavGraph(
     val connectViewModel: ConnectViewModel = viewModel()
 
     // Listen for incoming calls globally and navigate to IncomingCallScreen
-    IncomingCallHandler { userId, contactName, serverName ->
-        val encodedName = java.net.URLEncoder.encode(contactName, "UTF-8")
-        val encodedServer = java.net.URLEncoder.encode(serverName, "UTF-8")
+    IncomingCallHandler { serverAddress, userId, contactName, serverName ->
         navController.navigate(
-            Route.IncomingCall.createRoute(userId, encodedName, encodedServer)
+            Route.IncomingCall.createRoute(serverAddress, userId, contactName, serverName)
         )
     }
 
@@ -96,8 +95,12 @@ fun AppNavGraph(
                 onNotificationsClick = {
                     navController.navigate(Route.Notifications.route)
                 },
-                onCallClick = { userId, contactName ->
-                    navController.navigate(Route.Call.createRoute(userId, contactName))
+                onCallClick = { serverId, userId, contactName ->
+                    val serverAddress = ServiceLocator.serverRepository
+                        .getServerById(serverId)
+                        ?.address
+                        ?: serverId
+                    navController.navigate(Route.Call.createRoute(serverAddress, userId, contactName))
                 },
                 onAddServerClick = {
                     connectViewModel.resetState()
@@ -127,7 +130,7 @@ fun AppNavGraph(
                 pendingRequests = pendingRequests,
                 onBack = { navController.popBackStack() },
                 onCallClick = { userId, contactName ->
-                    navController.navigate(Route.Call.createRoute(userId, contactName))
+                    navController.navigate(Route.Call.createRoute(server.address, userId, contactName))
                 },
                 onProfileClick = {
                     val serverId = server.id
@@ -447,6 +450,7 @@ fun AppNavGraph(
         composable(
             route = Route.Call.route,
             arguments = listOf(
+                navArgument("serverAddress") { type = NavType.StringType },
                 navArgument("userId") { type = NavType.StringType },
                 navArgument("contactName") { type = NavType.StringType },
             )
@@ -498,6 +502,7 @@ fun AppNavGraph(
         composable(
             route = Route.IncomingCall.route,
             arguments = listOf(
+                navArgument("serverAddress") { type = NavType.StringType },
                 navArgument("userId") { type = NavType.StringType },
                 navArgument("contactName") { type = NavType.StringType },
                 navArgument("serverName") { type = NavType.StringType },

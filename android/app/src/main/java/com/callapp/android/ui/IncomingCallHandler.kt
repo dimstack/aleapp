@@ -12,24 +12,25 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
 /**
- * Composable that listens for incoming CallRequest signals on the active server's
- * signaling connection and triggers navigation to IncomingCallScreen.
+ * Composable that listens for incoming CallRequest signals on all saved server
+ * sessions and triggers navigation to IncomingCallScreen.
  *
  * Place this at a high level in the composition (e.g. alongside NavHost).
  */
 @Composable
 fun IncomingCallHandler(
-    onIncomingCall: (userId: String, contactName: String, serverName: String) -> Unit,
+    onIncomingCall: (serverAddress: String, userId: String, contactName: String, serverName: String) -> Unit,
 ) {
-    DisposableEffect(Unit) {
+    val sessionStore = ServiceLocator.sessionStore
+    val serverAddresses = sessionStore.getSessions().keys.sorted()
+
+    DisposableEffect(serverAddresses) {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         val connManager = ServiceLocator.connectionManager
-        val serverAddress = ServiceLocator.activeServerAddress
 
-        if (serverAddress.isNotEmpty()) {
+        serverAddresses.forEach { serverAddress ->
             val signaling = connManager.getSignaling(serverAddress)
 
-            // Ensure signaling is connected
             if (signaling.connectionState.value == ConnectionState.Disconnected) {
                 signaling.connect()
             }
@@ -38,6 +39,7 @@ fun IncomingCallHandler(
                 signaling.messages.collect { message ->
                     if (message is SignalMessage.CallRequest) {
                         onIncomingCall(
+                            serverAddress,
                             message.fromUserId,
                             message.fromUserName,
                             message.fromServerName,
