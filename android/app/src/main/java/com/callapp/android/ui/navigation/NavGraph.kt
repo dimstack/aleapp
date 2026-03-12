@@ -93,7 +93,12 @@ fun AppNavGraph(
                     navController.navigate(Route.Settings.route)
                 },
                 onNotificationsClick = {
-                    navController.navigate(Route.Notifications.route)
+                    val activeServerId = ServiceLocator.serverRepository
+                        .getConnectedServers()
+                        .find { it.address == ServiceLocator.activeServerAddress }
+                        ?.id
+                        ?: ServiceLocator.activeServerAddress
+                    navController.navigate(Route.Notifications.createRoute(activeServerId))
                 },
                 onCallClick = { serverId, userId, contactName ->
                     val serverAddress = ServiceLocator.serverRepository
@@ -435,7 +440,10 @@ fun AppNavGraph(
             )
         }
 
-        composable(Route.Notifications.route) {
+        composable(
+            route = Route.Notifications.route,
+            arguments = listOf(navArgument("serverId") { type = NavType.StringType })
+        ) {
             val viewModel: NotificationsViewModel = viewModel()
             val state by viewModel.state.collectAsState()
 

@@ -23,7 +23,9 @@ sealed class Route(val route: String) {
         fun createRoute(serverId: String) = "server_detail/$serverId"
     }
     data object Settings : Route("settings")
-    data object Notifications : Route("notifications")
+    data object Notifications : Route("notifications/{serverId}") {
+        fun createRoute(serverId: String) = "notifications/$serverId"
+    }
     data object Call : Route("call/{serverAddress}/{userId}/{contactName}") {
         fun createRoute(serverAddress: String, userId: String, contactName: String) =
             "call/${java.net.URLEncoder.encode(serverAddress, "UTF-8")}/$userId/${java.net.URLEncoder.encode(contactName, "UTF-8")}"
