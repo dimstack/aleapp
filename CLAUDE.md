@@ -386,7 +386,8 @@ DELETE /api/notifications        — Clear all notifications
 
 ### Connection
 ```
-ws://{server_ip}:8080/ws?userId={userId}
+ws://{server_ip}:8080/ws?token={sessionToken}
+wss://{server_ip}:8080/ws?token={sessionToken}   # when server uses HTTPS
 ```
 
 ### Message Types
@@ -468,7 +469,7 @@ Caller                    Signaling Server                   Callee
 | State | ViewModel + StateFlow |
 | HTTP Client | Ktor Client or Retrofit |
 | WebSocket | OkHttp |
-| DI | Hilt or Koin |
+| DI | ServiceLocator (MVP), Hilt planned for Phase 3 |
 | Image Loading | Coil |
 | Serialization | Kotlinx Serialization |
 
@@ -526,7 +527,7 @@ android/
 ├── build.gradle.kts
 ├── src/main/
 │   ├── AndroidManifest.xml
-│   └── kotlin/com/callapp/
+│   └── kotlin/com/callapp/android/
 │       ├── CallApp.kt
 │       ├── di/
 │       │   └── AppModule.kt

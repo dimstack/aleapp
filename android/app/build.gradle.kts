@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.android"
+    namespace = "com.callapp.android"
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
@@ -13,8 +13,8 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.android"
-        minSdk = 24
+        applicationId = "com.callapp.android"
+        minSdk = 26
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
@@ -59,6 +59,8 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.stream.webrtc.android)
     implementation(libs.stream.webrtc.android.compose)
+    implementation(libs.coil.compose)
+    implementation(libs.coil.network.okhttp)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
