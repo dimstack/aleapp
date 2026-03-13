@@ -49,3 +49,16 @@ data class LoginAttemptRecord(
     val lockedUntil: Instant?,
     val updatedAt: Instant,
 )
+
+data class PendingApprovalRecord(
+    val id: String,
+    val username: String,
+    val displayName: String,
+    val passwordHash: String,
+    val avatarUrl: String?,
+    val inviteTokenId: String,
+    val serverId: String,
+    val requestedRole: Role,
+    val status: JoinRequestStatus,
+    val createdAt: Instant,
+)

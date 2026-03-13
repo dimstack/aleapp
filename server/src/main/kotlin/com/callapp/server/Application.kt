@@ -12,12 +12,16 @@ import com.callapp.server.plugins.configureRouting
 import com.callapp.server.plugins.configureSerialization
 import com.callapp.server.plugins.configureStatusPages
 import com.callapp.server.plugins.configureWebSockets
+import com.callapp.server.repository.FavoriteRepository
 import com.callapp.server.repository.InviteTokenRepository
+import com.callapp.server.repository.JoinRequestRepository
 import com.callapp.server.repository.LoginAttemptRepository
+import com.callapp.server.repository.NotificationRepository
 import com.callapp.server.repository.ServerRepository
 import com.callapp.server.repository.UserRepository
 import com.callapp.server.service.InviteTokenParser
 import com.callapp.server.service.InviteTokenService
+import com.callapp.server.service.ManagementService
 import com.callapp.server.service.OnboardingService
 import com.callapp.server.service.PasswordService
 import io.ktor.server.application.Application
@@ -40,6 +44,9 @@ fun Application.module() {
     val userRepository = UserRepository(dataSource)
     val inviteTokenRepository = InviteTokenRepository(dataSource)
     val loginAttemptRepository = LoginAttemptRepository(dataSource)
+    val joinRequestRepository = JoinRequestRepository(dataSource)
+    val favoriteRepository = FavoriteRepository(dataSource)
+    val notificationRepository = NotificationRepository(dataSource)
     val inviteTokenService = InviteTokenService(inviteTokenRepository, inviteTokenParser)
     val onboardingService = OnboardingService(
         serverRepository = serverRepository,
@@ -49,6 +56,15 @@ fun Application.module() {
         inviteTokenService = inviteTokenService,
         passwordService = passwordService,
         jwtService = jwtService,
+    )
+    val managementService = ManagementService(
+        serverRepository = serverRepository,
+        userRepository = userRepository,
+        inviteTokenRepository = inviteTokenRepository,
+        joinRequestRepository = joinRequestRepository,
+        favoriteRepository = favoriteRepository,
+        notificationRepository = notificationRepository,
+        passwordService = passwordService,
     )
 
     migrationRunner.run()
@@ -62,10 +78,14 @@ fun Application.module() {
         this.inviteTokenParser = inviteTokenParser
         this.inviteTokenService = inviteTokenService
         this.onboardingService = onboardingService
+        this.managementService = managementService
         this.serverRepository = serverRepository
         this.userRepository = userRepository
         this.inviteTokenRepository = inviteTokenRepository
         this.loginAttemptRepository = loginAttemptRepository
+        this.joinRequestRepository = joinRequestRepository
+        this.favoriteRepository = favoriteRepository
+        this.notificationRepository = notificationRepository
     }
 
     configureMonitoring()

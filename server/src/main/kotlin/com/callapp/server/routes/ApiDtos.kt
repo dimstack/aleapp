@@ -59,3 +59,71 @@ data class UserDto(
     val status: String = "online",
     @SerialName("server_id") val serverId: String = "",
 )
+
+@Serializable
+data class UpdateServerRequestDto(
+    val name: String? = null,
+    val username: String? = null,
+    val description: String? = null,
+    @SerialName("image_url") val imageUrl: String? = null,
+)
+
+@Serializable
+data class UpdateUserRequestDto(
+    val name: String? = null,
+    val username: String? = null,
+    @SerialName("avatar_url") val avatarUrl: String? = null,
+    val status: String? = null,
+)
+
+@Serializable
+data class CreateInviteTokenRequestDto(
+    val label: String,
+    @SerialName("max_uses") val maxUses: Int = 0,
+    @SerialName("granted_role") val grantedRole: String = "MEMBER",
+    @SerialName("require_approval") val requireApproval: Boolean = false,
+)
+
+@Serializable
+data class InviteTokenDto(
+    val id: String,
+    val code: String,
+    val label: String,
+    @SerialName("max_uses") val maxUses: Int,
+    @SerialName("use_count") val useCount: Int,
+    @SerialName("granted_role") val grantedRole: String = "MEMBER",
+    @SerialName("require_approval") val requireApproval: Boolean = false,
+    val revoked: Boolean = false,
+    @SerialName("created_at") val createdAt: String = "",
+)
+
+@Serializable
+data class JoinRequestDto(
+    val id: String,
+    @SerialName("user_name") val userName: String,
+    val username: String,
+    @SerialName("server_id") val serverId: String = "",
+    val status: String = "pending",
+    @SerialName("created_at") val createdAt: String = "",
+)
+
+@Serializable
+data class SubmitJoinRequestDto(
+    val username: String,
+    val name: String,
+)
+
+@Serializable
+data class JoinRequestActionDto(
+    val status: String,
+)
+
+@Serializable
+data class NotificationDto(
+    val id: String,
+    val type: String,
+    @SerialName("server_name") val serverName: String = "",
+    val message: String = "",
+    @SerialName("is_read") val isRead: Boolean = false,
+    @SerialName("created_at") val createdAt: String = "",
+)

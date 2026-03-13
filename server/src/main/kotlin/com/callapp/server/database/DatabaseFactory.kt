@@ -17,6 +17,7 @@ class DatabaseFactory(private val config: DatabaseConfig) {
             driverClassName = "org.sqlite.JDBC"
             maximumPoolSize = config.maximumPoolSize
             isAutoCommit = true
+            connectionInitSql = "PRAGMA foreign_keys = ON;"
             validate()
         }
 
