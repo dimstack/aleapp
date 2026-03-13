@@ -25,6 +25,7 @@ import com.callapp.server.service.InviteTokenService
 import com.callapp.server.service.ManagementService
 import com.callapp.server.service.OnboardingService
 import com.callapp.server.service.PasswordService
+import com.callapp.server.service.TurnCredentialsService
 import io.ktor.server.application.Application
 import io.ktor.server.application.install
 import io.ktor.server.netty.EngineMain
@@ -49,6 +50,7 @@ fun Application.module() {
     val favoriteRepository = FavoriteRepository(dataSource)
     val notificationRepository = NotificationRepository(dataSource)
     val signalingManager = SignalingManager(serverRepository, notificationRepository)
+    val turnCredentialsService = TurnCredentialsService(appConfig.turn)
     val inviteTokenService = InviteTokenService(inviteTokenRepository, inviteTokenParser)
     val onboardingService = OnboardingService(
         serverRepository = serverRepository,
@@ -89,6 +91,7 @@ fun Application.module() {
         this.favoriteRepository = favoriteRepository
         this.notificationRepository = notificationRepository
         this.signalingManager = signalingManager
+        this.turnCredentialsService = turnCredentialsService
     }
 
     configureMonitoring()

@@ -280,6 +280,13 @@ fun Application.configureRouting() {
                 this@configureRouting.dependencies.managementService.clearNotifications(principal.userId.orEmpty())
                 call.respond(HttpStatusCode.NoContent)
             }
+
+            get("/api/turn-credentials") {
+                val principal = call.requireSessionPrincipal()
+                requireUser(principal)
+                val credentials = this@configureRouting.dependencies.turnCredentialsService.create(principal.userId.orEmpty())
+                call.respond(HttpStatusCode.OK, credentials)
+            }
         }
 
         webSocket("/ws") {

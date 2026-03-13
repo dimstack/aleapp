@@ -45,8 +45,11 @@ class SignalingRoutesTest {
                 "callapp.security.audience" to "test-audience",
                 "callapp.security.guestTokenTtlMinutes" to "30",
                 "callapp.security.userTokenTtlDays" to "30",
+                "callapp.turn.host" to "localhost",
+                "callapp.turn.port" to "3478",
                 "callapp.turn.secret" to "turn-secret",
                 "callapp.turn.realm" to "callapp-test",
+                "callapp.turn.ttlSeconds" to "3600",
             )
         }
 

@@ -31,8 +31,11 @@ data class AppConfig(
                 userTokenTtlDays = config.property("callapp.security.userTokenTtlDays").getString().toLong(),
             ),
             turn = TurnConfig(
+                host = config.property("callapp.turn.host").getString(),
+                port = config.property("callapp.turn.port").getString().toInt(),
                 secret = config.property("callapp.turn.secret").getString(),
                 realm = config.property("callapp.turn.realm").getString(),
+                ttlSeconds = config.property("callapp.turn.ttlSeconds").getString().toLong(),
             ),
         )
     }
@@ -60,6 +63,9 @@ data class SecurityConfig(
 )
 
 data class TurnConfig(
+    val host: String,
+    val port: Int,
     val secret: String,
     val realm: String,
+    val ttlSeconds: Long,
 )

@@ -15,6 +15,7 @@ import com.callapp.server.service.InviteTokenService
 import com.callapp.server.service.ManagementService
 import com.callapp.server.service.OnboardingService
 import com.callapp.server.service.PasswordService
+import com.callapp.server.service.TurnCredentialsService
 import javax.sql.DataSource
 import io.ktor.server.application.Application
 import io.ktor.server.application.createApplicationPlugin
@@ -37,6 +38,7 @@ data class AppDependencies(
     val favoriteRepository: FavoriteRepository,
     val notificationRepository: NotificationRepository,
     val signalingManager: SignalingManager,
+    val turnCredentialsService: TurnCredentialsService,
 )
 
 class AppDependenciesPluginConfig {
@@ -56,6 +58,7 @@ class AppDependenciesPluginConfig {
     lateinit var favoriteRepository: FavoriteRepository
     lateinit var notificationRepository: NotificationRepository
     lateinit var signalingManager: SignalingManager
+    lateinit var turnCredentialsService: TurnCredentialsService
 }
 
 val AppDependenciesKey = AttributeKey<AppDependencies>("app-dependencies")
@@ -83,6 +86,7 @@ val AppDependenciesPlugin = createApplicationPlugin(
             favoriteRepository = pluginConfig.favoriteRepository,
             notificationRepository = pluginConfig.notificationRepository,
             signalingManager = pluginConfig.signalingManager,
+            turnCredentialsService = pluginConfig.turnCredentialsService,
         ),
     )
 }

@@ -1,0 +1,30 @@
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      HTTP_PORT: 3000
+      DB_PATH: /app/data/callapp.db
+      JWT_SECRET: ${JWT_SECRET}
+      TURN_SECRET: ${TURN_SECRET}
+      TURN_HOST: ${TURN_HOST}
+      TURN_PORT: 3478
+      TURN_REALM: ${TURN_REALM}
+      SERVER_NAME: ${SERVER_NAME}
+      SERVER_USERNAME: ${SERVER_USERNAME}
+      SERVER_DESCRIPTION: ${SERVER_DESCRIPTION}
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      - coturn
+
+  coturn:
+    image: coturn/coturn:4.6.3
+    network_mode: host
+    command: ["-c", "/etc/coturn/turnserver.conf"]
+    volumes:
+      - ./turnserver.conf:/etc/coturn/turnserver.conf:ro
+    environment:
+      TURN_SECRET: ${TURN_SECRET}
+      TURN_REALM: ${TURN_REALM}
