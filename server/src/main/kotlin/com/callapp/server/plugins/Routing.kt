@@ -112,6 +112,7 @@ fun Application.configureRouting() {
                     description = request.description,
                     imageUrl = request.imageUrl,
                 )
+                audit(this@configureRouting, principal, "server.update", server.id)
                 call.respond(HttpStatusCode.OK, server.toDto())
             }
 
@@ -119,6 +120,7 @@ fun Application.configureRouting() {
                 val principal = call.requireSessionPrincipal()
                 requireAdmin(principal)
                 this@configureRouting.dependencies.managementService.deleteServer()
+                audit(this@configureRouting, principal, "server.delete", principal.serverId)
                 call.respond(HttpStatusCode.NoContent)
             }
 
@@ -188,6 +190,7 @@ fun Application.configureRouting() {
                     grantedRole = request.grantedRole,
                     requireApproval = request.requireApproval,
                 )
+                audit(this@configureRouting, principal, "invite_token.create", token.id)
                 call.respond(HttpStatusCode.OK, token.toDto())
             }
 
@@ -196,6 +199,7 @@ fun Application.configureRouting() {
                 requireAdmin(principal)
                 val inviteTokenId = call.parameters["id"] ?: throw ApiException(HttpStatusCode.BadRequest, "validation_error", "Invite token id is required")
                 this@configureRouting.dependencies.managementService.revokeInviteToken(inviteTokenId)
+                audit(this@configureRouting, principal, "invite_token.revoke", inviteTokenId)
                 call.respond(HttpStatusCode.NoContent)
             }
 
@@ -230,6 +234,7 @@ fun Application.configureRouting() {
                     action = request.status,
                     reviewerId = principal.userId.orEmpty(),
                 )
+                audit(this@configureRouting, principal, "join_request.${request.status.lowercase()}", requestId)
                 call.respond(HttpStatusCode.OK, joinRequest.toDto())
             }
 
@@ -331,4 +336,14 @@ private fun requireAdmin(principal: com.callapp.server.auth.SessionPrincipal) {
     if (!principal.isAdmin) {
         throw ApiException(HttpStatusCode.Forbidden, "forbidden", "Admin session is required")
     }
+}
+
+private fun audit(application: Application, principal: com.callapp.server.auth.SessionPrincipal, action: String, targetId: String) {
+    application.environment.log.info(
+        "audit action={} actor={} server={} target={}",
+        action,
+        principal.userId,
+        principal.serverId,
+        targetId,
+    )
 }

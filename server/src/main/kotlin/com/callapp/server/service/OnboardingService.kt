@@ -91,6 +91,7 @@ class OnboardingService(
         inviteTokenValue: String,
         request: CreateUserRequestDto,
     ): Any {
+        validateDisplayName(request.name)
         validatePassword(request.password)
         val inviteToken = inviteTokenService.validateForCreate(inviteTokenValue)
         val server = requireServer()
@@ -142,12 +143,22 @@ class OnboardingService(
         }
     }
 
+    private fun validateDisplayName(name: String) {
+        if (name.trim().isBlank()) {
+            throw ApiException(HttpStatusCode.BadRequest, "validation_error", "Name is required")
+        }
+    }
+
     private fun normalizeUsername(username: String): String {
         val trimmed = username.trim()
         if (trimmed.isBlank()) {
             throw ApiException(HttpStatusCode.BadRequest, "validation_error", "Username is required")
         }
-        return if (trimmed.startsWith("@")) trimmed else "@$trimmed"
+        val normalized = if (trimmed.startsWith("@")) trimmed else "@$trimmed"
+        if (!normalized.matches(Regex("^@[A-Za-z0-9_]{3,32}$"))) {
+            throw ApiException(HttpStatusCode.BadRequest, "validation_error", "Username format is invalid")
+        }
+        return normalized
     }
 
     private fun requireServer() = serverRepository.getCurrentServer()

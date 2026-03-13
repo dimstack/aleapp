@@ -26,7 +26,16 @@ class ManagementService(
     fun getServer() = requireServer()
 
     fun updateServer(name: String?, username: String?, description: String?, imageUrl: String?) =
-        serverRepository.update(name, username, description, imageUrl)
+        serverRepository.update(
+            name = name?.also {
+                if (it.isBlank()) throw ApiException(HttpStatusCode.BadRequest, "validation_error", "Server name cannot be blank")
+            },
+            username = username?.also {
+                if (it.isBlank()) throw ApiException(HttpStatusCode.BadRequest, "validation_error", "Server username cannot be blank")
+            },
+            description = description,
+            imageUrl = imageUrl,
+        )
             ?: throw ApiException(HttpStatusCode.NotFound, "not_found", "Server not found")
 
     fun deleteServer() = serverRepository.deleteCurrentServer()
@@ -47,7 +56,13 @@ class ManagementService(
                     throw ApiException(HttpStatusCode.BadRequest, "validation_error", "Invalid status value")
                 }
             }
-            val normalizedUsername = username?.let { if (it.startsWith("@")) it else "@$it" }
+            val normalizedUsername = username?.let {
+                val normalized = if (it.startsWith("@")) it else "@$it"
+                if (!normalized.matches(Regex("^@[A-Za-z0-9_]{3,32}$"))) {
+                    throw ApiException(HttpStatusCode.BadRequest, "validation_error", "Username format is invalid")
+                }
+                normalized
+            }
             userRepository.updateUser(userId, name, normalizedUsername, avatarUrl, parsedStatus)
                 ?: throw ApiException(HttpStatusCode.NotFound, "not_found", "User not found")
         }
@@ -63,10 +78,14 @@ class ManagementService(
         inviteTokenRepository.create(
             id = UUID.randomUUID().toString(),
             token = randomTokenCode(),
-            label = label,
+            label = label.trim().also {
+                if (it.isBlank()) throw ApiException(HttpStatusCode.BadRequest, "validation_error", "Label is required")
+            },
             serverId = serverId,
             createdBy = createdBy,
-            maxUses = maxUses,
+            maxUses = maxUses.also {
+                if (it < 0) throw ApiException(HttpStatusCode.BadRequest, "validation_error", "max_uses cannot be negative")
+            },
             grantedRole = parseRole(grantedRole),
             requireApproval = requireApproval,
         )
@@ -124,7 +143,12 @@ class ManagementService(
 
     fun listFavorites(userId: String) = favoriteRepository.listFavorites(userId)
 
-    fun addFavorite(userId: String, favoriteUserId: String) = favoriteRepository.addFavorite(userId, favoriteUserId)
+    fun addFavorite(userId: String, favoriteUserId: String) {
+        if (userId == favoriteUserId) {
+            throw ApiException(HttpStatusCode.BadRequest, "validation_error", "Cannot add yourself to favorites")
+        }
+        favoriteRepository.addFavorite(userId, favoriteUserId)
+    }
 
     fun removeFavorite(userId: String, favoriteUserId: String) = favoriteRepository.removeFavorite(userId, favoriteUserId)
 

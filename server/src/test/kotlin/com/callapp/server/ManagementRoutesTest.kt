@@ -126,6 +126,31 @@ class ManagementRoutesTest {
         assertEquals(HttpStatusCode.NoContent, clearResponse.status)
     }
 
+    @Test
+    fun memberCannotAccessAdminEndpointsAndAdminGetsValidationErrorsForBadPayload() = testWithDatabase { dbPath ->
+        application { module() }
+        client.get("/health")
+        seedInviteToken(dbPath, "USER2222")
+        seedInviteToken(dbPath, "ADMIN222")
+        seedUser(dbPath, "@member", "verysecure", role = "MEMBER", displayName = "Member")
+        seedUser(dbPath, "@admin2", "supersecure", role = "ADMIN", displayName = "Admin Two")
+
+        val memberToken = login("USER2222", "member", "verysecure")
+        val adminToken = login("ADMIN222", "admin2", "supersecure")
+
+        val forbiddenResponse = client.get("/api/invite-tokens") {
+            bearerAuth(memberToken)
+        }
+        assertEquals(HttpStatusCode.Forbidden, forbiddenResponse.status)
+
+        val invalidPayloadResponse = client.post("/api/invite-tokens") {
+            bearerAuth(adminToken)
+            header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+            setBody("""{"label":"","max_uses":-1,"granted_role":"MEMBER","require_approval":false}""")
+        }
+        assertEquals(HttpStatusCode.BadRequest, invalidPayloadResponse.status)
+    }
+
     private fun testWithDatabase(block: suspend io.ktor.server.testing.ApplicationTestBuilder.(String) -> Unit) =
         testApplication {
             val dbFile = File("build/test-mgmt-${UUID.randomUUID()}.db")
