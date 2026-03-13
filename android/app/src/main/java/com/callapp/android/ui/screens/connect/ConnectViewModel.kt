@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.callapp.android.data.ServiceLocator
 import com.callapp.android.domain.model.Server
+import com.callapp.android.network.CreateUserResult
 import com.callapp.android.network.ServerConnectionManager
 import com.callapp.android.network.dto.toDomain
 import com.callapp.android.network.result.ApiError
@@ -21,6 +22,7 @@ sealed class ConnectUiState {
         val serverName: String,
         val tokenCode: String,
     ) : ConnectUiState()
+
     data class NeedsProfile(val serverAddress: String, val serverName: String) : ConnectUiState()
     data class Joined(val serverAddress: String, val serverName: String) : ConnectUiState()
     data class Pending(
@@ -28,6 +30,7 @@ sealed class ConnectUiState {
         val serverName: String,
         val userName: String,
     ) : ConnectUiState()
+
     data class LoginError(val message: String) : ConnectUiState()
     data class Error(val message: String) : ConnectUiState()
 }
@@ -73,6 +76,7 @@ class ConnectViewModel : ViewModel() {
                                 userName = response.user?.username ?: "",
                             )
                         }
+
                         response.isJoined && response.user != null -> {
                             saveSession(
                                 serverAddress = serverAddress,
@@ -85,6 +89,7 @@ class ConnectViewModel : ViewModel() {
                                 serverName = currentServerName,
                             )
                         }
+
                         response.needsProfile -> {
                             _state.value = ConnectUiState.AuthChoice(
                                 serverAddress = serverAddress,
@@ -92,6 +97,7 @@ class ConnectViewModel : ViewModel() {
                                 tokenCode = tokenCode,
                             )
                         }
+
                         else -> {
                             _state.value = ConnectUiState.AuthChoice(
                                 serverAddress = serverAddress,
@@ -101,6 +107,7 @@ class ConnectViewModel : ViewModel() {
                         }
                     }
                 }
+
                 is ApiResult.Failure -> {
                     val message = when (result.error) {
                         ApiError.NetworkError -> "Нет соединения с сервером"
@@ -124,34 +131,70 @@ class ConnectViewModel : ViewModel() {
 
         viewModelScope.launch {
             val client = connectionManager.getClient(currentServerAddress)
-            when (val result = client.createUser(
-                name = name,
-                username = username,
-                password = password,
-            )) {
+            when (
+                val result = client.createUser(
+                    name = name,
+                    username = username,
+                    password = password,
+                )
+            ) {
                 is ApiResult.Success -> {
-                    val user = result.data
-                    val token = client.sessionToken ?: ""
-                    val server = when (val serverResult = client.getServer()) {
-                        is ApiResult.Success -> serverResult.data
-                        is ApiResult.Failure -> Server(
-                            id = currentServerAddress,
-                            name = currentServerName.ifBlank { currentServerAddress },
-                            username = "",
-                            address = currentServerAddress,
-                        )
+                    when (val createResult = result.data) {
+                        is CreateUserResult.Pending -> {
+                            _state.value = ConnectUiState.Pending(
+                                serverAddress = currentServerAddress,
+                                serverName = currentServerName,
+                                userName = createResult.response.user?.username ?: normalizeUsername(username),
+                            )
+                        }
+
+                        is CreateUserResult.Joined -> {
+                            when (
+                                val loginResult = repo.login(
+                                    serverAddress = currentServerAddress,
+                                    inviteToken = currentTokenCode,
+                                    username = username,
+                                    password = password,
+                                )
+                            ) {
+                                is ApiResult.Success -> {
+                                    val response = loginResult.data
+                                    if (response.isPending) {
+                                        _state.value = ConnectUiState.Pending(
+                                            serverAddress = currentServerAddress,
+                                            serverName = currentServerName,
+                                            userName = response.user?.username ?: normalizeUsername(username),
+                                        )
+                                    } else {
+                                        val server = response.server?.toDomain(currentServerAddress) ?: Server(
+                                            id = currentServerAddress,
+                                            name = currentServerName.ifBlank { currentServerAddress },
+                                            username = "",
+                                            address = currentServerAddress,
+                                        )
+                                        saveSession(
+                                            serverAddress = currentServerAddress,
+                                            sessionToken = response.sessionToken,
+                                            userId = response.user?.id ?: createResult.user.id,
+                                            server = server,
+                                        )
+                                        _state.value = ConnectUiState.Joined(
+                                            serverAddress = currentServerAddress,
+                                            serverName = currentServerName,
+                                        )
+                                    }
+                                }
+
+                                is ApiResult.Failure -> {
+                                    _state.value = ConnectUiState.Error(
+                                        "Профиль создан, но не удалось открыть сессию. Попробуйте войти вручную.",
+                                    )
+                                }
+                            }
+                        }
                     }
-                    saveSession(
-                        serverAddress = currentServerAddress,
-                        sessionToken = token,
-                        userId = user.id,
-                        server = server,
-                    )
-                    _state.value = ConnectUiState.Joined(
-                        serverAddress = currentServerAddress,
-                        serverName = currentServerName,
-                    )
                 }
+
                 is ApiResult.Failure -> {
                     val message = when (result.error) {
                         ApiError.NetworkError -> "Нет соединения с сервером"
@@ -173,25 +216,36 @@ class ConnectViewModel : ViewModel() {
         _state.value = ConnectUiState.Loading
 
         viewModelScope.launch {
-            when (val result = repo.login(
-                serverAddress = currentServerAddress,
-                inviteToken = currentTokenCode,
-                username = username,
-                password = password,
-            )) {
+            when (
+                val result = repo.login(
+                    serverAddress = currentServerAddress,
+                    inviteToken = currentTokenCode,
+                    username = username,
+                    password = password,
+                )
+            ) {
                 is ApiResult.Success -> {
                     val response = result.data
-                    saveSession(
-                        serverAddress = currentServerAddress,
-                        sessionToken = response.sessionToken,
-                        userId = response.user?.id ?: "",
-                        server = response.server?.toDomain(currentServerAddress),
-                    )
-                    _state.value = ConnectUiState.Joined(
-                        serverAddress = currentServerAddress,
-                        serverName = currentServerName,
-                    )
+                    if (response.isPending) {
+                        _state.value = ConnectUiState.Pending(
+                            serverAddress = currentServerAddress,
+                            serverName = currentServerName,
+                            userName = response.user?.username ?: normalizeUsername(username),
+                        )
+                    } else {
+                        saveSession(
+                            serverAddress = currentServerAddress,
+                            sessionToken = response.sessionToken,
+                            userId = response.user?.id ?: "",
+                            server = response.server?.toDomain(currentServerAddress),
+                        )
+                        _state.value = ConnectUiState.Joined(
+                            serverAddress = currentServerAddress,
+                            serverName = currentServerName,
+                        )
+                    }
                 }
+
                 is ApiResult.Failure -> {
                     _state.value = ConnectUiState.LoginError("Неверный username или пароль")
                 }
@@ -201,6 +255,11 @@ class ConnectViewModel : ViewModel() {
 
     fun resetState() {
         _state.value = ConnectUiState.Idle
+    }
+
+    private fun normalizeUsername(username: String): String {
+        val trimmed = username.trim()
+        return if (trimmed.startsWith("@")) trimmed else "@$trimmed"
     }
 
     private fun saveSession(

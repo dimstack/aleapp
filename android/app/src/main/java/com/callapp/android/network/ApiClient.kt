@@ -35,6 +35,7 @@ import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -64,6 +65,11 @@ class ApiClient(private val baseUrl: String) {
         }
     }
 
+    private val json = Json {
+        ignoreUnknownKeys = true
+        isLenient = true
+    }
+
     suspend fun connect(inviteToken: String): ApiResult<ConnectResponse> = request {
         val response: ConnectResponse = httpClient.post("api/connect") {
             setBody(ConnectRequest(token = inviteToken))
@@ -89,11 +95,24 @@ class ApiClient(private val baseUrl: String) {
         username: String,
         password: String,
         avatarUrl: String? = null,
-    ): ApiResult<User> = request {
-        val dto: UserDto = httpClient.post("api/users") {
+    ): ApiResult<CreateUserResult> = request {
+        val response = httpClient.post("api/users") {
             setBody(CreateUserRequest(name = name, username = username, password = password, avatarUrl = avatarUrl))
-        }.body()
-        dto.toDomain()
+        }
+
+        when (response.status) {
+            HttpStatusCode.OK -> {
+                val dto = json.decodeFromString<UserDto>(response.bodyAsText())
+                CreateUserResult.Joined(dto.toDomain())
+            }
+
+            HttpStatusCode.Accepted -> {
+                val dto = json.decodeFromString<AuthResponse>(response.bodyAsText())
+                CreateUserResult.Pending(dto)
+            }
+
+            else -> throw IllegalStateException("Unexpected createUser status: ${response.status}")
+        }
     }
 
     suspend fun getUsers(): ApiResult<List<User>> = request {
@@ -236,4 +255,9 @@ class ApiClient(private val baseUrl: String) {
     fun close() {
         httpClient.close()
     }
+}
+
+sealed class CreateUserResult {
+    data class Joined(val user: User) : CreateUserResult()
+    data class Pending(val response: AuthResponse) : CreateUserResult()
 }
