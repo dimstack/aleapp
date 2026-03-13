@@ -23,6 +23,10 @@ class ApplicationTest {
                 "callapp.server.username" to "@test",
                 "callapp.server.description" to "Test description",
                 "callapp.security.jwtSecret" to "test-secret",
+                "callapp.security.issuer" to "test-issuer",
+                "callapp.security.audience" to "test-audience",
+                "callapp.security.guestTokenTtlMinutes" to "30",
+                "callapp.security.userTokenTtlDays" to "30",
                 "callapp.turn.secret" to "turn-secret",
                 "callapp.turn.realm" to "callapp-test",
             )

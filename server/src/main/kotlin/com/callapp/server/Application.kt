@@ -1,15 +1,25 @@
 package com.callapp.server
 
+import com.callapp.server.auth.JwtService
 import com.callapp.server.config.AppConfig
 import com.callapp.server.database.DatabaseFactory
 import com.callapp.server.database.MigrationRunner
 import com.callapp.server.database.ServerBootstrap
+import com.callapp.server.plugins.configureAuth
 import com.callapp.server.plugins.configureHTTP
 import com.callapp.server.plugins.configureMonitoring
 import com.callapp.server.plugins.configureRouting
 import com.callapp.server.plugins.configureSerialization
 import com.callapp.server.plugins.configureStatusPages
 import com.callapp.server.plugins.configureWebSockets
+import com.callapp.server.repository.InviteTokenRepository
+import com.callapp.server.repository.LoginAttemptRepository
+import com.callapp.server.repository.ServerRepository
+import com.callapp.server.repository.UserRepository
+import com.callapp.server.service.InviteTokenParser
+import com.callapp.server.service.InviteTokenService
+import com.callapp.server.service.OnboardingService
+import com.callapp.server.service.PasswordService
 import io.ktor.server.application.Application
 import io.ktor.server.application.install
 import io.ktor.server.netty.EngineMain
@@ -23,6 +33,23 @@ fun Application.module() {
     val databaseFactory = DatabaseFactory(appConfig.database)
     val dataSource = databaseFactory.createDataSource()
     val migrationRunner = MigrationRunner(dataSource)
+    val jwtService = JwtService(appConfig.security)
+    val passwordService = PasswordService()
+    val inviteTokenParser = InviteTokenParser()
+    val serverRepository = ServerRepository(dataSource)
+    val userRepository = UserRepository(dataSource)
+    val inviteTokenRepository = InviteTokenRepository(dataSource)
+    val loginAttemptRepository = LoginAttemptRepository(dataSource)
+    val inviteTokenService = InviteTokenService(inviteTokenRepository, inviteTokenParser)
+    val onboardingService = OnboardingService(
+        serverRepository = serverRepository,
+        userRepository = userRepository,
+        inviteTokenRepository = inviteTokenRepository,
+        loginAttemptRepository = loginAttemptRepository,
+        inviteTokenService = inviteTokenService,
+        passwordService = passwordService,
+        jwtService = jwtService,
+    )
 
     migrationRunner.run()
     ServerBootstrap(dataSource, appConfig.server).ensureServerRow()
@@ -30,12 +57,22 @@ fun Application.module() {
     install(AppDependenciesPlugin) {
         config = appConfig
         database = dataSource
+        this.jwtService = jwtService
+        this.passwordService = passwordService
+        this.inviteTokenParser = inviteTokenParser
+        this.inviteTokenService = inviteTokenService
+        this.onboardingService = onboardingService
+        this.serverRepository = serverRepository
+        this.userRepository = userRepository
+        this.inviteTokenRepository = inviteTokenRepository
+        this.loginAttemptRepository = loginAttemptRepository
     }
 
     configureMonitoring()
     configureHTTP()
     configureSerialization()
     configureStatusPages()
+    configureAuth()
     configureWebSockets()
     configureRouting()
 }

@@ -25,6 +25,10 @@ data class AppConfig(
             ),
             security = SecurityConfig(
                 jwtSecret = config.property("callapp.security.jwtSecret").getString(),
+                issuer = config.property("callapp.security.issuer").getString(),
+                audience = config.property("callapp.security.audience").getString(),
+                guestTokenTtlMinutes = config.property("callapp.security.guestTokenTtlMinutes").getString().toLong(),
+                userTokenTtlDays = config.property("callapp.security.userTokenTtlDays").getString().toLong(),
             ),
             turn = TurnConfig(
                 secret = config.property("callapp.turn.secret").getString(),
@@ -49,6 +53,10 @@ data class ServerConfig(
 
 data class SecurityConfig(
     val jwtSecret: String,
+    val issuer: String,
+    val audience: String,
+    val guestTokenTtlMinutes: Long,
+    val userTokenTtlDays: Long,
 )
 
 data class TurnConfig(
