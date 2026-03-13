@@ -52,7 +52,6 @@ class ServerDetailViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
                 is ApiResult.Success -> {
                     _membersState.value = UiState.Success(result.data)
 
-                    // Determine if the current user is admin by matching stored userId
                     val currentUserId = ServiceLocator.currentUserId
                     _isAdmin.value = if (currentUserId.isNotEmpty()) {
                         result.data.any { it.id == currentUserId && it.role == UserRole.ADMIN }
@@ -64,12 +63,18 @@ class ServerDetailViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
                         loadPendingRequests(address)
                     }
                 }
+
                 is ApiResult.Failure -> {
-                    val message = when (result.error) {
+                    val message = when (val error = result.error) {
                         ApiError.NetworkError -> "Нет соединения с сервером"
-                        ApiError.Unauthorized -> "Сессия истекла"
                         ApiError.NotFound -> "Сервер не найден"
-                        ApiError.ServerError -> "Ошибка сервера"
+                        is ApiError.Unauthorized -> "Сессия истекла"
+                        is ApiError.ValidationError -> error.message
+                        is ApiError.UsernameTaken -> error.message
+                        is ApiError.LoginLocked -> error.message
+                        is ApiError.Forbidden -> error.message
+                        is ApiError.DeprecatedEndpoint -> error.message
+                        is ApiError.ServerError -> error.message ?: "Ошибка сервера"
                     }
                     _membersState.value = UiState.Error(message)
                 }
@@ -83,8 +88,9 @@ class ServerDetailViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
             is ApiResult.Success -> {
                 _pendingRequests.value = result.data
             }
+
             is ApiResult.Failure -> {
-                // Silently fail — pending requests are non-critical
+                // Silently fail: pending requests are non-critical.
             }
         }
     }

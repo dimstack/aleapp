@@ -109,13 +109,7 @@ class ConnectViewModel : ViewModel() {
                 }
 
                 is ApiResult.Failure -> {
-                    val message = when (result.error) {
-                        ApiError.NetworkError -> "Нет соединения с сервером"
-                        ApiError.NotFound -> "Сервер не найден"
-                        ApiError.Unauthorized -> "Токен недействителен или истек"
-                        ApiError.ServerError -> "Ошибка сервера"
-                    }
-                    _state.value = ConnectUiState.Error(message)
+                    _state.value = ConnectUiState.Error(connectErrorMessage(result.error))
                 }
             }
         }
@@ -196,12 +190,7 @@ class ConnectViewModel : ViewModel() {
                 }
 
                 is ApiResult.Failure -> {
-                    val message = when (result.error) {
-                        ApiError.NetworkError -> "Нет соединения с сервером"
-                        ApiError.Unauthorized -> "Сессия истекла, подключитесь заново"
-                        else -> "Не удалось создать профиль"
-                    }
-                    _state.value = ConnectUiState.Error(message)
+                    _state.value = ConnectUiState.Error(createProfileErrorMessage(result.error))
                 }
             }
         }
@@ -247,7 +236,7 @@ class ConnectViewModel : ViewModel() {
                 }
 
                 is ApiResult.Failure -> {
-                    _state.value = ConnectUiState.LoginError("Неверный username или пароль")
+                    _state.value = ConnectUiState.LoginError(loginErrorMessage(result.error))
                 }
             }
         }
@@ -284,4 +273,53 @@ class ConnectViewModel : ViewModel() {
             // SessionStore is not initialized yet. This should not happen in normal flow.
         }
     }
+}
+
+internal fun connectErrorMessage(error: ApiError): String = when (error) {
+    ApiError.NetworkError -> "Нет соединения с сервером"
+    ApiError.NotFound -> "Сервер не найден"
+    is ApiError.Unauthorized -> inviteTokenErrorMessage(error)
+    is ApiError.ValidationError -> error.message
+    is ApiError.Forbidden -> error.message
+    is ApiError.DeprecatedEndpoint -> error.message
+    is ApiError.UsernameTaken -> error.message
+    is ApiError.LoginLocked -> error.message
+    is ApiError.ServerError -> error.message ?: "Ошибка сервера"
+}
+
+internal fun createProfileErrorMessage(error: ApiError): String = when (error) {
+    ApiError.NetworkError -> "Нет соединения с сервером"
+    ApiError.NotFound -> "Сервер не найден"
+    is ApiError.Unauthorized -> "Сессия истекла, подключитесь заново"
+    is ApiError.ValidationError -> error.message
+    is ApiError.UsernameTaken -> "Username уже занят"
+    is ApiError.LoginLocked -> error.message
+    is ApiError.Forbidden -> error.message
+    is ApiError.DeprecatedEndpoint -> error.message
+    is ApiError.ServerError -> error.message ?: "Не удалось создать профиль"
+}
+
+internal fun loginErrorMessage(error: ApiError): String = when (error) {
+    ApiError.NetworkError -> "Нет соединения с сервером"
+    ApiError.NotFound -> "Сервер не найден"
+    is ApiError.LoginLocked -> "Слишком много попыток входа. Попробуйте через 15 минут."
+    is ApiError.Unauthorized -> {
+        when (error.code) {
+            "invite_token_invalid", "invite_token_revoked", "invite_token_exhausted" -> inviteTokenErrorMessage(error)
+            else -> "Неверный username или пароль"
+        }
+    }
+
+    is ApiError.ValidationError -> error.message
+    is ApiError.UsernameTaken -> error.message
+    is ApiError.Forbidden -> error.message
+    is ApiError.DeprecatedEndpoint -> error.message
+    is ApiError.ServerError -> error.message ?: "Ошибка сервера"
+}
+
+private fun inviteTokenErrorMessage(error: ApiError.Unauthorized): String = when (error.code) {
+    "invite_token_invalid" -> "Токен приглашения недействителен"
+    "invite_token_revoked" -> "Токен приглашения отозван"
+    "invite_token_exhausted" -> "Лимит использования токена исчерпан"
+    else -> error.message ?: "Токен недействителен или истек"
 }

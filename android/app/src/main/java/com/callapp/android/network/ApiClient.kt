@@ -9,6 +9,7 @@ import com.callapp.android.network.dto.ConnectRequest
 import com.callapp.android.network.dto.ConnectResponse
 import com.callapp.android.network.dto.CreateInviteTokenRequest
 import com.callapp.android.network.dto.CreateUserRequest
+import com.callapp.android.network.dto.ErrorResponseDto
 import com.callapp.android.network.dto.InviteTokenDto
 import com.callapp.android.network.dto.JoinRequestAction
 import com.callapp.android.network.dto.JoinRequestDto
@@ -228,16 +229,13 @@ class ApiClient(private val baseUrl: String) {
         httpClient.get("api/turn-credentials").body<TurnCredentialsDto>()
     }
 
-    private fun <T> handleError(e: ClientRequestException): ApiResult<T> {
-        return when (e.response.status) {
-            HttpStatusCode.Unauthorized -> {
-                sessionToken = null
-                ApiResult.Failure(ApiError.Unauthorized)
-            }
-
-            HttpStatusCode.NotFound -> ApiResult.Failure(ApiError.NotFound)
-            else -> ApiResult.Failure(ApiError.ServerError)
+    private suspend fun <T> handleError(e: ClientRequestException): ApiResult<T> {
+        val body = runCatching { e.response.bodyAsText() }.getOrDefault("")
+        val error = mapApiError(e.response.status, body)
+        if (e.response.status == HttpStatusCode.Unauthorized) {
+            sessionToken = null
         }
+        return ApiResult.Failure(error)
     }
 
     private suspend inline fun <T> request(block: () -> T): ApiResult<T> {
@@ -246,9 +244,9 @@ class ApiClient(private val baseUrl: String) {
         } catch (e: ClientRequestException) {
             handleError(e)
         } catch (_: ServerResponseException) {
-            ApiResult.Failure(ApiError.ServerError)
+            ApiResult.Failure(ApiError.ServerError())
         } catch (_: IllegalStateException) {
-            ApiResult.Failure(ApiError.ServerError)
+            ApiResult.Failure(ApiError.ServerError())
         } catch (_: IOException) {
             ApiResult.Failure(ApiError.NetworkError)
         }
@@ -262,4 +260,45 @@ class ApiClient(private val baseUrl: String) {
 sealed class CreateUserResult {
     data class Joined(val user: User) : CreateUserResult()
     data class Pending(val response: AuthResponse) : CreateUserResult()
+}
+
+internal fun mapApiError(status: HttpStatusCode, body: String): ApiError {
+    val parsed = parseErrorResponse(body)
+    return when (parsed?.code) {
+        "validation_error" -> ApiError.ValidationError(parsed.message)
+        "username_taken" -> ApiError.UsernameTaken(parsed.message)
+        "login_locked" -> ApiError.LoginLocked(parsed.message)
+        "forbidden" -> ApiError.Forbidden(parsed.message)
+        "deprecated_endpoint" -> ApiError.DeprecatedEndpoint(parsed.message)
+        "unauthorized",
+        "invite_token_invalid",
+        "invite_token_revoked",
+        "invite_token_exhausted",
+        -> ApiError.Unauthorized(code = parsed.code, message = parsed.message)
+
+        else -> when (status) {
+            HttpStatusCode.BadRequest -> parsed?.message?.takeIf { it.isNotBlank() }?.let(ApiError::ValidationError)
+                ?: ApiError.ServerError()
+
+            HttpStatusCode.Unauthorized -> ApiError.Unauthorized(
+                code = parsed?.code,
+                message = parsed?.message,
+            )
+
+            HttpStatusCode.Forbidden -> ApiError.Forbidden(parsed?.message ?: "Доступ запрещен")
+            HttpStatusCode.NotFound -> ApiError.NotFound
+            HttpStatusCode.Conflict -> parsed?.message?.takeIf { it.isNotBlank() }?.let(ApiError::UsernameTaken)
+                ?: ApiError.ServerError()
+
+            HttpStatusCode.Gone -> ApiError.DeprecatedEndpoint(parsed?.message ?: "Эта операция больше не поддерживается")
+            else -> ApiError.ServerError(parsed?.message)
+        }
+    }
+}
+
+internal fun parseErrorResponse(body: String, json: Json = Json { ignoreUnknownKeys = true; isLenient = true }): ErrorResponseDto? {
+    if (body.isBlank()) {
+        return null
+    }
+    return runCatching { json.decodeFromString<ErrorResponseDto>(body) }.getOrNull()
 }
