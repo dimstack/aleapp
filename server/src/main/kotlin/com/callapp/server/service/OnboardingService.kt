@@ -19,8 +19,10 @@ import java.time.Clock
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.UUID
+import javax.sql.DataSource
 
 class OnboardingService(
+    private val dataSource: DataSource,
     private val serverRepository: ServerRepository,
     private val userRepository: UserRepository,
     private val inviteTokenRepository: InviteTokenRepository,
@@ -122,18 +124,15 @@ class OnboardingService(
                 status = "pending",
             )
         } else {
-            val user = userRepository.createUser(
-                id = UUID.randomUUID().toString(),
+            createApprovedUserTransactionally(
+                inviteTokenId = inviteToken.id,
                 username = normalizedUsername,
                 displayName = request.name.trim(),
                 passwordHash = passwordHash,
                 avatarUrl = request.avatarUrl,
                 role = inviteToken.grantedRole,
                 serverId = server.id,
-                isApproved = true,
             )
-            inviteTokenRepository.incrementUsage(inviteToken.id)
-            user
         }
     }
 
@@ -174,5 +173,41 @@ class OnboardingService(
             code = if (lockedUntil != null) "login_locked" else "unauthorized",
             message = if (lockedUntil != null) "Too many failed login attempts" else "Invalid username or password",
         )
+    }
+
+    private fun createApprovedUserTransactionally(
+        inviteTokenId: String,
+        username: String,
+        displayName: String,
+        passwordHash: String,
+        avatarUrl: String?,
+        role: Role,
+        serverId: String,
+    ): UserRecord {
+        dataSource.connection.use { connection ->
+            val previousAutoCommit = connection.autoCommit
+            connection.autoCommit = false
+            try {
+                val user = userRepository.createUser(
+                    connection = connection,
+                    id = UUID.randomUUID().toString(),
+                    username = username,
+                    displayName = displayName,
+                    passwordHash = passwordHash,
+                    avatarUrl = avatarUrl,
+                    role = role,
+                    serverId = serverId,
+                    isApproved = true,
+                )
+                inviteTokenRepository.incrementUsage(connection, inviteTokenId)
+                connection.commit()
+                return user
+            } catch (error: Throwable) {
+                connection.rollback()
+                throw error
+            } finally {
+                connection.autoCommit = previousAutoCommit
+            }
+        }
     }
 }

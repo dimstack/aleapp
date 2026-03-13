@@ -54,6 +54,7 @@ fun Application.module() {
     val turnCredentialsService = TurnCredentialsService(appConfig.turn)
     val inviteTokenService = InviteTokenService(inviteTokenRepository, inviteTokenParser)
     val onboardingService = OnboardingService(
+        dataSource = dataSource,
         serverRepository = serverRepository,
         userRepository = userRepository,
         inviteTokenRepository = inviteTokenRepository,

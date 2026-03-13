@@ -69,6 +69,16 @@ class OnboardingRoutesTest {
         assertEquals(HttpStatusCode.OK, createResponse.status)
         assertEquals("@dmitri", body["username"]!!.jsonPrimitive.content)
         assertEquals("Dmitri", body["display_name"]!!.jsonPrimitive.content)
+
+        DriverManager.getConnection("jdbc:sqlite:$dbPath").use { connection ->
+            connection.prepareStatement("SELECT current_uses FROM invite_tokens WHERE token = ?").use { statement ->
+                statement.setString(1, "JOIN1234")
+                statement.executeQuery().use { rs ->
+                    assertTrue(rs.next())
+                    assertEquals(1, rs.getInt("current_uses"))
+                }
+            }
+        }
     }
 
     @Test
