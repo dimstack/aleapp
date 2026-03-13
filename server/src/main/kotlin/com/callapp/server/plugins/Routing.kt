@@ -116,9 +116,13 @@ fun Application.configureRouting() {
             delete("/api/server") {
                 val principal = call.requireSessionPrincipal()
                 requireAdmin(principal)
-                this@configureRouting.dependencies.managementService.deleteServer()
-                audit(this@configureRouting, principal, "server.delete", principal.serverId)
-                call.respond(HttpStatusCode.NoContent)
+                call.respond(
+                    HttpStatusCode.Gone,
+                    com.callapp.server.routes.ErrorResponse(
+                        code = "deprecated_endpoint",
+                        message = "Server deletion is disabled in this build",
+                    ),
+                )
             }
 
             get("/api/users") {

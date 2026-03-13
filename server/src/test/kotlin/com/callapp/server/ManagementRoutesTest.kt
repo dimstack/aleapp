@@ -49,6 +49,13 @@ class ManagementRoutesTest {
         assertEquals(HttpStatusCode.OK, updateResponse.status)
         assertEquals("Updated Server", json.parseToJsonElement(updateResponse.bodyAsText()).jsonObject["name"]!!.jsonPrimitive.content)
 
+        val deleteServerResponse = client.delete("/api/server") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.Gone, deleteServerResponse.status)
+        val deleteServerBody = json.parseToJsonElement(deleteServerResponse.bodyAsText()).jsonObject
+        assertEquals("deprecated_endpoint", deleteServerBody["code"]!!.jsonPrimitive.content)
+
         val createTokenResponse = client.post("/api/invite-tokens") {
             bearerAuth(adminToken)
             header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
