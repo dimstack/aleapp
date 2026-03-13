@@ -191,14 +191,6 @@ fun AppNavGraph(
             LaunchedEffect(state.saveSuccess) {
                 if (state.saveSuccess) navController.popBackStack()
             }
-            LaunchedEffect(state.deleteSuccess) {
-                if (state.deleteSuccess) {
-                    navController.navigate(Route.Home.route) {
-                        popUpTo(Route.Home.route) { inclusive = true }
-                    }
-                }
-            }
-
             if (manageData != null) {
                 ServerManagementScreen(
                     initial = manageData,
@@ -206,7 +198,6 @@ fun AppNavGraph(
                     onSave = { name, username, description, imageUrl ->
                         viewModel.save(name, username, description, imageUrl)
                     },
-                    onDeleteServer = { viewModel.deleteServer() },
                     onInviteTokens = {
                         navController.navigate(Route.InviteTokens.createRoute(manageData.id))
                     },

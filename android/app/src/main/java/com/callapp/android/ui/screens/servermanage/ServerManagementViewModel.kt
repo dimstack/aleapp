@@ -15,9 +15,7 @@ data class ServerManagementUiState(
     val data: ServerManageData? = null,
     val error: String? = null,
     val isSaving: Boolean = false,
-    val isDeleting: Boolean = false,
     val saveSuccess: Boolean = false,
-    val deleteSuccess: Boolean = false,
     val actionError: String? = null,
 )
 
@@ -74,37 +72,11 @@ class ServerManagementViewModel(
                     }
                     _state.value = _state.value.copy(isSaving = false, saveSuccess = true)
                 }
+
                 is ApiResult.Failure -> {
                     _state.value = _state.value.copy(
                         isSaving = false,
                         actionError = "Не удалось сохранить изменения",
-                    )
-                }
-            }
-        }
-    }
-
-    fun deleteServer() {
-        if (serverAddress.isEmpty()) return
-        _state.value = _state.value.copy(isDeleting = true, actionError = null)
-        viewModelScope.launch {
-            when (repository.deleteServer(serverAddress)) {
-                is ApiResult.Success -> {
-                    try {
-                        ServiceLocator.sessionStore.removeSession(serverAddress)
-                    } catch (_: UninitializedPropertyAccessException) {
-                        // Ignore in previews/tests.
-                    }
-                    if (ServiceLocator.activeServerAddress == serverAddress) {
-                        ServiceLocator.activeServerAddress = ""
-                        ServiceLocator.currentUserId = ""
-                    }
-                    _state.value = _state.value.copy(isDeleting = false, deleteSuccess = true)
-                }
-                is ApiResult.Failure -> {
-                    _state.value = _state.value.copy(
-                        isDeleting = false,
-                        actionError = "Не удалось удалить сервер",
                     )
                 }
             }

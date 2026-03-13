@@ -53,10 +53,6 @@ import com.callapp.android.ui.components.FormField
 import com.callapp.android.ui.theme.AleAppTheme
 import kotlin.math.absoluteValue
 
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/*  Data                                                                      */
-/* ═══════════════════════════════════════════════════════════════════════════ */
-
 data class ServerManageData(
     val id: String,
     val name: String,
@@ -65,40 +61,29 @@ data class ServerManageData(
     val imageUrl: String,
 )
 
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/*  Mock data                                                                 */
-/* ═══════════════════════════════════════════════════════════════════════════ */
-
 internal val sampleManageData = ServerManageData(
     id = "s1",
     name = "Tech Community",
     username = "tech_community",
-    description = "Сообщество разработчиков и технических специалистов. Обсуждаем последние технологии и делимся опытом.",
+    description = "Сообщество разработчиков и технических специалистов. Обсуждаем технологии и делимся опытом.",
     imageUrl = "",
 )
 
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/*  Color helpers                                                             */
-/* ═══════════════════════════════════════════════════════════════════════════ */
-
 private val serverImagePalette = listOf(
-    Color(0xFF3A5068), Color(0xFF5E4B6B), Color(0xFF4B6858), Color(0xFF6B5B4B),
+    Color(0xFF3A5068),
+    Color(0xFF5E4B6B),
+    Color(0xFF4B6858),
+    Color(0xFF6B5B4B),
 )
 
 private fun serverImageColor(name: String): Color =
     serverImagePalette[name.hashCode().absoluteValue % serverImagePalette.size]
 
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/*  ServerManagementScreen                                                    */
-/* ═══════════════════════════════════════════════════════════════════════════ */
-
 @Composable
 fun ServerManagementScreen(
     initial: ServerManageData = sampleManageData,
     onBack: () -> Unit = {},
-    onSave: (name: String, username: String, description: String, imageUrl: String) -> Unit =
-        { _, _, _, _ -> },
-    onDeleteServer: () -> Unit = {},
+    onSave: (name: String, username: String, description: String, imageUrl: String) -> Unit = { _, _, _, _ -> },
     onInviteTokens: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -112,9 +97,7 @@ fun ServerManagementScreen(
 
     Scaffold(
         containerColor = colors.background,
-        topBar = {
-            ManageTopBar(onBack = onBack)
-        },
+        topBar = { ManageTopBar(onBack = onBack) },
     ) { padding ->
         Column(
             modifier = modifier
@@ -124,7 +107,6 @@ fun ServerManagementScreen(
         ) {
             Spacer(Modifier.height(24.dp))
 
-            // ── Main form card ────────────────────────────────────────────
             AleAppCard(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -134,10 +116,8 @@ fun ServerManagementScreen(
                     modifier = Modifier.padding(24.dp),
                     verticalArrangement = Arrangement.spacedBy(20.dp),
                 ) {
-                    // Server image preview + camera button
                     ServerImagePreview(name = name)
 
-                    // Name field
                     FormField(
                         label = "Название сервера",
                         required = true,
@@ -147,7 +127,6 @@ fun ServerManagementScreen(
                         singleLine = true,
                     )
 
-                    // Username field
                     FormField(
                         label = "Username",
                         required = true,
@@ -158,7 +137,6 @@ fun ServerManagementScreen(
                         prefix = "@ ",
                     )
 
-                    // Description field
                     FormField(
                         label = "Описание",
                         required = true,
@@ -169,7 +147,6 @@ fun ServerManagementScreen(
                         minHeight = 96,
                     )
 
-                    // Image URL field
                     FormField(
                         label = "URL изображения",
                         required = false,
@@ -179,15 +156,14 @@ fun ServerManagementScreen(
                         singleLine = true,
                     )
 
-                    // Error message
-                    if (error != null) {
+                    error?.let {
                         Surface(
                             shape = RoundedCornerShape(8.dp),
                             color = colors.destructive.copy(alpha = 0.1f),
                             border = BorderStroke(1.dp, colors.destructive.copy(alpha = 0.2f)),
                         ) {
                             Text(
-                                text = error!!,
+                                text = it,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = colors.destructive,
                                 modifier = Modifier.padding(12.dp),
@@ -195,11 +171,7 @@ fun ServerManagementScreen(
                         }
                     }
 
-                    // Action buttons
-                    Spacer(Modifier.height(4.dp))
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         AleAppButton(
                             onClick = {
                                 when {
@@ -238,7 +210,6 @@ fun ServerManagementScreen(
 
             Spacer(Modifier.height(16.dp))
 
-            // ── Invite tokens link ──────────────────────────────────────
             InviteTokensCard(
                 onClick = onInviteTokens,
                 modifier = Modifier
@@ -248,9 +219,7 @@ fun ServerManagementScreen(
 
             Spacer(Modifier.height(16.dp))
 
-            // ── Danger zone ───────────────────────────────────────────────
             DangerZone(
-                onDeleteServer = onDeleteServer,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp),
@@ -260,10 +229,6 @@ fun ServerManagementScreen(
         }
     }
 }
-
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/*  Top bar                                                                   */
-/* ═══════════════════════════════════════════════════════════════════════════ */
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -301,10 +266,6 @@ private fun ManageTopBar(
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/*  Server image preview                                                      */
-/* ═══════════════════════════════════════════════════════════════════════════ */
-
 @Composable
 private fun ServerImagePreview(
     name: String,
@@ -322,7 +283,6 @@ private fun ServerImagePreview(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box {
-            // Server image placeholder
             Surface(
                 modifier = Modifier.size(128.dp),
                 shape = RoundedCornerShape(16.dp),
@@ -332,14 +292,11 @@ private fun ServerImagePreview(
                     Text(
                         text = initials,
                         color = Color.White,
-                        style = MaterialTheme.typography.headlineLarge.copy(
-                            fontWeight = FontWeight.SemiBold,
-                        ),
+                        style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.SemiBold),
                     )
                 }
             }
 
-            // Camera button overlay
             Surface(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
@@ -370,10 +327,6 @@ private fun ServerImagePreview(
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/*  Invite tokens card                                                        */
-/* ═══════════════════════════════════════════════════════════════════════════ */
-
 @Composable
 private fun InviteTokensCard(
     onClick: () -> Unit,
@@ -392,9 +345,7 @@ private fun InviteTokensCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "Токены приглашений",
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.Medium,
-                    ),
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium),
                     color = colors.foreground,
                 )
                 Spacer(Modifier.height(4.dp))
@@ -417,13 +368,8 @@ private fun InviteTokensCard(
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/*  Danger zone                                                               */
-/* ═══════════════════════════════════════════════════════════════════════════ */
-
 @Composable
 private fun DangerZone(
-    onDeleteServer: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = AleAppTheme.colors
@@ -434,9 +380,7 @@ private fun DangerZone(
         color = colors.destructive.copy(alpha = 0.1f),
         border = BorderStroke(1.dp, colors.destructive.copy(alpha = 0.2f)),
     ) {
-        Row(
-            modifier = Modifier.padding(20.dp),
-        ) {
+        Row(modifier = Modifier.padding(20.dp)) {
             Icon(
                 imageVector = Icons.Default.Delete,
                 contentDescription = null,
@@ -451,44 +395,23 @@ private fun DangerZone(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "Опасная зона",
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.SemiBold,
-                    ),
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                     color = colors.destructive,
                 )
 
                 Spacer(Modifier.height(4.dp))
 
                 Text(
-                    text = "Удаление сервера приведет к потере всех данных. Это действие нельзя отменить.",
+                    text = "Удаление сервера временно отключено в этой сборке. Доступно только обновление метаданных сервера и управление invite-токенами.",
                     style = MaterialTheme.typography.bodySmall,
                     color = colors.mutedForeground,
                 )
-
-                Spacer(Modifier.height(12.dp))
-
-                AleAppButton(
-                    onClick = onDeleteServer,
-                    variant = AleAppButtonVariant.Outline,
-                    size = AleAppButtonSize.Default,
-                ) {
-                    Text(
-                        text = "Удалить сервер",
-                        color = colors.destructive,
-                    )
-                }
             }
         }
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/*  Previews                                                                  */
-/* ═══════════════════════════════════════════════════════════════════════════ */
-
-// ── Full screen ─────────────────────────────────────────────────────────────
-
-@Preview(name = "ServerManagement — Light", showBackground = true, showSystemUi = true)
+@Preview(name = "ServerManagement - Light", showBackground = true, showSystemUi = true)
 @Composable
 private fun ServerManagementLightPreview() {
     AleAppTheme(darkTheme = false) {
@@ -497,7 +420,7 @@ private fun ServerManagementLightPreview() {
 }
 
 @Preview(
-    name = "ServerManagement — Dark",
+    name = "ServerManagement - Dark",
     showBackground = true,
     showSystemUi = true,
     uiMode = Configuration.UI_MODE_NIGHT_YES,
@@ -509,7 +432,7 @@ private fun ServerManagementDarkPreview() {
     }
 }
 
-@Preview(name = "ServerManagement — Empty fields", showBackground = true, showSystemUi = true)
+@Preview(name = "ServerManagement - Empty", showBackground = true, showSystemUi = true)
 @Composable
 private fun ServerManagementEmptyPreview() {
     AleAppTheme(darkTheme = false) {
@@ -525,57 +448,12 @@ private fun ServerManagementEmptyPreview() {
     }
 }
 
-// ── Component previews ──────────────────────────────────────────────────────
-
-@Preview(name = "TopBar — Light", showBackground = true)
-@Composable
-private fun TopBarLightPreview() {
-    AleAppTheme(darkTheme = false) {
-        ManageTopBar(onBack = {})
-    }
-}
-
-@Preview(name = "TopBar — Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
-@Composable
-private fun TopBarDarkPreview() {
-    AleAppTheme(darkTheme = true) {
-        ManageTopBar(onBack = {})
-    }
-}
-
-@Preview(name = "ServerImagePreview — Light", showBackground = true)
-@Composable
-private fun ServerImagePreviewLight() {
-    AleAppTheme(darkTheme = false) {
-        Surface(color = AleAppTheme.colors.card) {
-            ServerImagePreview(
-                name = "Tech Community",
-                modifier = Modifier.padding(24.dp),
-            )
-        }
-    }
-}
-
-@Preview(name = "ServerImagePreview — Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
-@Composable
-private fun ServerImagePreviewDark() {
-    AleAppTheme(darkTheme = true) {
-        Surface(color = AleAppTheme.colors.card) {
-            ServerImagePreview(
-                name = "Creative Studio",
-                modifier = Modifier.padding(24.dp),
-            )
-        }
-    }
-}
-
-@Preview(name = "DangerZone — Light", showBackground = true)
+@Preview(name = "DangerZone - Light", showBackground = true)
 @Composable
 private fun DangerZoneLightPreview() {
     AleAppTheme(darkTheme = false) {
         Surface(color = AleAppTheme.colors.background) {
             DangerZone(
-                onDeleteServer = {},
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp),
@@ -584,13 +462,12 @@ private fun DangerZoneLightPreview() {
     }
 }
 
-@Preview(name = "DangerZone — Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Preview(name = "DangerZone - Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 private fun DangerZoneDarkPreview() {
     AleAppTheme(darkTheme = true) {
         Surface(color = AleAppTheme.colors.background) {
             DangerZone(
-                onDeleteServer = {},
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp),
