@@ -19,6 +19,7 @@ import java.sql.DriverManager
 import java.util.UUID
 import kotlinx.coroutines.async
 import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -85,6 +86,69 @@ class SignalingRoutesTest {
             assertEquals(calleeId, offer.targetUserId)
             assertEquals("fake-sdp", offer.sdp)
         }
+    }
+
+    @Test
+    fun offlineCallCreatesMissedCallNotificationForTargetUser() = testApplication {
+        val dbFile = File("build/test-signal-${UUID.randomUUID()}.db")
+        environment {
+            config = MapApplicationConfig(
+                "callapp.environment" to "test",
+                "callapp.database.path" to dbFile.absolutePath,
+                "callapp.database.maximumPoolSize" to "1",
+                "callapp.server.id" to "test-server",
+                "callapp.server.name" to "Test Server",
+                "callapp.server.username" to "@test",
+                "callapp.server.description" to "Test description",
+                "callapp.security.jwtSecret" to "test-secret",
+                "callapp.security.issuer" to "test-issuer",
+                "callapp.security.audience" to "test-audience",
+                "callapp.security.guestTokenTtlMinutes" to "30",
+                "callapp.security.userTokenTtlDays" to "30",
+                "callapp.turn.host" to "localhost",
+                "callapp.turn.port" to "3478",
+                "callapp.turn.secret" to "turn-secret",
+                "callapp.turn.realm" to "callapp-test",
+                "callapp.turn.ttlSeconds" to "3600",
+            )
+        }
+
+        application { module() }
+        client.get("/health")
+
+        seedInviteToken(dbFile.absolutePath, "TOKEN123")
+        seedUser(dbFile.absolutePath, "@caller", "verysecure")
+        val calleeId = seedUser(dbFile.absolutePath, "@callee", "verysecure")
+
+        val callerToken = login("TOKEN123", "caller", "verysecure")
+        val calleeToken = login("TOKEN123", "callee", "verysecure")
+
+        val wsClient = createClient {
+            install(WebSockets)
+        }
+
+        wsClient.webSocket("/ws?token=$callerToken") {
+            send(Frame.Text(SignalMessage.CallRequest(targetUserId = calleeId).toJson()))
+
+            val frame = withTimeout(5_000) { incoming.receive() as Frame.Text }
+            val reply = SignalMessage.fromJson(frame.readText()) as SignalMessage.CallBusy
+            assertEquals(calleeId, reply.targetUserId)
+        }
+
+        val notificationsResponse = client.get("/api/notifications") {
+            header(HttpHeaders.Authorization, "Bearer $calleeToken")
+        }
+        assertEquals(io.ktor.http.HttpStatusCode.OK, notificationsResponse.status)
+        val notifications = json.parseToJsonElement(notificationsResponse.bodyAsText()).jsonArray
+        assertEquals(1, notifications.size)
+        assertEquals("MISSED_CALL", notifications.first().jsonObject["type"]!!.jsonPrimitive.content)
+
+        val callerNotificationsResponse = client.get("/api/notifications") {
+            header(HttpHeaders.Authorization, "Bearer $callerToken")
+        }
+        assertEquals(io.ktor.http.HttpStatusCode.OK, callerNotificationsResponse.status)
+        val callerNotifications = json.parseToJsonElement(callerNotificationsResponse.bodyAsText()).jsonArray
+        assertEquals(0, callerNotifications.size)
     }
 
     private suspend fun io.ktor.server.testing.ApplicationTestBuilder.login(inviteToken: String, username: String, password: String): String {

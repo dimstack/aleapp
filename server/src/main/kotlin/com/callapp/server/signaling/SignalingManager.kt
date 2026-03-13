@@ -43,10 +43,10 @@ class SignalingManager(
             if (message is SignalMessage.CallRequest || message is SignalMessage.Offer) {
                 val serverName = serverRepository.getCurrentServer()?.name ?: "CallApp Server"
                 notificationRepository.create(
-                    userId = senderId,
+                    userId = message.targetUserId,
                     type = NotificationType.MISSED_CALL,
                     serverName = serverName,
-                    message = "Target user is offline",
+                    message = "You missed a call while offline",
                 )
             }
             return
