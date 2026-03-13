@@ -151,6 +151,26 @@ class ManagementRoutesTest {
         assertEquals(HttpStatusCode.BadRequest, invalidPayloadResponse.status)
     }
 
+    @Test
+    fun joinRequestsCreationEndpointIsDeprecated() = testWithDatabase { dbPath ->
+        application { module() }
+        client.get("/health")
+        seedInviteToken(dbPath, "USER3333")
+        seedUser(dbPath, "@member3", "verysecure", role = "MEMBER", displayName = "Member Three")
+
+        val memberToken = login("USER3333", "member3", "verysecure")
+
+        val response = client.post("/api/join-requests") {
+            bearerAuth(memberToken)
+            header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+            setBody("""{"username":"candidate","name":"Candidate"}""")
+        }
+
+        assertEquals(HttpStatusCode.Gone, response.status)
+        val body = json.parseToJsonElement(response.bodyAsText()).jsonObject
+        assertEquals("deprecated_endpoint", body["code"]!!.jsonPrimitive.content)
+    }
+
     private fun testWithDatabase(block: suspend io.ktor.server.testing.ApplicationTestBuilder.(String) -> Unit) =
         testApplication {
             val dbFile = File("build/test-mgmt-${UUID.randomUUID()}.db")

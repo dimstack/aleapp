@@ -96,25 +96,6 @@ class ManagementService(
 
     fun listJoinRequests(serverId: String) = joinRequestRepository.listPending(serverId)
 
-    fun submitJoinRequest(serverId: String, username: String, name: String): com.callapp.server.models.JoinRequestRecord {
-        val normalizedUsername = if (username.startsWith("@")) username else "@$username"
-        if (userRepository.findByUsername(serverId, normalizedUsername) != null ||
-            userRepository.findPendingJoinRequest(serverId, normalizedUsername) != null
-        ) {
-            throw ApiException(HttpStatusCode.Conflict, "username_taken", "Username is already taken")
-        }
-        return joinRequestRepository.create(
-            username = normalizedUsername,
-            displayName = name.trim(),
-            passwordHash = passwordService.hash(UUID.randomUUID().toString()),
-            avatarUrl = null,
-            inviteTokenId = inviteTokenRepository.listByServer(serverId).firstOrNull()?.id
-                ?: throw ApiException(HttpStatusCode.BadRequest, "validation_error", "No invite token available"),
-            serverId = serverId,
-            requestedRole = Role.MEMBER,
-        )
-    }
-
     fun updateJoinRequest(requestId: String, action: String, reviewerId: String): com.callapp.server.models.JoinRequestRecord {
         val pending = joinRequestRepository.findPendingById(requestId)
             ?: throw ApiException(HttpStatusCode.NotFound, "not_found", "Join request not found")

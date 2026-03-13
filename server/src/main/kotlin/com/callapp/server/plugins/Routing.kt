@@ -12,15 +12,12 @@ import com.callapp.server.routes.CreateUserRequestDto
 import com.callapp.server.routes.HealthResponse
 import com.callapp.server.routes.JoinRequestActionDto
 import com.callapp.server.routes.LoginRequestDto
-import com.callapp.server.routes.SubmitJoinRequestDto
 import com.callapp.server.routes.UpdateServerRequestDto
 import com.callapp.server.routes.UpdateUserRequestDto
 import com.callapp.server.routes.toDto
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.auth.authenticate
-import io.ktor.server.request.receive
-import io.ktor.server.request.receiveNullable
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 import io.ktor.server.routing.delete
@@ -215,13 +212,13 @@ fun Application.configureRouting() {
             post("/api/join-requests") {
                 val principal = call.requireSessionPrincipal()
                 requireUser(principal)
-                val request = call.receive<SubmitJoinRequestDto>()
-                val joinRequest = this@configureRouting.dependencies.managementService.submitJoinRequest(
-                    serverId = principal.serverId,
-                    username = request.username,
-                    name = request.name,
+                call.respond(
+                    HttpStatusCode.Gone,
+                    com.callapp.server.routes.ErrorResponse(
+                        code = "deprecated_endpoint",
+                        message = "Use POST /api/users for registration and pending approval flow",
+                    ),
                 )
-                call.respond(HttpStatusCode.OK, joinRequest.toDto())
             }
 
             put("/api/join-requests/{id}") {
