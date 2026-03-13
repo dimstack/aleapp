@@ -5,6 +5,7 @@ import com.callapp.server.models.JoinRequestStatus
 import com.callapp.server.models.PendingApprovalRecord
 import com.callapp.server.models.UserRecord
 import com.callapp.server.models.UserStatus
+import java.sql.Connection
 import java.sql.ResultSet
 import java.time.Instant
 import javax.sql.DataSource
@@ -14,19 +15,23 @@ class UserRepository(
 ) {
     fun findById(userId: String): UserRecord? {
         dataSource.connection.use { connection ->
-            connection.prepareStatement(
-                """
-                SELECT id, username, display_name, password_hash, avatar_url, role, status,
-                       server_id, is_approved, created_at, updated_at, last_seen_at, lockout_until
-                FROM users
-                WHERE id = ?
-                LIMIT 1
-                """.trimIndent(),
-            ).use { statement ->
-                statement.setString(1, userId)
-                statement.executeQuery().use { rs ->
-                    return if (rs.next()) rs.toUserRecord() else null
-                }
+            return findById(connection, userId)
+        }
+    }
+
+    fun findById(connection: Connection, userId: String): UserRecord? {
+        connection.prepareStatement(
+            """
+            SELECT id, username, display_name, password_hash, avatar_url, role, status,
+                   server_id, is_approved, created_at, updated_at, last_seen_at, lockout_until
+            FROM users
+            WHERE id = ?
+            LIMIT 1
+            """.trimIndent(),
+        ).use { statement ->
+            statement.setString(1, userId)
+            statement.executeQuery().use { rs ->
+                return if (rs.next()) rs.toUserRecord() else null
             }
         }
     }
@@ -82,28 +87,42 @@ class UserRepository(
         isApproved: Boolean,
     ): UserRecord {
         dataSource.connection.use { connection ->
-            connection.prepareStatement(
-                """
-                INSERT INTO users(
-                    id, username, display_name, password_hash, avatar_url, role, status,
-                    server_id, is_approved, created_at, updated_at
-                )
-                VALUES (?, ?, ?, ?, ?, ?, 'ONLINE', ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
-                        strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
-                """.trimIndent(),
-            ).use { statement ->
-                statement.setString(1, id)
-                statement.setString(2, username)
-                statement.setString(3, displayName)
-                statement.setString(4, passwordHash)
-                statement.setString(5, avatarUrl)
-                statement.setString(6, role.name)
-                statement.setString(7, serverId)
-                statement.setInt(8, if (isApproved) 1 else 0)
-                statement.executeUpdate()
-            }
+            return createUser(connection, id, username, displayName, passwordHash, avatarUrl, role, serverId, isApproved)
         }
-        return checkNotNull(findById(id))
+    }
+
+    fun createUser(
+        connection: Connection,
+        id: String,
+        username: String,
+        displayName: String,
+        passwordHash: String,
+        avatarUrl: String?,
+        role: Role,
+        serverId: String,
+        isApproved: Boolean,
+    ): UserRecord {
+        connection.prepareStatement(
+            """
+            INSERT INTO users(
+                id, username, display_name, password_hash, avatar_url, role, status,
+                server_id, is_approved, created_at, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, 'ONLINE', ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+                    strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+            """.trimIndent(),
+        ).use { statement ->
+            statement.setString(1, id)
+            statement.setString(2, username)
+            statement.setString(3, displayName)
+            statement.setString(4, passwordHash)
+            statement.setString(5, avatarUrl)
+            statement.setString(6, role.name)
+            statement.setString(7, serverId)
+            statement.setInt(8, if (isApproved) 1 else 0)
+            statement.executeUpdate()
+        }
+        return checkNotNull(findById(connection, id))
     }
 
     fun createJoinRequest(

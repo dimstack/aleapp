@@ -13,8 +13,10 @@ import com.callapp.server.repository.UserRepository
 import com.callapp.server.routes.ApiException
 import io.ktor.http.HttpStatusCode
 import java.util.UUID
+import javax.sql.DataSource
 
 class ManagementService(
+    private val dataSource: DataSource,
     private val serverRepository: ServerRepository,
     private val userRepository: UserRepository,
     private val inviteTokenRepository: InviteTokenRepository,
@@ -100,20 +102,7 @@ class ManagementService(
         val pending = joinRequestRepository.findPendingById(requestId)
             ?: throw ApiException(HttpStatusCode.NotFound, "not_found", "Join request not found")
         return when (action.uppercase()) {
-            "APPROVED" -> {
-                val user = userRepository.createUser(
-                    id = UUID.randomUUID().toString(),
-                    username = pending.username,
-                    displayName = pending.displayName,
-                    passwordHash = pending.passwordHash,
-                    avatarUrl = pending.avatarUrl,
-                    role = pending.requestedRole,
-                    serverId = pending.serverId,
-                    isApproved = true,
-                )
-                joinRequestRepository.approve(requestId, reviewerId, user.id)
-                checkNotNull(joinRequestRepository.findSummaryById(requestId))
-            }
+            "APPROVED" -> approveJoinRequestTransactionally(pending, reviewerId)
             "DECLINED" -> {
                 joinRequestRepository.decline(requestId, reviewerId)
                 checkNotNull(joinRequestRepository.findSummaryById(requestId))
@@ -154,6 +143,47 @@ class ManagementService(
             repeat(length) {
                 append(alphabet.random())
             }
+        }
+    }
+
+    private fun approveJoinRequestTransactionally(
+        pending: com.callapp.server.models.PendingApprovalRecord,
+        reviewerId: String,
+    ): com.callapp.server.models.JoinRequestRecord {
+        dataSource.connection.use { connection ->
+            val previousAutoCommit = connection.autoCommit
+            connection.autoCommit = false
+            var committed = false
+            try {
+                val user = userRepository.createUser(
+                    connection = connection,
+                    id = UUID.randomUUID().toString(),
+                    username = pending.username,
+                    displayName = pending.displayName,
+                    passwordHash = pending.passwordHash,
+                    avatarUrl = pending.avatarUrl,
+                    role = pending.requestedRole,
+                    serverId = pending.serverId,
+                    isApproved = true,
+                )
+                inviteTokenRepository.incrementUsage(connection, pending.inviteTokenId)
+                joinRequestRepository.approve(
+                    connection = connection,
+                    requestId = pending.id,
+                    reviewerId = reviewerId,
+                    userId = user.id,
+                )
+                connection.commit()
+                committed = true
+            } catch (error: Throwable) {
+                if (!committed) {
+                    connection.rollback()
+                }
+                throw error
+            } finally {
+                connection.autoCommit = previousAutoCommit
+            }
+            return checkNotNull(joinRequestRepository.findSummaryById(connection, pending.id))
         }
     }
 }

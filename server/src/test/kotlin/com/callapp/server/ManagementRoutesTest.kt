@@ -171,6 +171,52 @@ class ManagementRoutesTest {
         assertEquals("deprecated_endpoint", body["code"]!!.jsonPrimitive.content)
     }
 
+    @Test
+    fun approvingPendingRegistrationConsumesInviteTokenUse() = testWithDatabase { dbPath ->
+        application { module() }
+        client.get("/health")
+        val inviteTokenId = seedInviteToken(dbPath, "APPROVE1", requireApproval = true, maxUses = 1)
+        seedInviteToken(dbPath, "ADMIN333")
+        seedUser(dbPath, "@admin3", "supersecure", role = "ADMIN", displayName = "Admin Three")
+
+        val connectResponse = client.post("/api/connect") {
+            header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+            setBody("""{"token":"APPROVE1"}""")
+        }
+        val guestToken = json.parseToJsonElement(connectResponse.bodyAsText()).jsonObject["session_token"]!!.jsonPrimitive.content
+
+        val createResponse = client.post("/api/users") {
+            bearerAuth(guestToken)
+            header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+            setBody("""{"name":"Pending Member","username":"pendingmember","password":"verysecure"}""")
+        }
+        assertEquals(HttpStatusCode.Accepted, createResponse.status)
+
+        val adminToken = login("ADMIN333", "admin3", "supersecure")
+        val joinRequestsResponse = client.get("/api/join-requests") {
+            bearerAuth(adminToken)
+        }
+        val requestId = json.parseToJsonElement(joinRequestsResponse.bodyAsText())
+            .jsonArray.first().jsonObject["id"]!!.jsonPrimitive.content
+
+        val approveResponse = client.put("/api/join-requests/$requestId") {
+            bearerAuth(adminToken)
+            header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+            setBody("""{"status":"approved"}""")
+        }
+        assertEquals(HttpStatusCode.OK, approveResponse.status)
+
+        DriverManager.getConnection("jdbc:sqlite:$dbPath").use { connection ->
+            connection.prepareStatement("SELECT current_uses FROM invite_tokens WHERE id = ?").use { statement ->
+                statement.setString(1, inviteTokenId)
+                statement.executeQuery().use { rs ->
+                    assertTrue(rs.next())
+                    assertEquals(1, rs.getInt("current_uses"))
+                }
+            }
+        }
+    }
+
     private fun testWithDatabase(block: suspend io.ktor.server.testing.ApplicationTestBuilder.(String) -> Unit) =
         testApplication {
             val dbFile = File("build/test-mgmt-${UUID.randomUUID()}.db")
@@ -206,7 +252,8 @@ class ManagementRoutesTest {
         return json.parseToJsonElement(response.bodyAsText()).jsonObject["session_token"]!!.jsonPrimitive.content
     }
 
-    private fun seedInviteToken(dbPath: String, token: String) {
+    private fun seedInviteToken(dbPath: String, token: String, requireApproval: Boolean = false, maxUses: Int = 0): String {
+        val inviteTokenId = UUID.randomUUID().toString()
         DriverManager.getConnection("jdbc:sqlite:$dbPath").use { connection ->
             connection.prepareStatement(
                 """
@@ -214,15 +261,18 @@ class ManagementRoutesTest {
                     id, token, label, server_id, max_uses, current_uses, granted_role, require_approval,
                     is_revoked, created_at
                 )
-                VALUES (?, ?, ?, 'test-server', 0, 0, 'MEMBER', 0, 0, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+                VALUES (?, ?, ?, 'test-server', ?, 0, 'MEMBER', ?, 0, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
                 """.trimIndent(),
             ).use { statement ->
-                statement.setString(1, UUID.randomUUID().toString())
+                statement.setString(1, inviteTokenId)
                 statement.setString(2, token)
                 statement.setString(3, "Seed Token")
+                statement.setInt(4, maxUses)
+                statement.setInt(5, if (requireApproval) 1 else 0)
                 statement.executeUpdate()
             }
         }
+        return inviteTokenId
     }
 
     private fun seedUser(dbPath: String, username: String, password: String, role: String, displayName: String): String {

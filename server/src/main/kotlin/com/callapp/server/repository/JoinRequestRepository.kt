@@ -5,6 +5,7 @@ import com.callapp.server.models.JoinRequestStatus
 import com.callapp.server.models.NotificationType
 import com.callapp.server.models.PendingApprovalRecord
 import com.callapp.server.models.Role
+import java.sql.Connection
 import java.sql.ResultSet
 import java.util.UUID
 import javax.sql.DataSource
@@ -87,29 +88,33 @@ class JoinRequestRepository(
 
     fun approve(requestId: String, reviewerId: String, userId: String) {
         dataSource.connection.use { connection ->
-            connection.prepareStatement(
-                """
-                UPDATE join_requests
-                SET status = 'APPROVED', reviewed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), reviewed_by = ?
-                WHERE id = ?
-                """.trimIndent(),
-            ).use { statement ->
-                statement.setString(1, reviewerId)
-                statement.setString(2, requestId)
-                statement.executeUpdate()
-            }
-            connection.prepareStatement(
-                """
-                INSERT INTO notifications(id, user_id, type, server_name, message, is_read, created_at)
-                SELECT ?, ?, 'REQUEST_APPROVED', s.name, 'Join request approved', 0, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-                FROM servers s
-                LIMIT 1
-                """.trimIndent(),
-            ).use { statement ->
-                statement.setString(1, UUID.randomUUID().toString())
-                statement.setString(2, userId)
-                statement.executeUpdate()
-            }
+            approve(connection, requestId, reviewerId, userId)
+        }
+    }
+
+    fun approve(connection: Connection, requestId: String, reviewerId: String, userId: String) {
+        connection.prepareStatement(
+            """
+            UPDATE join_requests
+            SET status = 'APPROVED', reviewed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), reviewed_by = ?
+            WHERE id = ?
+            """.trimIndent(),
+        ).use { statement ->
+            statement.setString(1, reviewerId)
+            statement.setString(2, requestId)
+            statement.executeUpdate()
+        }
+        connection.prepareStatement(
+            """
+            INSERT INTO notifications(id, user_id, type, server_name, message, is_read, created_at)
+            SELECT ?, ?, 'REQUEST_APPROVED', s.name, 'Join request approved', 0, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+            FROM servers s
+            LIMIT 1
+            """.trimIndent(),
+        ).use { statement ->
+            statement.setString(1, UUID.randomUUID().toString())
+            statement.setString(2, userId)
+            statement.executeUpdate()
         }
     }
 
@@ -131,18 +136,22 @@ class JoinRequestRepository(
 
     fun findSummaryById(requestId: String): JoinRequestRecord? {
         dataSource.connection.use { connection ->
-            connection.prepareStatement(
-                """
-                SELECT id, display_name, username, server_id, status, created_at
-                FROM join_requests
-                WHERE id = ?
-                LIMIT 1
-                """.trimIndent(),
-            ).use { statement ->
-                statement.setString(1, requestId)
-                statement.executeQuery().use { rs ->
-                    return if (rs.next()) rs.toJoinRequestRecord() else null
-                }
+            return findSummaryById(connection, requestId)
+        }
+    }
+
+    fun findSummaryById(connection: Connection, requestId: String): JoinRequestRecord? {
+        connection.prepareStatement(
+            """
+            SELECT id, display_name, username, server_id, status, created_at
+            FROM join_requests
+            WHERE id = ?
+            LIMIT 1
+            """.trimIndent(),
+        ).use { statement ->
+            statement.setString(1, requestId)
+            statement.executeQuery().use { rs ->
+                return if (rs.next()) rs.toJoinRequestRecord() else null
             }
         }
     }

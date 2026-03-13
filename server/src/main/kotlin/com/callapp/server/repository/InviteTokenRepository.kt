@@ -2,6 +2,9 @@ package com.callapp.server.repository
 
 import com.callapp.server.models.InviteTokenRecord
 import com.callapp.server.models.Role
+import com.callapp.server.routes.ApiException
+import io.ktor.http.HttpStatusCode
+import java.sql.Connection
 import java.sql.ResultSet
 import javax.sql.DataSource
 
@@ -29,15 +32,28 @@ class InviteTokenRepository(
 
     fun incrementUsage(inviteTokenId: String) {
         dataSource.connection.use { connection ->
-            connection.prepareStatement(
-                """
-                UPDATE invite_tokens
-                SET current_uses = current_uses + 1
-                WHERE id = ?
-                """.trimIndent(),
-            ).use { statement ->
-                statement.setString(1, inviteTokenId)
-                statement.executeUpdate()
+            incrementUsage(connection, inviteTokenId)
+        }
+    }
+
+    fun incrementUsage(connection: Connection, inviteTokenId: String) {
+        connection.prepareStatement(
+            """
+            UPDATE invite_tokens
+            SET current_uses = current_uses + 1
+            WHERE id = ?
+              AND is_revoked = 0
+              AND (max_uses = 0 OR current_uses < max_uses)
+            """.trimIndent(),
+        ).use { statement ->
+            statement.setString(1, inviteTokenId)
+            val updatedRows = statement.executeUpdate()
+            if (updatedRows != 1) {
+                throw ApiException(
+                    HttpStatusCode.Conflict,
+                    "invite_token_exhausted",
+                    "Invite token cannot accept more users",
+                )
             }
         }
     }
