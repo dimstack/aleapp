@@ -247,6 +247,8 @@ class ApiClient(private val baseUrl: String) {
             handleError(e)
         } catch (_: ServerResponseException) {
             ApiResult.Failure(ApiError.ServerError)
+        } catch (_: IllegalStateException) {
+            ApiResult.Failure(ApiError.ServerError)
         } catch (_: IOException) {
             ApiResult.Failure(ApiError.NetworkError)
         }
