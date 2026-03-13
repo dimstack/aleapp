@@ -9,6 +9,8 @@ import com.callapp.android.network.ServerConnectionManager
 import com.callapp.android.network.dto.toDomain
 import com.callapp.android.network.result.ApiError
 import com.callapp.android.network.result.ApiResult
+import com.callapp.android.ui.common.apiErrorMessage
+import com.callapp.android.ui.common.localizeBackendMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -279,24 +281,22 @@ internal fun connectErrorMessage(error: ApiError): String = when (error) {
     ApiError.NetworkError -> "Нет соединения с сервером"
     ApiError.NotFound -> "Сервер не найден"
     is ApiError.Unauthorized -> inviteTokenErrorMessage(error)
-    is ApiError.ValidationError -> error.message
-    is ApiError.Forbidden -> error.message
-    is ApiError.DeprecatedEndpoint -> error.message
-    is ApiError.UsernameTaken -> error.message
-    is ApiError.LoginLocked -> error.message
-    is ApiError.ServerError -> error.message ?: "Ошибка сервера"
+    else -> apiErrorMessage(
+        error = error,
+        fallback = "Ошибка сервера",
+        notFound = "Сервер не найден",
+        unauthorized = "Токен недействителен или истек",
+    )
 }
 
 internal fun createProfileErrorMessage(error: ApiError): String = when (error) {
-    ApiError.NetworkError -> "Нет соединения с сервером"
-    ApiError.NotFound -> "Сервер не найден"
-    is ApiError.Unauthorized -> "Сессия истекла, подключитесь заново"
-    is ApiError.ValidationError -> error.message
-    is ApiError.UsernameTaken -> "Username уже занят"
-    is ApiError.LoginLocked -> error.message
-    is ApiError.Forbidden -> error.message
-    is ApiError.DeprecatedEndpoint -> error.message
-    is ApiError.ServerError -> error.message ?: "Не удалось создать профиль"
+    is ApiError.Unauthorized -> "Сессия подключения истекла. Подключитесь заново"
+    else -> apiErrorMessage(
+        error = error,
+        fallback = "Не удалось создать профиль",
+        notFound = "Сервер не найден",
+        unauthorized = "Сессия подключения истекла. Подключитесь заново",
+    )
 }
 
 internal fun loginErrorMessage(error: ApiError): String = when (error) {
@@ -310,16 +310,17 @@ internal fun loginErrorMessage(error: ApiError): String = when (error) {
         }
     }
 
-    is ApiError.ValidationError -> error.message
-    is ApiError.UsernameTaken -> error.message
-    is ApiError.Forbidden -> error.message
-    is ApiError.DeprecatedEndpoint -> error.message
-    is ApiError.ServerError -> error.message ?: "Ошибка сервера"
+    else -> apiErrorMessage(
+        error = error,
+        fallback = "Ошибка сервера",
+        notFound = "Сервер не найден",
+        unauthorized = "Неверный username или пароль",
+    )
 }
 
 private fun inviteTokenErrorMessage(error: ApiError.Unauthorized): String = when (error.code) {
     "invite_token_invalid" -> "Токен приглашения недействителен"
     "invite_token_revoked" -> "Токен приглашения отозван"
     "invite_token_exhausted" -> "Лимит использования токена исчерпан"
-    else -> error.message ?: "Токен недействителен или истек"
+    else -> localizeBackendMessage(error.message) ?: "Токен недействителен или истек"
 }

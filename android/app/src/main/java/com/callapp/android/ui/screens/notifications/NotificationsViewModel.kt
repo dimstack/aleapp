@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.callapp.android.data.ServiceLocator
 import com.callapp.android.domain.model.Notification
 import com.callapp.android.network.result.ApiResult
+import com.callapp.android.ui.common.apiErrorMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -43,8 +44,7 @@ class NotificationsViewModel(
                 )
                 return@launch
             }
-            val client = ServiceLocator.connectionManager
-                .getClient(serverAddress)
+            val client = ServiceLocator.connectionManager.getClient(serverAddress)
             when (val result = client.getNotifications()) {
                 is ApiResult.Success -> {
                     _state.value = _state.value.copy(
@@ -52,10 +52,15 @@ class NotificationsViewModel(
                         isLoading = false,
                     )
                 }
+
                 is ApiResult.Failure -> {
                     _state.value = _state.value.copy(
                         isLoading = false,
-                        error = "Не удалось загрузить уведомления",
+                        error = apiErrorMessage(
+                            error = result.error,
+                            fallback = "Не удалось загрузить уведомления",
+                            notFound = "Сервер не найден",
+                        ),
                     )
                 }
             }
@@ -66,26 +71,34 @@ class NotificationsViewModel(
         _state.value = _state.value.copy(
             notifications = _state.value.notifications.map {
                 if (it.id == notificationId) it.copy(isRead = true) else it
-            }
+            },
         )
         viewModelScope.launch {
             if (serverAddress.isBlank()) return@launch
-            val client = ServiceLocator.connectionManager
+            ServiceLocator.connectionManager
                 .getClient(serverAddress)
-            client.markNotificationsRead()
+                .markNotificationsRead()
         }
     }
 
     fun clearAll() {
         viewModelScope.launch {
             if (serverAddress.isBlank()) return@launch
-            val client = ServiceLocator.connectionManager
-                .getClient(serverAddress)
-            when (client.clearNotifications()) {
+            val client = ServiceLocator.connectionManager.getClient(serverAddress)
+            when (val result = client.clearNotifications()) {
                 is ApiResult.Success -> {
                     _state.value = _state.value.copy(notifications = emptyList())
                 }
-                is ApiResult.Failure -> { /* silently fail */ }
+
+                is ApiResult.Failure -> {
+                    _state.value = _state.value.copy(
+                        error = apiErrorMessage(
+                            error = result.error,
+                            fallback = "Не удалось очистить уведомления",
+                            notFound = "Сервер не найден",
+                        ),
+                    )
+                }
             }
         }
     }

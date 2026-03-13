@@ -8,9 +8,9 @@ import com.callapp.android.domain.model.JoinRequest
 import com.callapp.android.domain.model.Server
 import com.callapp.android.domain.model.User
 import com.callapp.android.domain.model.UserRole
-import com.callapp.android.network.result.ApiError
 import com.callapp.android.network.result.ApiResult
 import com.callapp.android.ui.common.UiState
+import com.callapp.android.ui.common.apiErrorMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -65,18 +65,13 @@ class ServerDetailViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
                 }
 
                 is ApiResult.Failure -> {
-                    val message = when (val error = result.error) {
-                        ApiError.NetworkError -> "Нет соединения с сервером"
-                        ApiError.NotFound -> "Сервер не найден"
-                        is ApiError.Unauthorized -> "Сессия истекла"
-                        is ApiError.ValidationError -> error.message
-                        is ApiError.UsernameTaken -> error.message
-                        is ApiError.LoginLocked -> error.message
-                        is ApiError.Forbidden -> error.message
-                        is ApiError.DeprecatedEndpoint -> error.message
-                        is ApiError.ServerError -> error.message ?: "Ошибка сервера"
-                    }
-                    _membersState.value = UiState.Error(message)
+                    _membersState.value = UiState.Error(
+                        apiErrorMessage(
+                            error = result.error,
+                            fallback = "Ошибка сервера",
+                            notFound = "Сервер не найден",
+                        ),
+                    )
                 }
             }
         }
@@ -89,9 +84,7 @@ class ServerDetailViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
                 _pendingRequests.value = result.data
             }
 
-            is ApiResult.Failure -> {
-                // Silently fail: pending requests are non-critical.
-            }
+            is ApiResult.Failure -> Unit
         }
     }
 }

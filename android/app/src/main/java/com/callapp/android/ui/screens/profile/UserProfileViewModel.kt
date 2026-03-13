@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.callapp.android.data.ServiceLocator
 import com.callapp.android.domain.model.UserRole
 import com.callapp.android.network.result.ApiResult
+import com.callapp.android.ui.common.apiErrorMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -54,13 +55,21 @@ class UserProfileViewModel(
                             username = user.username,
                             serverName = server.name,
                             isAdmin = user.role == UserRole.ADMIN,
-                            isFavorite = false, // will be updated below
+                            isFavorite = false,
                         ),
                     )
                     checkFavorite()
                 }
+
                 is ApiResult.Failure -> {
-                    _state.value = UserProfileUiState(isLoading = false, error = "Не удалось загрузить профиль")
+                    _state.value = UserProfileUiState(
+                        isLoading = false,
+                        error = apiErrorMessage(
+                            error = result.error,
+                            fallback = "Не удалось загрузить профиль",
+                            notFound = "Профиль не найден",
+                        ),
+                    )
                 }
             }
         }
@@ -75,7 +84,8 @@ class UserProfileViewModel(
                     user = _state.value.user?.copy(isFavorite = isFav),
                 )
             }
-            is ApiResult.Failure -> { /* ignore, default false */ }
+
+            is ApiResult.Failure -> Unit
         }
     }
 
@@ -91,7 +101,6 @@ class UserProfileViewModel(
                 repository.removeFavorite(serverAddress, userId)
             }
             if (result is ApiResult.Failure) {
-                // Revert on failure
                 _state.value = _state.value.copy(
                     user = _state.value.user?.copy(isFavorite = !newFav),
                 )

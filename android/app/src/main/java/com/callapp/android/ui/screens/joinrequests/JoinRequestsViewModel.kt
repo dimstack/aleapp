@@ -8,6 +8,7 @@ import com.callapp.android.data.ServerRepository
 import com.callapp.android.domain.model.JoinRequest
 import com.callapp.android.domain.model.JoinRequestStatus
 import com.callapp.android.network.result.ApiResult
+import com.callapp.android.ui.common.apiErrorMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -49,7 +50,8 @@ class JoinRequestsViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
                 is ApiResult.Success -> {
                     _state.value = _state.value.copy(serverName = serverResult.data.name)
                 }
-                is ApiResult.Failure -> { }
+
+                is ApiResult.Failure -> Unit
             }
 
             when (val result = client.getJoinRequests()) {
@@ -59,10 +61,15 @@ class JoinRequestsViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
                         isLoading = false,
                     )
                 }
+
                 is ApiResult.Failure -> {
                     _state.value = _state.value.copy(
                         isLoading = false,
-                        error = "Не удалось загрузить заявки",
+                        error = apiErrorMessage(
+                            error = result.error,
+                            fallback = "Не удалось загрузить заявки",
+                            notFound = "Сервер не найден",
+                        ),
                     )
                 }
             }
@@ -73,13 +80,22 @@ class JoinRequestsViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
         viewModelScope.launch {
             if (serverAddress.isBlank()) return@launch
             val client = ServiceLocator.connectionManager.getClient(serverAddress)
-            when (client.updateJoinRequest(requestId, "APPROVED")) {
+            when (val result = client.updateJoinRequest(requestId, "APPROVED")) {
                 is ApiResult.Success -> {
                     _state.value = _state.value.copy(
                         requests = _state.value.requests.filter { it.id != requestId },
                     )
                 }
-                is ApiResult.Failure -> { }
+
+                is ApiResult.Failure -> {
+                    _state.value = _state.value.copy(
+                        error = apiErrorMessage(
+                            error = result.error,
+                            fallback = "Не удалось обработать заявку",
+                            notFound = "Заявка не найдена",
+                        ),
+                    )
+                }
             }
         }
     }
@@ -88,13 +104,22 @@ class JoinRequestsViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
         viewModelScope.launch {
             if (serverAddress.isBlank()) return@launch
             val client = ServiceLocator.connectionManager.getClient(serverAddress)
-            when (client.updateJoinRequest(requestId, "DECLINED")) {
+            when (val result = client.updateJoinRequest(requestId, "DECLINED")) {
                 is ApiResult.Success -> {
                     _state.value = _state.value.copy(
                         requests = _state.value.requests.filter { it.id != requestId },
                     )
                 }
-                is ApiResult.Failure -> { }
+
+                is ApiResult.Failure -> {
+                    _state.value = _state.value.copy(
+                        error = apiErrorMessage(
+                            error = result.error,
+                            fallback = "Не удалось обработать заявку",
+                            notFound = "Заявка не найдена",
+                        ),
+                    )
+                }
             }
         }
     }

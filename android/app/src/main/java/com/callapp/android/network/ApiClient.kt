@@ -232,9 +232,6 @@ class ApiClient(private val baseUrl: String) {
     private suspend fun <T> handleError(e: ClientRequestException): ApiResult<T> {
         val body = runCatching { e.response.bodyAsText() }.getOrDefault("")
         val error = mapApiError(e.response.status, body)
-        if (e.response.status == HttpStatusCode.Unauthorized) {
-            sessionToken = null
-        }
         return ApiResult.Failure(error)
     }
 

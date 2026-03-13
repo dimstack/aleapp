@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.callapp.android.data.ServiceLocator
 import com.callapp.android.network.result.ApiResult
+import com.callapp.android.ui.common.apiErrorMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -76,7 +77,11 @@ class ServerManagementViewModel(
                 is ApiResult.Failure -> {
                     _state.value = _state.value.copy(
                         isSaving = false,
-                        actionError = "Не удалось сохранить изменения",
+                        actionError = apiErrorMessage(
+                            error = result.error,
+                            fallback = "Не удалось сохранить изменения",
+                            notFound = "Сервер не найден",
+                        ),
                     )
                 }
             }

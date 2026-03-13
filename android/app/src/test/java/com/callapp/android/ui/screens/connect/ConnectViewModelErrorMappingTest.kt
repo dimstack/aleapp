@@ -17,7 +17,7 @@ class ConnectViewModelErrorMappingTest {
     @Test
     fun `create profile shows validation message`() {
         assertEquals(
-            "Password must be at least 8 characters long",
+            "Пароль должен содержать минимум 8 символов",
             createProfileErrorMessage(ApiError.ValidationError("Password must be at least 8 characters long")),
         )
     }
