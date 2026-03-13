@@ -4,6 +4,7 @@ import com.callapp.server.auth.JwtService
 import com.callapp.server.config.AppConfig
 import com.callapp.server.database.DatabaseFactory
 import com.callapp.server.database.MigrationRunner
+import com.callapp.server.database.BootstrapInviteTokenSeeder
 import com.callapp.server.database.ServerBootstrap
 import com.callapp.server.plugins.configureAuth
 import com.callapp.server.plugins.configureHTTP
@@ -76,6 +77,11 @@ fun Application.module() {
 
     migrationRunner.run()
     ServerBootstrap(dataSource, appConfig.server).ensureServerRow()
+    BootstrapInviteTokenSeeder(
+        inviteTokenRepository = inviteTokenRepository,
+        serverConfig = appConfig.server,
+        bootstrapConfig = appConfig.bootstrap,
+    ).seedAdminInviteTokenIfConfigured()
 
     install(AppDependenciesPlugin) {
         config = appConfig

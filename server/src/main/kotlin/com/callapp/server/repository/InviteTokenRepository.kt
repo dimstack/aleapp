@@ -84,7 +84,7 @@ class InviteTokenRepository(
         token: String,
         label: String,
         serverId: String,
-        createdBy: String,
+        createdBy: String?,
         maxUses: Int,
         grantedRole: Role,
         requireApproval: Boolean,

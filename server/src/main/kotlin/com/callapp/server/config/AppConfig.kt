@@ -8,6 +8,7 @@ data class AppConfig(
     val server: ServerConfig,
     val security: SecurityConfig,
     val turn: TurnConfig,
+    val bootstrap: BootstrapConfig,
 ) {
     companion object {
         fun from(config: ApplicationConfig): AppConfig = AppConfig(
@@ -36,6 +37,13 @@ data class AppConfig(
                 secret = config.property("callapp.turn.secret").getString(),
                 realm = config.property("callapp.turn.realm").getString(),
                 ttlSeconds = config.property("callapp.turn.ttlSeconds").getString().toLong(),
+            ),
+            bootstrap = BootstrapConfig(
+                adminInviteToken = config.propertyOrNull("callapp.bootstrap.adminInviteToken")?.getString(),
+                adminInviteLabel = config.propertyOrNull("callapp.bootstrap.adminInviteLabel")?.getString()
+                    ?: "Initial admin invite",
+                adminInviteMaxUses = config.propertyOrNull("callapp.bootstrap.adminInviteMaxUses")?.getString()?.toInt()
+                    ?: 1,
             ),
         )
     }
@@ -68,4 +76,10 @@ data class TurnConfig(
     val secret: String,
     val realm: String,
     val ttlSeconds: Long,
+)
+
+data class BootstrapConfig(
+    val adminInviteToken: String?,
+    val adminInviteLabel: String,
+    val adminInviteMaxUses: Int,
 )

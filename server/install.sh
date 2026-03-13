@@ -1,0 +1,260 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+APP_IMAGE_DEFAULT="dmitri1000/aleapp:0.1.0"
+INSTALL_DIR_DEFAULT="$(pwd)"
+PUBLIC_HOST_DEFAULT="localhost"
+HTTP_PORT_DEFAULT="3000"
+TURN_PORT_DEFAULT="3478"
+TURN_REALM_DEFAULT="callapp"
+SERVER_NAME_DEFAULT="CallApp Server"
+SERVER_USERNAME_DEFAULT="@callapp"
+SERVER_DESCRIPTION_DEFAULT="Self-hosted CallApp backend"
+SERVER_IMAGE_URL_DEFAULT=""
+BOOTSTRAP_LABEL_DEFAULT="Initial admin invite"
+BOOTSTRAP_MAX_USES_DEFAULT="1"
+AUTO_GENERATE_LABEL="auto"
+
+if [[ "$(uname -s)" != "Linux" ]]; then
+  echo "Этот скрипт рассчитан на Linux-сервер."
+  exit 1
+fi
+
+if [[ "${EUID}" -eq 0 ]]; then
+  SUDO=""
+else
+  SUDO="sudo"
+fi
+
+command_exists() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+prompt() {
+  local label="$1"
+  local default_value="${2-}"
+  local answer
+
+  if [[ -n "$default_value" ]]; then
+    read -r -p "$label (Enter = $default_value): " answer
+    if [[ -z "$answer" ]]; then
+      answer="$default_value"
+    fi
+  else
+    read -r -p "$label: " answer
+  fi
+
+  printf '%s' "$answer"
+}
+
+random_alnum() {
+  local length="$1"
+
+  if command_exists openssl; then
+    openssl rand -base64 64 | tr -dc 'A-Za-z0-9' | head -c "$length"
+    return
+  fi
+
+  tr -dc 'A-Za-z0-9' </dev/urandom | head -c "$length"
+}
+
+random_hex() {
+  local length="$1"
+
+  if command_exists openssl; then
+    openssl rand -hex "$((length / 2))" | head -c "$length"
+    return
+  fi
+
+  tr -dc 'a-f0-9' </dev/urandom | head -c "$length"
+}
+
+random_uuid() {
+  if command_exists uuidgen; then
+    uuidgen | tr '[:upper:]' '[:lower:]'
+    return
+  fi
+
+  local hex
+  hex="$(random_hex 32)"
+  printf '%s-%s-%s-%s-%s' \
+    "${hex:0:8}" "${hex:8:4}" "${hex:12:4}" "${hex:16:4}" "${hex:20:12}"
+}
+
+normalize_username() {
+  local username="$1"
+  if [[ "$username" != @* ]]; then
+    username="@$username"
+  fi
+  printf '%s' "$username"
+}
+
+env_escape() {
+  printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
+ensure_docker() {
+  if command_exists docker && docker compose version >/dev/null 2>&1; then
+    echo "Docker и docker compose уже доступны."
+    return
+  fi
+
+  if ! command_exists apt; then
+    echo "Docker не найден, а apt в системе недоступен."
+    echo "Установите Docker вручную и запустите скрипт повторно."
+    exit 1
+  fi
+
+  echo "Docker не найден. Устанавливаю через apt."
+  $SUDO apt update
+  $SUDO apt install -y ca-certificates curl
+  $SUDO install -m 0755 -d /etc/apt/keyrings
+  $SUDO curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+  $SUDO chmod a+r /etc/apt/keyrings/docker.asc
+
+  cat <<EOF | $SUDO tee /etc/apt/sources.list.d/docker.sources >/dev/null
+Types: deb
+URIs: https://download.docker.com/linux/ubuntu
+Suites: $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}")
+Components: stable
+Signed-By: /etc/apt/keyrings/docker.asc
+EOF
+
+  $SUDO apt update
+  $SUDO apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  $SUDO systemctl enable --now docker
+  $SUDO systemctl status docker --no-pager || true
+}
+
+autogen_hint() {
+  printf 'Enter = %s' "$AUTO_GENERATE_LABEL"
+}
+
+prompt_or_auto() {
+  local label="$1"
+  local answer
+  read -r -p "$label (Enter = сгенерировать автоматически): " answer
+  printf '%s' "$answer"
+}
+
+echo "=== CallApp backend installer ==="
+
+ensure_docker
+
+install_dir="$(prompt "Куда установить backend" "$INSTALL_DIR_DEFAULT")"
+public_host="$(prompt "Публичный домен или IP сервера (без http://)" "$PUBLIC_HOST_DEFAULT")"
+public_host="${public_host#http://}"
+public_host="${public_host#https://}"
+public_host="${public_host%/}"
+
+http_port="$(prompt "HTTP порт backend" "$HTTP_PORT_DEFAULT")"
+turn_port="$(prompt "TURN порт" "$TURN_PORT_DEFAULT")"
+server_name="$SERVER_NAME_DEFAULT"
+server_username="$(normalize_username "$SERVER_USERNAME_DEFAULT")"
+server_description="$SERVER_DESCRIPTION_DEFAULT"
+server_image_url="$SERVER_IMAGE_URL_DEFAULT"
+turn_realm="$TURN_REALM_DEFAULT"
+app_image="$APP_IMAGE_DEFAULT"
+
+jwt_secret="$(prompt_or_auto "JWT secret")"
+if [[ -z "$jwt_secret" ]]; then
+  jwt_secret="$(random_hex 64)"
+fi
+
+turn_secret="$(prompt_or_auto "TURN secret")"
+if [[ -z "$turn_secret" ]]; then
+  turn_secret="$(random_hex 64)"
+fi
+
+server_id="$(prompt_or_auto "SERVER_ID")"
+if [[ -z "$server_id" ]]; then
+  server_id="$(random_uuid)"
+fi
+
+bootstrap_admin_token="$(prompt_or_auto "Админ invite token code")"
+if [[ -z "$bootstrap_admin_token" ]]; then
+  bootstrap_admin_token="$(random_alnum 10)"
+fi
+
+bootstrap_admin_label="$(prompt "Подпись для стартового админского инвайта" "$BOOTSTRAP_LABEL_DEFAULT")"
+bootstrap_admin_max_uses="$(prompt "Сколько раз можно использовать стартовый админский инвайт" "$BOOTSTRAP_MAX_USES_DEFAULT")"
+
+compose_dir="$install_dir"
+data_dir="$compose_dir/data"
+
+$SUDO mkdir -p "$data_dir"
+
+cat <<EOF | $SUDO tee "$compose_dir/.env" >/dev/null
+APP_ENV=production
+HTTP_PORT=$http_port
+DB_PATH=/app/data/callapp.db
+JWT_SECRET=$jwt_secret
+JWT_ISSUER=callapp-server
+JWT_AUDIENCE=callapp-clients
+TURN_SECRET=$turn_secret
+TURN_HOST="$(env_escape "$public_host")"
+TURN_PORT=$turn_port
+TURN_REALM="$(env_escape "$turn_realm")"
+SERVER_ID="$(env_escape "$server_id")"
+SERVER_NAME="$(env_escape "$server_name")"
+SERVER_USERNAME="$(env_escape "$server_username")"
+SERVER_DESCRIPTION="$(env_escape "$server_description")"
+SERVER_IMAGE_URL="$(env_escape "$server_image_url")"
+BOOTSTRAP_ADMIN_TOKEN="$(env_escape "$bootstrap_admin_token")"
+BOOTSTRAP_ADMIN_TOKEN_LABEL="$(env_escape "$bootstrap_admin_label")"
+BOOTSTRAP_ADMIN_TOKEN_MAX_USES=$bootstrap_admin_max_uses
+APP_IMAGE="$(env_escape "$app_image")"
+EOF
+
+cat <<EOF | $SUDO tee "$compose_dir/docker-compose.yml" >/dev/null
+services:
+  app:
+    image: \${APP_IMAGE}
+    restart: unless-stopped
+    ports:
+      - "\${HTTP_PORT}:3000"
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      - coturn
+
+  coturn:
+    image: coturn/coturn:4.6.3
+    restart: unless-stopped
+    network_mode: host
+    command: ["-c", "/etc/coturn/turnserver.conf"]
+    volumes:
+      - ./turnserver.conf:/etc/coturn/turnserver.conf:ro
+EOF
+
+cat <<EOF | $SUDO tee "$compose_dir/turnserver.conf" >/dev/null
+listening-port=$turn_port
+fingerprint
+use-auth-secret
+static-auth-secret=$turn_secret
+realm=$turn_realm
+total-quota=100
+bps-capacity=0
+stale-nonce=600
+no-cli
+no-tls
+no-dtls
+log-file=stdout
+EOF
+
+echo "Пулю контейнеры и запускаю стек."
+$SUDO docker compose -f "$compose_dir/docker-compose.yml" --env-file "$compose_dir/.env" pull
+$SUDO docker compose -f "$compose_dir/docker-compose.yml" --env-file "$compose_dir/.env" up -d
+
+admin_invite="$public_host:$http_port/$bootstrap_admin_token"
+
+echo
+echo "Установка завершена."
+echo "Каталог установки: $compose_dir"
+echo "Backend image: $app_image"
+echo "Админский invite token: $admin_invite"
+echo
+echo "Сохраните этот invite token: через него создаётся первый администратор."
