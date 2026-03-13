@@ -9,6 +9,7 @@ import com.callapp.server.repository.LoginAttemptRepository
 import com.callapp.server.repository.NotificationRepository
 import com.callapp.server.repository.ServerRepository
 import com.callapp.server.repository.UserRepository
+import com.callapp.server.signaling.SignalingManager
 import com.callapp.server.service.InviteTokenParser
 import com.callapp.server.service.InviteTokenService
 import com.callapp.server.service.ManagementService
@@ -35,6 +36,7 @@ data class AppDependencies(
     val joinRequestRepository: JoinRequestRepository,
     val favoriteRepository: FavoriteRepository,
     val notificationRepository: NotificationRepository,
+    val signalingManager: SignalingManager,
 )
 
 class AppDependenciesPluginConfig {
@@ -53,6 +55,7 @@ class AppDependenciesPluginConfig {
     lateinit var joinRequestRepository: JoinRequestRepository
     lateinit var favoriteRepository: FavoriteRepository
     lateinit var notificationRepository: NotificationRepository
+    lateinit var signalingManager: SignalingManager
 }
 
 val AppDependenciesKey = AttributeKey<AppDependencies>("app-dependencies")
@@ -79,6 +82,7 @@ val AppDependenciesPlugin = createApplicationPlugin(
             joinRequestRepository = pluginConfig.joinRequestRepository,
             favoriteRepository = pluginConfig.favoriteRepository,
             notificationRepository = pluginConfig.notificationRepository,
+            signalingManager = pluginConfig.signalingManager,
         ),
     )
 }

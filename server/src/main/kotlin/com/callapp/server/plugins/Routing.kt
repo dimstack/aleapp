@@ -1,6 +1,7 @@
 package com.callapp.server.plugins
 
 import com.callapp.server.auth.requireSessionPrincipal
+import com.callapp.server.auth.toSessionPrincipal
 import com.callapp.server.database.HealthRepository
 import com.callapp.server.dependencies
 import com.callapp.server.routes.ApiException
@@ -27,6 +28,9 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.put
 import io.ktor.server.routing.routing
+import io.ktor.server.websocket.webSocket
+import io.ktor.websocket.Frame
+import io.ktor.websocket.readText
 
 fun Application.configureRouting() {
     routing {
@@ -275,6 +279,35 @@ fun Application.configureRouting() {
                 requireUser(principal)
                 this@configureRouting.dependencies.managementService.clearNotifications(principal.userId.orEmpty())
                 call.respond(HttpStatusCode.NoContent)
+            }
+        }
+
+        webSocket("/ws") {
+            val token = call.request.queryParameters["token"]
+            if (token.isNullOrBlank()) {
+                this@configureRouting.dependencies.signalingManager.reject(this, "Missing token")
+                return@webSocket
+            }
+
+            val principal = runCatching {
+                val decoded = this@configureRouting.dependencies.jwtService.verifier().verify(token)
+                decoded.toSessionPrincipal()
+            }.getOrNull()
+
+            if (principal == null || !principal.isUser || principal.userId.isNullOrBlank()) {
+                this@configureRouting.dependencies.signalingManager.reject(this, "Invalid token")
+                return@webSocket
+            }
+
+            this@configureRouting.dependencies.signalingManager.connect(principal, this)
+            try {
+                for (frame in incoming) {
+                    if (frame is Frame.Text) {
+                        this@configureRouting.dependencies.signalingManager.handleIncoming(principal, frame.readText())
+                    }
+                }
+            } finally {
+                this@configureRouting.dependencies.signalingManager.disconnect(principal.userId)
             }
         }
     }

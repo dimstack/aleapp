@@ -40,6 +40,7 @@ dependencies {
 
     testImplementation(kotlin("test"))
     testImplementation("io.ktor:ktor-server-test-host-jvm:3.1.1")
+    testImplementation("io.ktor:ktor-client-websockets-jvm:3.1.1")
 }
 
 tasks.test {

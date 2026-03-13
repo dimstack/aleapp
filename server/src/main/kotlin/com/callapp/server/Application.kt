@@ -19,6 +19,7 @@ import com.callapp.server.repository.LoginAttemptRepository
 import com.callapp.server.repository.NotificationRepository
 import com.callapp.server.repository.ServerRepository
 import com.callapp.server.repository.UserRepository
+import com.callapp.server.signaling.SignalingManager
 import com.callapp.server.service.InviteTokenParser
 import com.callapp.server.service.InviteTokenService
 import com.callapp.server.service.ManagementService
@@ -47,6 +48,7 @@ fun Application.module() {
     val joinRequestRepository = JoinRequestRepository(dataSource)
     val favoriteRepository = FavoriteRepository(dataSource)
     val notificationRepository = NotificationRepository(dataSource)
+    val signalingManager = SignalingManager(serverRepository, notificationRepository)
     val inviteTokenService = InviteTokenService(inviteTokenRepository, inviteTokenParser)
     val onboardingService = OnboardingService(
         serverRepository = serverRepository,
@@ -86,6 +88,7 @@ fun Application.module() {
         this.joinRequestRepository = joinRequestRepository
         this.favoriteRepository = favoriteRepository
         this.notificationRepository = notificationRepository
+        this.signalingManager = signalingManager
     }
 
     configureMonitoring()
