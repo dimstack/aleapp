@@ -85,4 +85,28 @@ class ApiClientErrorMappingTest {
 
         assertTrue(error is ApiError.ServerError)
     }
+
+    @Test
+    fun `invalidates session only for auth middleware unauthorized`() {
+        assertTrue(
+            shouldInvalidateSession(
+                ApiError.Unauthorized(
+                    code = "unauthorized",
+                    message = "Authentication is required",
+                ),
+            ),
+        )
+    }
+
+    @Test
+    fun `does not invalidate session for login failure unauthorized`() {
+        assertTrue(
+            !shouldInvalidateSession(
+                ApiError.Unauthorized(
+                    code = "unauthorized",
+                    message = "Invalid username or password",
+                ),
+            ),
+        )
+    }
 }

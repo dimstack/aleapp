@@ -1,5 +1,6 @@
 package com.callapp.android.network
 
+import com.callapp.android.data.ServiceLocator
 import com.callapp.android.domain.model.InviteToken
 import com.callapp.android.domain.model.JoinRequest
 import com.callapp.android.domain.model.Server
@@ -232,6 +233,9 @@ class ApiClient(private val baseUrl: String) {
     private suspend fun <T> handleError(e: ClientRequestException): ApiResult<T> {
         val body = runCatching { e.response.bodyAsText() }.getOrDefault("")
         val error = mapApiError(e.response.status, body)
+        if (shouldInvalidateSession(error)) {
+            ServiceLocator.clearServerSession(baseUrl)
+        }
         return ApiResult.Failure(error)
     }
 
@@ -299,3 +303,8 @@ internal fun parseErrorResponse(body: String, json: Json = Json { ignoreUnknownK
     }
     return runCatching { json.decodeFromString<ErrorResponseDto>(body) }.getOrNull()
 }
+
+internal fun shouldInvalidateSession(error: ApiError): Boolean =
+    error is ApiError.Unauthorized &&
+        error.code == "unauthorized" &&
+        error.message == "Authentication is required"
