@@ -47,10 +47,6 @@ import com.callapp.android.ui.components.AleAppCard
 import com.callapp.android.ui.components.FormField
 import com.callapp.android.ui.theme.AleAppTheme
 
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/*  AddServerScreen                                                           */
-/* ═══════════════════════════════════════════════════════════════════════════ */
-
 @Composable
 fun AddServerScreen(
     onBack: () -> Unit = {},
@@ -67,9 +63,7 @@ fun AddServerScreen(
 
     Scaffold(
         containerColor = colors.background,
-        topBar = {
-            AddServerTopBar(onBack = onBack)
-        },
+        topBar = { AddServerTopBar(onBack = onBack) },
     ) { padding ->
         Column(
             modifier = modifier
@@ -79,7 +73,6 @@ fun AddServerScreen(
         ) {
             Spacer(Modifier.height(24.dp))
 
-            // ── Main form card ──────────────────────────────────────────────
             AleAppCard(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -89,10 +82,8 @@ fun AddServerScreen(
                     modifier = Modifier.padding(24.dp),
                     verticalArrangement = Arrangement.spacedBy(20.dp),
                 ) {
-                    // Server icon + description
                     ServerIconHeader()
 
-                    // Invite token field
                     FormField(
                         label = "Токен приглашения",
                         required = true,
@@ -102,15 +93,14 @@ fun AddServerScreen(
                         singleLine = true,
                     )
 
-                    // Error message
-                    if (error != null) {
+                    error?.let {
                         Surface(
                             shape = RoundedCornerShape(8.dp),
                             color = colors.destructive.copy(alpha = 0.1f),
                             border = BorderStroke(1.dp, colors.destructive.copy(alpha = 0.2f)),
                         ) {
                             Text(
-                                text = error!!,
+                                text = it,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = colors.destructive,
                                 modifier = Modifier.padding(12.dp),
@@ -118,14 +108,16 @@ fun AddServerScreen(
                         }
                     }
 
-                    // Connect button
                     Spacer(Modifier.height(4.dp))
+
                     AleAppButton(
                         onClick = {
                             when {
                                 token.isBlank() -> localError = "Токен приглашения обязателен"
-                                !isValidInviteToken(token.trim()) ->
+                                !isValidInviteToken(token.trim()) -> {
                                     localError = "Неверный формат токена. Ожидается: server:port/CODE"
+                                }
+
                                 else -> {
                                     localError = null
                                     onConnect(token.trim())
@@ -144,7 +136,6 @@ fun AddServerScreen(
 
             Spacer(Modifier.height(16.dp))
 
-            // ── Info block ──────────────────────────────────────────────────
             InfoBlock(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -156,20 +147,10 @@ fun AddServerScreen(
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/*  Validation                                                                */
-/* ═══════════════════════════════════════════════════════════════════════════ */
-
-private val inviteTokenPattern = Regex(
-    """^[a-zA-Z0-9._:-]+/[a-zA-Z0-9]+$"""
-)
+private val inviteTokenPattern = Regex("""^[a-zA-Z0-9._:-]+/[a-zA-Z0-9]+$""")
 
 private fun isValidInviteToken(token: String): Boolean =
     inviteTokenPattern.matches(token)
-
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/*  Top bar                                                                   */
-/* ═══════════════════════════════════════════════════════════════════════════ */
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -207,10 +188,6 @@ private fun AddServerTopBar(
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/*  Server icon header                                                        */
-/* ═══════════════════════════════════════════════════════════════════════════ */
-
 @Composable
 private fun ServerIconHeader(modifier: Modifier = Modifier) {
     val colors = AleAppTheme.colors
@@ -245,10 +222,6 @@ private fun ServerIconHeader(modifier: Modifier = Modifier) {
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/*  Info block                                                                */
-/* ═══════════════════════════════════════════════════════════════════════════ */
-
 @Composable
 private fun InfoBlock(modifier: Modifier = Modifier) {
     val colors = AleAppTheme.colors
@@ -261,19 +234,17 @@ private fun InfoBlock(modifier: Modifier = Modifier) {
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "Как получить токен?",
-                style = MaterialTheme.typography.titleSmall.copy(
-                    fontWeight = FontWeight.Medium,
-                ),
+                text = "Как получить токен",
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Medium),
                 color = colors.cardForeground,
             )
 
             Spacer(Modifier.height(8.dp))
 
             val items = listOf(
-                "Попросите администратора сервера создать для вас токен приглашения",
-                "Токен имеет формат: server.example.com:3000/ABCD1234",
-                "Токен может быть одноразовым или многоразовым",
+                "Попросите администратора сервера создать для вас токен приглашения.",
+                "Используйте полный формат: server.example.com:3000/ABCD1234.",
+                "Токен может быть одноразовым или многоразовым.",
             )
             items.forEach { item ->
                 Text(
@@ -287,11 +258,7 @@ private fun InfoBlock(modifier: Modifier = Modifier) {
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/*  Previews                                                                  */
-/* ═══════════════════════════════════════════════════════════════════════════ */
-
-@Preview(name = "AddServer — Light", showBackground = true, showSystemUi = true)
+@Preview(name = "AddServer - Light", showBackground = true, showSystemUi = true)
 @Composable
 private fun AddServerLightPreview() {
     AleAppTheme(darkTheme = false) {
@@ -300,7 +267,7 @@ private fun AddServerLightPreview() {
 }
 
 @Preview(
-    name = "AddServer — Dark",
+    name = "AddServer - Dark",
     showBackground = true,
     showSystemUi = true,
     uiMode = Configuration.UI_MODE_NIGHT_YES,
@@ -312,7 +279,7 @@ private fun AddServerDarkPreview() {
     }
 }
 
-@Preview(name = "ServerIconHeader — Light", showBackground = true)
+@Preview(name = "ServerIconHeader - Light", showBackground = true)
 @Composable
 private fun ServerIconHeaderLightPreview() {
     AleAppTheme(darkTheme = false) {
@@ -322,7 +289,7 @@ private fun ServerIconHeaderLightPreview() {
     }
 }
 
-@Preview(name = "InfoBlock — Light", showBackground = true)
+@Preview(name = "InfoBlock - Light", showBackground = true)
 @Composable
 private fun InfoBlockLightPreview() {
     AleAppTheme(darkTheme = false) {
@@ -336,7 +303,7 @@ private fun InfoBlockLightPreview() {
     }
 }
 
-@Preview(name = "InfoBlock — Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Preview(name = "InfoBlock - Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 private fun InfoBlockDarkPreview() {
     AleAppTheme(darkTheme = true) {

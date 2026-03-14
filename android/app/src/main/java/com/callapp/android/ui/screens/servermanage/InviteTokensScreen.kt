@@ -645,7 +645,7 @@ private fun InviteTokensLightPreview() {
     AleAppTheme(darkTheme = false) {
         InviteTokensScreen(
             tokens = sampleTokens,
-            serverAddress = "192.168.1.100:3000",
+            serverAddress = "preview.callapp.example",
         )
     }
 }
@@ -661,7 +661,7 @@ private fun InviteTokensDarkPreview() {
     AleAppTheme(darkTheme = true) {
         InviteTokensScreen(
             tokens = sampleTokens,
-            serverAddress = "192.168.1.100:3000",
+            serverAddress = "preview.callapp.example",
         )
     }
 }
@@ -672,7 +672,7 @@ private fun InviteTokensEmptyPreview() {
     AleAppTheme(darkTheme = false) {
         InviteTokensScreen(
             tokens = emptyList(),
-            serverAddress = "192.168.1.100:3000",
+            serverAddress = "preview.callapp.example",
         )
     }
 }
@@ -684,7 +684,7 @@ private fun InviteTokensLoadingPreview() {
         InviteTokensScreen(
             tokens = emptyList(),
             isLoading = true,
-            serverAddress = "192.168.1.100:3000",
+            serverAddress = "preview.callapp.example",
         )
     }
 }
@@ -696,7 +696,7 @@ private fun TokenCardLightPreview() {
         Surface(color = AleAppTheme.colors.background) {
             TokenCard(
                 token = sampleTokens[0],
-                serverAddress = "192.168.1.100:3000",
+                serverAddress = "preview.callapp.example",
                 onRevoke = {},
                 onCopy = {},
                 modifier = Modifier.padding(16.dp),
@@ -712,7 +712,7 @@ private fun TokenCardRevokedPreview() {
         Surface(color = AleAppTheme.colors.background) {
             TokenCard(
                 token = sampleTokens[2],
-                serverAddress = "192.168.1.100:3000",
+                serverAddress = "preview.callapp.example",
                 onRevoke = {},
                 onCopy = {},
                 modifier = Modifier.padding(16.dp),
@@ -728,7 +728,7 @@ private fun TokenCardDarkPreview() {
         Surface(color = AleAppTheme.colors.background) {
             TokenCard(
                 token = sampleTokens[1],
-                serverAddress = "192.168.1.100:3000",
+                serverAddress = "preview.callapp.example",
                 onRevoke = {},
                 onCopy = {},
                 modifier = Modifier.padding(16.dp),

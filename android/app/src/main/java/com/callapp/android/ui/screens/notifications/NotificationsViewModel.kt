@@ -1,10 +1,12 @@
 package com.callapp.android.ui.screens.notifications
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.callapp.android.data.ServiceLocator
 import com.callapp.android.domain.model.Notification
 import com.callapp.android.network.result.ApiResult
+import com.callapp.android.ui.common.apiErrorMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -15,7 +17,15 @@ data class NotificationsUiState(
     val error: String? = null,
 )
 
-class NotificationsViewModel : ViewModel() {
+class NotificationsViewModel(
+    savedStateHandle: SavedStateHandle,
+) : ViewModel() {
+
+    private val serverId: String = savedStateHandle["serverId"] ?: ""
+    private val serverAddress: String = ServiceLocator.serverRepository
+        .getServerById(serverId)
+        ?.address
+        .orEmpty()
 
     private val _state = MutableStateFlow(NotificationsUiState())
     val state: StateFlow<NotificationsUiState> = _state
@@ -27,8 +37,14 @@ class NotificationsViewModel : ViewModel() {
     fun loadNotifications() {
         viewModelScope.launch {
             _state.value = _state.value.copy(isLoading = true, error = null)
-            val client = ServiceLocator.connectionManager
-                .getClient(ServiceLocator.activeServerAddress)
+            if (serverAddress.isBlank()) {
+                _state.value = _state.value.copy(
+                    isLoading = false,
+                    error = "Сервер не найден",
+                )
+                return@launch
+            }
+            val client = ServiceLocator.connectionManager.getClient(serverAddress)
             when (val result = client.getNotifications()) {
                 is ApiResult.Success -> {
                     _state.value = _state.value.copy(
@@ -36,10 +52,15 @@ class NotificationsViewModel : ViewModel() {
                         isLoading = false,
                     )
                 }
+
                 is ApiResult.Failure -> {
                     _state.value = _state.value.copy(
                         isLoading = false,
-                        error = result.error.name,
+                        error = apiErrorMessage(
+                            error = result.error,
+                            fallback = "Не удалось загрузить уведомления",
+                            notFound = "Сервер не найден",
+                        ),
                     )
                 }
             }
@@ -50,24 +71,34 @@ class NotificationsViewModel : ViewModel() {
         _state.value = _state.value.copy(
             notifications = _state.value.notifications.map {
                 if (it.id == notificationId) it.copy(isRead = true) else it
-            }
+            },
         )
         viewModelScope.launch {
-            val client = ServiceLocator.connectionManager
-                .getClient(ServiceLocator.activeServerAddress)
-            client.markNotificationsRead()
+            if (serverAddress.isBlank()) return@launch
+            ServiceLocator.connectionManager
+                .getClient(serverAddress)
+                .markNotificationsRead()
         }
     }
 
     fun clearAll() {
         viewModelScope.launch {
-            val client = ServiceLocator.connectionManager
-                .getClient(ServiceLocator.activeServerAddress)
-            when (client.clearNotifications()) {
+            if (serverAddress.isBlank()) return@launch
+            val client = ServiceLocator.connectionManager.getClient(serverAddress)
+            when (val result = client.clearNotifications()) {
                 is ApiResult.Success -> {
                     _state.value = _state.value.copy(notifications = emptyList())
                 }
-                is ApiResult.Failure -> { /* silently fail */ }
+
+                is ApiResult.Failure -> {
+                    _state.value = _state.value.copy(
+                        error = apiErrorMessage(
+                            error = result.error,
+                            fallback = "Не удалось очистить уведомления",
+                            notFound = "Сервер не найден",
+                        ),
+                    )
+                }
             }
         }
     }

@@ -42,6 +42,8 @@ class CallRepository(
     val remoteStream: StateFlow<MediaStream?> = _remoteStream
 
     private var targetUserId: String = ""
+    private var pendingOutgoingVideoEnabled: Boolean = false
+    private var outgoingOfferStarted = false
 
     /**
      * Buffered remote SDP offer received before PeerConnection was created.
@@ -118,21 +120,19 @@ class CallRepository(
 
     suspend fun startOutgoingCall(targetUserId: String, enableVideo: Boolean) {
         this.targetUserId = targetUserId
+        pendingOutgoingVideoEnabled = enableVideo
+        outgoingOfferStarted = false
         _connectionState.value = CallConnectionState.CONNECTING
 
-        fetchTurnCredentials()
-        webRtcManager.startCapture(enableVideo = enableVideo, enableAudio = true)
-        webRtcManager.createPeerConnection(serverAddress, turnUsername, turnPassword)
-        peerConnectionReady = true
-
-        webRtcManager.createOffer { sdp ->
-            signalingClient.send(
-                SignalMessage.Offer(
-                    sdp = sdp.description,
-                    targetUserId = targetUserId,
-                )
-            )
-        }
+        signalingClient.send(
+            SignalMessage.CallRequest(
+                fromUserName = ServiceLocator.currentUserId.ifBlank { "Unknown caller" },
+                fromServerName = runCatching {
+                    ServiceLocator.sessionStore.getSession(serverAddress)?.serverName.orEmpty()
+                }.getOrDefault(""),
+                targetUserId = targetUserId,
+            ),
+        )
     }
 
     // ── Incoming call ────────────────────────────────────────────────────
@@ -146,30 +146,18 @@ class CallRepository(
         webRtcManager.createPeerConnection(serverAddress, turnUsername, turnPassword)
         peerConnectionReady = true
 
-        // Apply buffered remote offer
         val offer = pendingRemoteOffer
         if (offer != null) {
-            pendingRemoteOffer = null
-            webRtcManager.setRemoteDescription(offer)
-
-            // Apply buffered ICE candidates
-            pendingIceCandidates.forEach { candidate ->
-                webRtcManager.addIceCandidate(candidate)
-            }
-            pendingIceCandidates.clear()
-
-            // Create and send answer
-            webRtcManager.createAnswer { sdp ->
-                signalingClient.send(
-                    SignalMessage.Answer(
-                        sdp = sdp.description,
-                        targetUserId = callerUserId,
-                    )
-                )
-            }
-        } else {
-            Log.w(TAG, "acceptIncomingCall: no pending offer from $callerUserId")
+            applyRemoteOfferAndAnswer(offer, callerUserId)
         }
+
+        signalingClient.send(
+            SignalMessage.CallResponse(
+                accepted = true,
+                fromUserId = "",
+                targetUserId = callerUserId,
+            ),
+        )
     }
 
     fun declineIncomingCall(callerUserId: String) {
@@ -211,6 +199,8 @@ class CallRepository(
         pendingRemoteOffer = null
         pendingIceCandidates.clear()
         peerConnectionReady = false
+        pendingOutgoingVideoEnabled = false
+        outgoingOfferStarted = false
     }
 
     // ── Signaling message handler ────────────────────────────────────────
@@ -218,15 +208,12 @@ class CallRepository(
     private fun handleSignalMessage(message: SignalMessage) {
         when (message) {
             is SignalMessage.Offer -> {
-                // fromUserId = the caller who sent us this offer
                 targetUserId = message.fromUserId
                 val sdp = SessionDescription(SessionDescription.Type.OFFER, message.sdp)
 
                 if (peerConnectionReady) {
-                    // PeerConnection already exists (shouldn't normally happen for incoming)
-                    webRtcManager.setRemoteDescription(sdp)
+                    applyRemoteOfferAndAnswer(sdp, message.fromUserId)
                 } else {
-                    // Buffer until acceptIncomingCall creates the PeerConnection
                     pendingRemoteOffer = sdp
                     Log.d(TAG, "Buffered incoming offer from ${message.fromUserId}")
                 }
@@ -268,10 +255,60 @@ class CallRepository(
             }
 
             is SignalMessage.CallRequest,
-            is SignalMessage.CallResponse,
             is SignalMessage.StatusUpdate -> {
                 // Handled at a higher level (navigation / presence)
             }
+
+            is SignalMessage.CallResponse -> {
+                if (message.accepted) {
+                    if (!outgoingOfferStarted) {
+                        scope.launch {
+                            beginOutgoingOffer()
+                        }
+                    }
+                } else {
+                    _connectionState.value = CallConnectionState.DISCONNECTED
+                    clearPendingState()
+                }
+            }
+        }
+    }
+
+    private suspend fun beginOutgoingOffer() {
+        if (outgoingOfferStarted) return
+        outgoingOfferStarted = true
+
+        fetchTurnCredentials()
+        webRtcManager.startCapture(enableVideo = pendingOutgoingVideoEnabled, enableAudio = true)
+        webRtcManager.createPeerConnection(serverAddress, turnUsername, turnPassword)
+        peerConnectionReady = true
+
+        webRtcManager.createOffer { sdp ->
+            signalingClient.send(
+                SignalMessage.Offer(
+                    sdp = sdp.description,
+                    targetUserId = targetUserId,
+                ),
+            )
+        }
+    }
+
+    private fun applyRemoteOfferAndAnswer(offer: SessionDescription, callerUserId: String) {
+        pendingRemoteOffer = null
+        webRtcManager.setRemoteDescription(offer)
+
+        pendingIceCandidates.forEach { candidate ->
+            webRtcManager.addIceCandidate(candidate)
+        }
+        pendingIceCandidates.clear()
+
+        webRtcManager.createAnswer { sdp ->
+            signalingClient.send(
+                SignalMessage.Answer(
+                    sdp = sdp.description,
+                    targetUserId = callerUserId,
+                ),
+            )
         }
     }
 

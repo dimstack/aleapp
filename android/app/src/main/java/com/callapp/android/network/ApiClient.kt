@@ -1,20 +1,22 @@
 package com.callapp.android.network
 
+import com.callapp.android.data.ServiceLocator
+import com.callapp.android.domain.model.InviteToken
 import com.callapp.android.domain.model.JoinRequest
 import com.callapp.android.domain.model.Server
 import com.callapp.android.domain.model.User
-import com.callapp.android.domain.model.InviteToken
-import com.callapp.android.network.dto.AuthRequest
 import com.callapp.android.network.dto.AuthResponse
+import com.callapp.android.network.dto.ConnectRequest
+import com.callapp.android.network.dto.ConnectResponse
 import com.callapp.android.network.dto.CreateInviteTokenRequest
 import com.callapp.android.network.dto.CreateUserRequest
-import com.callapp.android.network.dto.LoginRequest
+import com.callapp.android.network.dto.ErrorResponseDto
 import com.callapp.android.network.dto.InviteTokenDto
 import com.callapp.android.network.dto.JoinRequestAction
 import com.callapp.android.network.dto.JoinRequestDto
+import com.callapp.android.network.dto.LoginRequest
 import com.callapp.android.network.dto.NotificationDto
 import com.callapp.android.network.dto.ServerDto
-import com.callapp.android.network.dto.SubmitJoinRequest
 import com.callapp.android.network.dto.TurnCredentialsDto
 import com.callapp.android.network.dto.UpdateServerRequest
 import com.callapp.android.network.dto.UpdateUserRequest
@@ -35,6 +37,7 @@ import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -50,10 +53,12 @@ class ApiClient(private val baseUrl: String) {
 
     private val httpClient = HttpClient(OkHttp) {
         install(ContentNegotiation) {
-            json(Json {
-                ignoreUnknownKeys = true
-                isLenient = true
-            })
+            json(
+                Json {
+                    ignoreUnknownKeys = true
+                    isLenient = true
+                },
+            )
         }
         defaultRequest {
             url(baseUrl.trimEnd('/') + "/")
@@ -62,18 +67,19 @@ class ApiClient(private val baseUrl: String) {
         }
     }
 
-    // ── Authentication ───────────────────────────────────────────────────
+    private val json = Json {
+        ignoreUnknownKeys = true
+        isLenient = true
+    }
 
-    /** POST /api/auth — авторизация по invite-токену. */
-    suspend fun auth(inviteToken: String, displayName: String): ApiResult<AuthResponse> = request {
-        val response: AuthResponse = httpClient.post("api/auth") {
-            setBody(AuthRequest(inviteToken = inviteToken, displayName = displayName))
+    suspend fun connect(inviteToken: String): ApiResult<ConnectResponse> = request {
+        val response: ConnectResponse = httpClient.post("api/connect") {
+            setBody(ConnectRequest(token = inviteToken))
         }.body()
         sessionToken = response.sessionToken
         response
     }
 
-    /** POST /api/auth/login — вход в существующий аккаунт. */
     suspend fun login(
         inviteToken: String,
         username: String,
@@ -86,34 +92,41 @@ class ApiClient(private val baseUrl: String) {
         response
     }
 
-    // ── Users ────────────────────────────────────────────────────────────
-
-    /** POST /api/users — создание профиля на сервере. */
     suspend fun createUser(
         name: String,
         username: String,
         password: String,
         avatarUrl: String? = null,
-    ): ApiResult<User> = request {
-        val dto: UserDto = httpClient.post("api/users") {
+    ): ApiResult<CreateUserResult> = request {
+        val response = httpClient.post("api/users") {
             setBody(CreateUserRequest(name = name, username = username, password = password, avatarUrl = avatarUrl))
-        }.body()
-        dto.toDomain()
+        }
+
+        when (response.status) {
+            HttpStatusCode.OK -> {
+                val dto = json.decodeFromString<UserDto>(response.bodyAsText())
+                CreateUserResult.Joined(dto.toDomain())
+            }
+
+            HttpStatusCode.Accepted -> {
+                val dto = json.decodeFromString<AuthResponse>(response.bodyAsText())
+                CreateUserResult.Pending(dto)
+            }
+
+            else -> throw IllegalStateException("Unexpected createUser status: ${response.status}")
+        }
     }
 
-    /** GET /api/users — список пользователей сервера. */
     suspend fun getUsers(): ApiResult<List<User>> = request {
         val dtos: List<UserDto> = httpClient.get("api/users").body()
         dtos.map { it.toDomain() }
     }
 
-    /** GET /api/users/{id} — профиль пользователя. */
     suspend fun getUser(userId: String): ApiResult<User> = request {
         val dto: UserDto = httpClient.get("api/users/$userId").body()
         dto.toDomain()
     }
 
-    /** PUT /api/users/{id} — обновление профиля. */
     suspend fun updateUser(
         userId: String,
         name: String? = null,
@@ -127,20 +140,15 @@ class ApiClient(private val baseUrl: String) {
         dto.toDomain()
     }
 
-    /** DELETE /api/users/{id} — удалить пользователя с сервера (только админ). */
     suspend fun deleteUser(userId: String): ApiResult<Unit> = request {
         httpClient.delete("api/users/$userId")
     }
 
-    // ── Server Management ────────────────────────────────────────────────
-
-    /** GET /api/server — информация о сервере. */
     suspend fun getServer(): ApiResult<Server> = request {
         val dto: ServerDto = httpClient.get("api/server").body()
         dto.toDomain(address = baseUrl)
     }
 
-    /** PUT /api/server — обновление информации (только админ). */
     suspend fun updateServer(
         name: String? = null,
         username: String? = null,
@@ -153,28 +161,11 @@ class ApiClient(private val baseUrl: String) {
         dto.toDomain(address = baseUrl)
     }
 
-    /** DELETE /api/server — удалить сервер (только админ). */
-    suspend fun deleteServer(): ApiResult<Unit> = request {
-        httpClient.delete("api/server")
-    }
-
-    // ── Join Requests ────────────────────────────────────────────────────
-
-    /** POST /api/join-requests — отправить заявку на вступление. */
-    suspend fun submitJoinRequest(username: String, name: String): ApiResult<JoinRequest> = request {
-        val dto: JoinRequestDto = httpClient.post("api/join-requests") {
-            setBody(SubmitJoinRequest(username = username, name = name))
-        }.body()
-        dto.toDomain()
-    }
-
-    /** GET /api/join-requests — список заявок (только админ). */
     suspend fun getJoinRequests(): ApiResult<List<JoinRequest>> = request {
         val dtos: List<JoinRequestDto> = httpClient.get("api/join-requests").body()
         dtos.map { it.toDomain() }
     }
 
-    /** PUT /api/join-requests/{id} — одобрить/отклонить заявку (только админ). */
     suspend fun updateJoinRequest(requestId: String, status: String): ApiResult<JoinRequest> = request {
         val dto: JoinRequestDto = httpClient.put("api/join-requests/$requestId") {
             setBody(JoinRequestAction(status = status))
@@ -182,9 +173,6 @@ class ApiClient(private val baseUrl: String) {
         dto.toDomain()
     }
 
-    // ── Invite Tokens (Admin) ─────────────────────────────────────────────
-
-    /** POST /api/invite-tokens — создать токен приглашения (только админ). */
     suspend fun createInviteToken(
         label: String,
         maxUses: Int = 0,
@@ -192,80 +180,63 @@ class ApiClient(private val baseUrl: String) {
         requireApproval: Boolean = false,
     ): ApiResult<InviteToken> = request {
         val dto: InviteTokenDto = httpClient.post("api/invite-tokens") {
-            setBody(CreateInviteTokenRequest(
-                label = label,
-                maxUses = maxUses,
-                grantedRole = grantedRole,
-                requireApproval = requireApproval,
-            ))
+            setBody(
+                CreateInviteTokenRequest(
+                    label = label,
+                    maxUses = maxUses,
+                    grantedRole = grantedRole,
+                    requireApproval = requireApproval,
+                ),
+            )
         }.body()
         dto.toDomain()
     }
 
-    /** GET /api/invite-tokens — список всех токенов (только админ). */
     suspend fun getInviteTokens(): ApiResult<List<InviteToken>> = request {
         val dtos: List<InviteTokenDto> = httpClient.get("api/invite-tokens").body()
         dtos.map { it.toDomain() }
     }
 
-    /** DELETE /api/invite-tokens/{id} — отозвать токен (только админ). */
     suspend fun revokeInviteToken(tokenId: String): ApiResult<Unit> = request {
         httpClient.delete("api/invite-tokens/$tokenId")
     }
 
-    // ── Favorites ────────────────────────────────────────────────────────
-
-    /** GET /api/favorites — список избранных контактов. */
     suspend fun getFavorites(): ApiResult<List<User>> = request {
         val dtos: List<UserDto> = httpClient.get("api/favorites").body()
         dtos.map { it.toDomain() }
     }
 
-    /** POST /api/favorites/{userId} — добавить в избранное. */
     suspend fun addFavorite(userId: String): ApiResult<Unit> = request {
         httpClient.post("api/favorites/$userId")
     }
 
-    /** DELETE /api/favorites/{userId} — убрать из избранного. */
     suspend fun removeFavorite(userId: String): ApiResult<Unit> = request {
         httpClient.delete("api/favorites/$userId")
     }
 
-    // ── Notifications ────────────────────────────────────────────────────
-
-    /** GET /api/notifications — уведомления пользователя. */
     suspend fun getNotifications(): ApiResult<List<com.callapp.android.domain.model.Notification>> = request {
         httpClient.get("api/notifications").body<List<NotificationDto>>().map { it.toDomain() }
     }
 
-    /** PUT /api/notifications/read — прочитать все уведомления. */
     suspend fun markNotificationsRead(): ApiResult<Unit> = request {
         httpClient.put("api/notifications/read")
     }
 
-    /** DELETE /api/notifications — очистить все уведомления. */
     suspend fun clearNotifications(): ApiResult<Unit> = request {
         httpClient.delete("api/notifications")
     }
 
-    // ── TURN Credentials ─────────────────────────────────────────────────
-
-    /** GET /api/turn-credentials — получить TURN-креденшалы для WebRTC. */
     suspend fun getTurnCredentials(): ApiResult<TurnCredentialsDto> = request {
         httpClient.get("api/turn-credentials").body<TurnCredentialsDto>()
     }
 
-    // ── Error handling ───────────────────────────────────────────────────
-
-    private fun <T> handleError(e: ClientRequestException): ApiResult<T> {
-        return when (e.response.status) {
-            HttpStatusCode.Unauthorized -> {
-                sessionToken = null
-                ApiResult.Failure(ApiError.Unauthorized)
-            }
-            HttpStatusCode.NotFound -> ApiResult.Failure(ApiError.NotFound)
-            else -> ApiResult.Failure(ApiError.ServerError)
+    private suspend fun <T> handleError(e: ClientRequestException): ApiResult<T> {
+        val body = runCatching { e.response.bodyAsText() }.getOrDefault("")
+        val error = mapApiError(e.response.status, body)
+        if (shouldInvalidateSession(error)) {
+            ServiceLocator.clearServerSession(baseUrl)
         }
+        return ApiResult.Failure(error)
     }
 
     private suspend inline fun <T> request(block: () -> T): ApiResult<T> {
@@ -274,7 +245,9 @@ class ApiClient(private val baseUrl: String) {
         } catch (e: ClientRequestException) {
             handleError(e)
         } catch (_: ServerResponseException) {
-            ApiResult.Failure(ApiError.ServerError)
+            ApiResult.Failure(ApiError.ServerError())
+        } catch (_: IllegalStateException) {
+            ApiResult.Failure(ApiError.ServerError())
         } catch (_: IOException) {
             ApiResult.Failure(ApiError.NetworkError)
         }
@@ -284,3 +257,54 @@ class ApiClient(private val baseUrl: String) {
         httpClient.close()
     }
 }
+
+sealed class CreateUserResult {
+    data class Joined(val user: User) : CreateUserResult()
+    data class Pending(val response: AuthResponse) : CreateUserResult()
+}
+
+internal fun mapApiError(status: HttpStatusCode, body: String): ApiError {
+    val parsed = parseErrorResponse(body)
+    return when (parsed?.code) {
+        "validation_error" -> ApiError.ValidationError(parsed.message)
+        "username_taken" -> ApiError.UsernameTaken(parsed.message)
+        "login_locked" -> ApiError.LoginLocked(parsed.message)
+        "forbidden" -> ApiError.Forbidden(parsed.message)
+        "deprecated_endpoint" -> ApiError.DeprecatedEndpoint(parsed.message)
+        "unauthorized",
+        "invite_token_invalid",
+        "invite_token_revoked",
+        "invite_token_exhausted",
+        -> ApiError.Unauthorized(code = parsed.code, message = parsed.message)
+
+        else -> when (status) {
+            HttpStatusCode.BadRequest -> parsed?.message?.takeIf { it.isNotBlank() }?.let(ApiError::ValidationError)
+                ?: ApiError.ServerError()
+
+            HttpStatusCode.Unauthorized -> ApiError.Unauthorized(
+                code = parsed?.code,
+                message = parsed?.message,
+            )
+
+            HttpStatusCode.Forbidden -> ApiError.Forbidden(parsed?.message ?: "Доступ запрещен")
+            HttpStatusCode.NotFound -> ApiError.NotFound
+            HttpStatusCode.Conflict -> parsed?.message?.takeIf { it.isNotBlank() }?.let(ApiError::UsernameTaken)
+                ?: ApiError.ServerError()
+
+            HttpStatusCode.Gone -> ApiError.DeprecatedEndpoint(parsed?.message ?: "Эта операция больше не поддерживается")
+            else -> ApiError.ServerError(parsed?.message)
+        }
+    }
+}
+
+internal fun parseErrorResponse(body: String, json: Json = Json { ignoreUnknownKeys = true; isLenient = true }): ErrorResponseDto? {
+    if (body.isBlank()) {
+        return null
+    }
+    return runCatching { json.decodeFromString<ErrorResponseDto>(body) }.getOrNull()
+}
+
+internal fun shouldInvalidateSession(error: ApiError): Boolean =
+    error is ApiError.Unauthorized &&
+        error.code == "unauthorized" &&
+        error.message == "Authentication is required"

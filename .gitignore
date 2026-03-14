@@ -35,12 +35,32 @@ google-services.json
 server/build/
 server/.gradle/
 server/out/
+server/data/
+server/.kotlin
+server/bin/
+!server/src/main/**/out/
+!server/src/test/**/out/
+!server/src/main/**/bin/
+!server/src/test/**/bin/
+server/.apt_generated
+server/.classpath
+server/.factorypath
+server/.project
+server/.settings/
+server/.springBeans
+server/.sts4-cache
+server/nbproject/private/
+server/nbbuild/
+server/dist/
+server/nbdist/
+server/.nb-gradle/
 
 # ================================
 # Docker
 # ================================
 docker/.env
 docker/coturn/certs/
+server/.docker-data/
 
 # ================================
 # IDE — Android Studio / IntelliJ
@@ -58,6 +78,7 @@ docker/coturn/certs/
 # OS
 # ================================
 .DS_Store
+server/.DS_Store
 Thumbs.db
 ehthumbs.db
 Desktop.ini

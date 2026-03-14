@@ -12,4 +12,25 @@ object ServiceLocator {
 
     /** ID of the current user on the active server. Set after auth/login. */
     var currentUserId: String = ""
+
+    fun clearServerSession(serverAddress: String) {
+        connectionManager.removeClient(serverAddress)
+
+        try {
+            sessionStore.removeSession(serverAddress)
+        } catch (_: UninitializedPropertyAccessException) {
+            // Ignore in previews/tests.
+        }
+
+        if (activeServerAddress == serverAddress) {
+            activeServerAddress = ""
+            currentUserId = ""
+            try {
+                sessionStore.activeServerAddress = ""
+                sessionStore.activeUserId = ""
+            } catch (_: UninitializedPropertyAccessException) {
+                // Ignore in previews/tests.
+            }
+        }
+    }
 }

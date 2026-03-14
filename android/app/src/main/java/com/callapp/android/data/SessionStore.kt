@@ -72,9 +72,33 @@ class SessionStore(context: Context) {
     fun removeSession(serverAddress: String) {
         val sessions = getSessions().toMutableMap()
         sessions.remove(serverAddress)
-        prefs.edit()
+        val editor = prefs.edit()
             .putString(KEY_SESSIONS, json.encodeToString(sessions))
-            .apply()
+
+        if (activeServerAddress == serverAddress) {
+            editor
+                .putString(KEY_ACTIVE_ADDRESS, "")
+                .putString(KEY_ACTIVE_USER_ID, "")
+        }
+
+        editor.apply()
+    }
+
+    fun updateServerMetadata(
+        serverAddress: String,
+        serverId: String,
+        serverName: String,
+        serverUsername: String,
+    ) {
+        val existing = getSession(serverAddress) ?: return
+        saveSession(
+            serverAddress = serverAddress,
+            sessionToken = existing.sessionToken,
+            userId = existing.userId,
+            serverName = serverName,
+            serverUsername = serverUsername,
+            serverId = serverId,
+        )
     }
 
     /** Convert stored sessions to a list of Server domain objects. */

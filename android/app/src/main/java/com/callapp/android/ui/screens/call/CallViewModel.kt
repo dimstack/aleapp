@@ -7,6 +7,8 @@ import androidx.lifecycle.viewModelScope
 import com.callapp.android.data.CallConnectionState
 import com.callapp.android.data.CallRepository
 import com.callapp.android.data.ServiceLocator
+import com.callapp.android.network.signaling.ConnectionState
+import com.callapp.android.network.signaling.SignalMessage
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,6 +31,9 @@ class CallViewModel(
     application: Application,
     savedStateHandle: SavedStateHandle,
 ) : AndroidViewModel(application) {
+
+    private val serverAddress: String = (savedStateHandle.get<String>("serverAddress") ?: "")
+        .let { java.net.URLDecoder.decode(it, "UTF-8") }
 
     val contactName: String = (savedStateHandle.get<String>("contactName") ?: "")
         .let { java.net.URLDecoder.decode(it, "UTF-8") }
@@ -76,7 +81,6 @@ class CallViewModel(
         callRepository?.let { return it }
 
         val connManager = ServiceLocator.connectionManager
-        val serverAddress = ServiceLocator.activeServerAddress
         val signaling = connManager.getSignaling(serverAddress)
         signaling.connect()
 
@@ -151,7 +155,16 @@ class CallViewModel(
     }
 
     fun declineCall() {
-        callRepository?.declineIncomingCall(userId)
+        val repo = callRepository
+        if (repo != null) {
+            repo.declineIncomingCall(userId)
+        } else if (serverAddress.isNotEmpty()) {
+            val signaling = ServiceLocator.connectionManager.getSignaling(serverAddress)
+            if (signaling.connectionState.value == ConnectionState.Disconnected) {
+                signaling.connect()
+            }
+            signaling.send(SignalMessage.CallDecline(targetUserId = userId))
+        }
         _callPhase.value = CallPhase.ENDED
         timerJob?.cancel()
     }

@@ -12,10 +12,6 @@ class ServerConnectionManager {
         return clients.getOrPut(serverAddress) { ApiClient(serverAddress) }
     }
 
-    /**
-     * Возвращает существующий или создаёт новый SignalingClient (без автоподключения).
-     * При каждом обращении обновляет токен из ApiClient, чтобы он не устаревал.
-     */
     fun getSignaling(serverAddress: String): SignalingClient {
         val token = clients[serverAddress]?.sessionToken.orEmpty()
         return signalingClients.getOrPut(serverAddress) {
@@ -36,9 +32,8 @@ class ServerConnectionManager {
 
     companion object {
         /**
-         * Парсит invite-токен формата "server.example.com:3000/ABCD1234"
-         * в пару (serverAddress, tokenCode).
-         * Возвращает null если формат некорректный.
+         * Invite token format for first connection: "server.example.com:3000/ABCD1234".
+         * Returns a pair of (serverAddress, tokenCode) or null when the format is invalid.
          */
         fun parseInviteToken(rawToken: String): Pair<String, String>? {
             val trimmed = rawToken.trim()

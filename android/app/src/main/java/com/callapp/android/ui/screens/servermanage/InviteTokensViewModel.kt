@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.callapp.android.data.ServiceLocator
 import com.callapp.android.domain.model.InviteToken
 import com.callapp.android.network.result.ApiResult
+import com.callapp.android.ui.common.apiErrorMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -17,6 +18,7 @@ sealed class InviteTokensUiState {
         val tokens: List<InviteToken>,
         val actionError: String? = null,
     ) : InviteTokensUiState()
+
     data class Error(val message: String) : InviteTokensUiState()
 }
 
@@ -35,6 +37,9 @@ class InviteTokensViewModel(
     private val _isCreating = MutableStateFlow(false)
     val isCreating: StateFlow<Boolean> = _isCreating.asStateFlow()
 
+    val currentServerAddress: String
+        get() = serverAddress
+
     init {
         val server = repository.getServerById(serverId)
         serverAddress = server?.address ?: ""
@@ -52,8 +57,15 @@ class InviteTokensViewModel(
                 is ApiResult.Success -> {
                     _state.value = InviteTokensUiState.Success(result.data)
                 }
+
                 is ApiResult.Failure -> {
-                    _state.value = InviteTokensUiState.Error("Не удалось загрузить токены")
+                    _state.value = InviteTokensUiState.Error(
+                        apiErrorMessage(
+                            error = result.error,
+                            fallback = "Не удалось загрузить токены",
+                            notFound = "Сервер не найден",
+                        ),
+                    )
                 }
             }
         }
@@ -67,10 +79,16 @@ class InviteTokensViewModel(
     ) {
         _isCreating.value = true
         viewModelScope.launch {
-            when (repository.createInviteToken(serverAddress, label, maxUses, grantedRole, requireApproval)) {
+            when (val result = repository.createInviteToken(serverAddress, label, maxUses, grantedRole, requireApproval)) {
                 is ApiResult.Success -> loadTokens()
                 is ApiResult.Failure -> {
-                    setActionError("Не удалось создать токен")
+                    setActionError(
+                        apiErrorMessage(
+                            error = result.error,
+                            fallback = "Не удалось создать токен",
+                            notFound = "Сервер не найден",
+                        ),
+                    )
                 }
             }
             _isCreating.value = false
@@ -79,10 +97,16 @@ class InviteTokensViewModel(
 
     fun revokeToken(tokenId: String) {
         viewModelScope.launch {
-            when (repository.revokeInviteToken(serverAddress, tokenId)) {
+            when (val result = repository.revokeInviteToken(serverAddress, tokenId)) {
                 is ApiResult.Success -> loadTokens()
                 is ApiResult.Failure -> {
-                    setActionError("Не удалось отозвать токен")
+                    setActionError(
+                        apiErrorMessage(
+                            error = result.error,
+                            fallback = "Не удалось отозвать токен",
+                            notFound = "Токен не найден",
+                        ),
+                    )
                 }
             }
         }

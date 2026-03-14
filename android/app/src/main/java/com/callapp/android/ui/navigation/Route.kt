@@ -23,14 +23,16 @@ sealed class Route(val route: String) {
         fun createRoute(serverId: String) = "server_detail/$serverId"
     }
     data object Settings : Route("settings")
-    data object Notifications : Route("notifications")
-    data object Call : Route("call/{userId}/{contactName}") {
-        fun createRoute(userId: String, contactName: String) =
-            "call/$userId/${java.net.URLEncoder.encode(contactName, "UTF-8")}"
+    data object Notifications : Route("notifications/{serverId}") {
+        fun createRoute(serverId: String) = "notifications/$serverId"
     }
-    data object IncomingCall : Route("incoming_call/{userId}/{contactName}/{serverName}") {
-        fun createRoute(userId: String, contactName: String, serverName: String) =
-            "incoming_call/$userId/${java.net.URLEncoder.encode(contactName, "UTF-8")}/${java.net.URLEncoder.encode(serverName, "UTF-8")}"
+    data object Call : Route("call/{serverAddress}/{userId}/{contactName}") {
+        fun createRoute(serverAddress: String, userId: String, contactName: String) =
+            "call/${java.net.URLEncoder.encode(serverAddress, "UTF-8")}/$userId/${java.net.URLEncoder.encode(contactName, "UTF-8")}"
+    }
+    data object IncomingCall : Route("incoming_call/{serverAddress}/{userId}/{contactName}/{serverName}") {
+        fun createRoute(serverAddress: String, userId: String, contactName: String, serverName: String) =
+            "incoming_call/${java.net.URLEncoder.encode(serverAddress, "UTF-8")}/$userId/${java.net.URLEncoder.encode(contactName, "UTF-8")}/${java.net.URLEncoder.encode(serverName, "UTF-8")}"
     }
     data object JoinRequests : Route("join_requests/{serverId}") {
         fun createRoute(serverId: String) = "join_requests/$serverId"

@@ -29,12 +29,6 @@ fun JoinRequestDto.toDomain(): JoinRequest = JoinRequest(
 )
 
 @Serializable
-data class SubmitJoinRequest(
-    val username: String,
-    val name: String,
-)
-
-@Serializable
 data class JoinRequestAction(
     val status: String,
 )

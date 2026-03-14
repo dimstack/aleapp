@@ -60,7 +60,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.callapp.android.data.SampleData
 import com.callapp.android.domain.model.JoinRequest
 import com.callapp.android.domain.model.Server
 import com.callapp.android.domain.model.User
@@ -70,6 +69,7 @@ import com.callapp.android.ui.components.AleAppButtonSize
 import com.callapp.android.ui.components.AleAppButtonVariant
 import com.callapp.android.ui.common.UiState
 import com.callapp.android.ui.components.AleAppCard
+import com.callapp.android.ui.preview.PreviewData
 import com.callapp.android.ui.theme.AleAppTheme
 import kotlin.math.absoluteValue
 
@@ -98,10 +98,10 @@ private fun serverImageColor(name: String): Color =
 
 @Composable
 fun ServerDetailScreen(
-    server: Server = SampleData.serverTech,
-    membersState: UiState<List<User>> = UiState.Success(SampleData.techMembers),
+    server: Server = PreviewData.serverTech,
+    membersState: UiState<List<User>> = UiState.Success(PreviewData.techMembers),
     isAdmin: Boolean = true,
-    pendingRequests: List<JoinRequest> = SampleData.joinRequests,
+    pendingRequests: List<JoinRequest> = PreviewData.joinRequests,
     onBack: () -> Unit = {},
     onCallClick: (userId: String, contactName: String) -> Unit = { _, _ -> },
     onProfileClick: () -> Unit = {},
@@ -963,10 +963,10 @@ private fun RequestAvatar(
 private fun ServerDetailAdminLightPreview() {
     AleAppTheme(darkTheme = false) {
         ServerDetailScreen(
-            server = SampleData.serverTech,
-            membersState = UiState.Success(SampleData.techMembers),
+            server = PreviewData.serverTech,
+            membersState = UiState.Success(PreviewData.techMembers),
             isAdmin = true,
-            pendingRequests = SampleData.joinRequests,
+            pendingRequests = PreviewData.joinRequests,
         )
     }
 }
@@ -981,10 +981,10 @@ private fun ServerDetailAdminLightPreview() {
 private fun ServerDetailAdminDarkPreview() {
     AleAppTheme(darkTheme = true) {
         ServerDetailScreen(
-            server = SampleData.serverTech,
-            membersState = UiState.Success(SampleData.techMembers),
+            server = PreviewData.serverTech,
+            membersState = UiState.Success(PreviewData.techMembers),
             isAdmin = true,
-            pendingRequests = SampleData.joinRequests,
+            pendingRequests = PreviewData.joinRequests,
         )
     }
 }
@@ -994,8 +994,8 @@ private fun ServerDetailAdminDarkPreview() {
 private fun ServerDetailRegularLightPreview() {
     AleAppTheme(darkTheme = false) {
         ServerDetailScreen(
-            server = SampleData.serverCreative,
-            membersState = UiState.Success(SampleData.creativeMembers),
+            server = PreviewData.serverCreative,
+            membersState = UiState.Success(PreviewData.creativeMembers),
             isAdmin = false,
             pendingRequests = emptyList(),
         )
@@ -1012,8 +1012,8 @@ private fun ServerDetailRegularLightPreview() {
 private fun ServerDetailRegularDarkPreview() {
     AleAppTheme(darkTheme = true) {
         ServerDetailScreen(
-            server = SampleData.serverCreative,
-            membersState = UiState.Success(SampleData.creativeMembers),
+            server = PreviewData.serverCreative,
+            membersState = UiState.Success(PreviewData.creativeMembers),
             isAdmin = false,
             pendingRequests = emptyList(),
         )
@@ -1025,7 +1025,7 @@ private fun ServerDetailRegularDarkPreview() {
 private fun ServerDetailLoadingPreview() {
     AleAppTheme(darkTheme = false) {
         ServerDetailScreen(
-            server = SampleData.serverTech,
+            server = PreviewData.serverTech,
             membersState = UiState.Loading,
             isAdmin = false,
             pendingRequests = emptyList(),
@@ -1038,7 +1038,7 @@ private fun ServerDetailLoadingPreview() {
 private fun ServerDetailErrorPreview() {
     AleAppTheme(darkTheme = false) {
         ServerDetailScreen(
-            server = SampleData.serverTech,
+            server = PreviewData.serverTech,
             membersState = UiState.Error("Нет соединения с сервером"),
             isAdmin = false,
             pendingRequests = emptyList(),
@@ -1101,7 +1101,7 @@ private fun TopBarAdminDarkPreview() {
 private fun ServerInfoAdminPreview() {
     AleAppTheme(darkTheme = false) {
         Surface(color = AleAppTheme.colors.background) {
-            ServerInfoSection(server = SampleData.serverTech, isAdmin = true)
+            ServerInfoSection(server = PreviewData.serverTech, isAdmin = true)
         }
     }
 }
@@ -1111,7 +1111,7 @@ private fun ServerInfoAdminPreview() {
 private fun ServerInfoRegularPreview() {
     AleAppTheme(darkTheme = false) {
         Surface(color = AleAppTheme.colors.background) {
-            ServerInfoSection(server = SampleData.serverCreative, isAdmin = false)
+            ServerInfoSection(server = PreviewData.serverCreative, isAdmin = false)
         }
     }
 }
@@ -1121,7 +1121,7 @@ private fun ServerInfoRegularPreview() {
 private fun ServerInfoDarkPreview() {
     AleAppTheme(darkTheme = true) {
         Surface(color = AleAppTheme.colors.background) {
-            ServerInfoSection(server = SampleData.serverTech, isAdmin = true)
+            ServerInfoSection(server = PreviewData.serverTech, isAdmin = true)
         }
     }
 }
@@ -1180,7 +1180,7 @@ private fun MemberRowOnlinePreview() {
     AleAppTheme(darkTheme = false) {
         Surface(color = AleAppTheme.colors.card) {
             MemberRow(
-                member = SampleData.userAnna,
+                member = PreviewData.userAnna,
                 isEditMode = false,
                 onCallClick = {},
                 onContactClick = {},
@@ -1196,7 +1196,7 @@ private fun MemberRowOfflinePreview() {
     AleAppTheme(darkTheme = false) {
         Surface(color = AleAppTheme.colors.card) {
             MemberRow(
-                member = SampleData.userMaria,
+                member = PreviewData.userMaria,
                 isEditMode = false,
                 onCallClick = {},
                 onContactClick = {},
@@ -1212,7 +1212,7 @@ private fun MemberRowEditModePreview() {
     AleAppTheme(darkTheme = false) {
         Surface(color = AleAppTheme.colors.card) {
             MemberRow(
-                member = SampleData.userAnna,
+                member = PreviewData.userAnna,
                 isEditMode = true,
                 onCallClick = {},
                 onContactClick = {},
@@ -1284,7 +1284,7 @@ private fun MembersCardPreview() {
     AleAppTheme(darkTheme = false) {
         Surface(color = AleAppTheme.colors.background) {
             MembersSection(
-                members = SampleData.techMembers,
+                members = PreviewData.techMembers,
                 isAdmin = true,
                 isEditMode = false,
                 onToggleEditMode = {},
@@ -1320,7 +1320,7 @@ private fun JoinRequestsPreview() {
     AleAppTheme(darkTheme = false) {
         Surface(color = AleAppTheme.colors.background) {
             JoinRequestsSection(
-                requests = SampleData.joinRequests,
+                requests = PreviewData.joinRequests,
                 onApprove = {},
                 onDecline = {},
             )
@@ -1334,7 +1334,7 @@ private fun JoinRequestsDarkPreview() {
     AleAppTheme(darkTheme = true) {
         Surface(color = AleAppTheme.colors.background) {
             JoinRequestsSection(
-                requests = SampleData.joinRequests,
+                requests = PreviewData.joinRequests,
                 onApprove = {},
                 onDecline = {},
             )
@@ -1362,7 +1362,7 @@ private fun JoinRequestRowPreview() {
     AleAppTheme(darkTheme = false) {
         Surface(color = AleAppTheme.colors.card) {
             JoinRequestRow(
-                request = SampleData.joinRequests.first(),
+                request = PreviewData.joinRequests.first(),
                 onApprove = {},
                 onDecline = {},
             )

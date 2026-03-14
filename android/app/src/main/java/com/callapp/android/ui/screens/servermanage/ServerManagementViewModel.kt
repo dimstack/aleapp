@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.callapp.android.data.ServiceLocator
 import com.callapp.android.network.result.ApiResult
+import com.callapp.android.ui.common.apiErrorMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,9 +16,7 @@ data class ServerManagementUiState(
     val data: ServerManageData? = null,
     val error: String? = null,
     val isSaving: Boolean = false,
-    val isDeleting: Boolean = false,
     val saveSuccess: Boolean = false,
-    val deleteSuccess: Boolean = false,
     val actionError: String? = null,
 )
 
@@ -60,32 +59,29 @@ class ServerManagementViewModel(
         if (serverAddress.isEmpty()) return
         _state.value = _state.value.copy(isSaving = true, actionError = null)
         viewModelScope.launch {
-            when (repository.updateServer(serverAddress, name, username, description, imageUrl)) {
+            when (val result = repository.updateServer(serverAddress, name, username, description, imageUrl)) {
                 is ApiResult.Success -> {
+                    try {
+                        ServiceLocator.sessionStore.updateServerMetadata(
+                            serverAddress = serverAddress,
+                            serverId = result.data.id,
+                            serverName = result.data.name,
+                            serverUsername = result.data.username,
+                        )
+                    } catch (_: UninitializedPropertyAccessException) {
+                        // Ignore in previews/tests.
+                    }
                     _state.value = _state.value.copy(isSaving = false, saveSuccess = true)
                 }
+
                 is ApiResult.Failure -> {
                     _state.value = _state.value.copy(
                         isSaving = false,
-                        actionError = "Не удалось сохранить изменения",
-                    )
-                }
-            }
-        }
-    }
-
-    fun deleteServer() {
-        if (serverAddress.isEmpty()) return
-        _state.value = _state.value.copy(isDeleting = true, actionError = null)
-        viewModelScope.launch {
-            when (repository.deleteServer(serverAddress)) {
-                is ApiResult.Success -> {
-                    _state.value = _state.value.copy(isDeleting = false, deleteSuccess = true)
-                }
-                is ApiResult.Failure -> {
-                    _state.value = _state.value.copy(
-                        isDeleting = false,
-                        actionError = "Не удалось удалить сервер",
+                        actionError = apiErrorMessage(
+                            error = result.error,
+                            fallback = "Не удалось сохранить изменения",
+                            notFound = "Сервер не найден",
+                        ),
                     )
                 }
             }

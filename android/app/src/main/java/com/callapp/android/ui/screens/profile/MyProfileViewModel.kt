@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.callapp.android.data.ServiceLocator
 import com.callapp.android.domain.model.UserRole
 import com.callapp.android.network.result.ApiResult
+import com.callapp.android.ui.common.apiErrorMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -61,8 +62,16 @@ class MyProfileViewModel(
                         ),
                     )
                 }
+
                 is ApiResult.Failure -> {
-                    _state.value = MyProfileUiState(isLoading = false, error = "Не удалось загрузить профиль")
+                    _state.value = MyProfileUiState(
+                        isLoading = false,
+                        error = apiErrorMessage(
+                            error = result.error,
+                            fallback = "Не удалось загрузить профиль",
+                            notFound = "Профиль не найден",
+                        ),
+                    )
                 }
             }
         }
@@ -74,7 +83,7 @@ class MyProfileViewModel(
 
         _state.value = _state.value.copy(isSaving = true, saveError = null)
         viewModelScope.launch {
-            when (repository.updateUser(serverAddress, userId, name = name, username = username)) {
+            when (val result = repository.updateUser(serverAddress, userId, name = name, username = username)) {
                 is ApiResult.Success -> {
                     _state.value = _state.value.copy(
                         isSaving = false,
@@ -82,10 +91,15 @@ class MyProfileViewModel(
                         profile = _state.value.profile?.copy(name = name, username = username),
                     )
                 }
+
                 is ApiResult.Failure -> {
                     _state.value = _state.value.copy(
                         isSaving = false,
-                        saveError = "Не удалось сохранить профиль",
+                        saveError = apiErrorMessage(
+                            error = result.error,
+                            fallback = "Не удалось сохранить профиль",
+                            notFound = "Профиль не найден",
+                        ),
                     )
                 }
             }

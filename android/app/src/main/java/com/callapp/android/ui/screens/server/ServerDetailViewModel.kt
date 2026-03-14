@@ -8,9 +8,9 @@ import com.callapp.android.domain.model.JoinRequest
 import com.callapp.android.domain.model.Server
 import com.callapp.android.domain.model.User
 import com.callapp.android.domain.model.UserRole
-import com.callapp.android.network.result.ApiError
 import com.callapp.android.network.result.ApiResult
 import com.callapp.android.ui.common.UiState
+import com.callapp.android.ui.common.apiErrorMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -52,7 +52,6 @@ class ServerDetailViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
                 is ApiResult.Success -> {
                     _membersState.value = UiState.Success(result.data)
 
-                    // Determine if the current user is admin by matching stored userId
                     val currentUserId = ServiceLocator.currentUserId
                     _isAdmin.value = if (currentUserId.isNotEmpty()) {
                         result.data.any { it.id == currentUserId && it.role == UserRole.ADMIN }
@@ -64,14 +63,15 @@ class ServerDetailViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
                         loadPendingRequests(address)
                     }
                 }
+
                 is ApiResult.Failure -> {
-                    val message = when (result.error) {
-                        ApiError.NetworkError -> "Нет соединения с сервером"
-                        ApiError.Unauthorized -> "Сессия истекла"
-                        ApiError.NotFound -> "Сервер не найден"
-                        ApiError.ServerError -> "Ошибка сервера"
-                    }
-                    _membersState.value = UiState.Error(message)
+                    _membersState.value = UiState.Error(
+                        apiErrorMessage(
+                            error = result.error,
+                            fallback = "Ошибка сервера",
+                            notFound = "Сервер не найден",
+                        ),
+                    )
                 }
             }
         }
@@ -83,9 +83,8 @@ class ServerDetailViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
             is ApiResult.Success -> {
                 _pendingRequests.value = result.data
             }
-            is ApiResult.Failure -> {
-                // Silently fail — pending requests are non-critical
-            }
+
+            is ApiResult.Failure -> Unit
         }
     }
 }

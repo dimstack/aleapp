@@ -4,9 +4,11 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.callapp.android.data.ServiceLocator
+import com.callapp.android.data.ServerRepository
 import com.callapp.android.domain.model.JoinRequest
 import com.callapp.android.domain.model.JoinRequestStatus
 import com.callapp.android.network.result.ApiResult
+import com.callapp.android.ui.common.apiErrorMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -21,6 +23,8 @@ data class JoinRequestsUiState(
 class JoinRequestsViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
 
     private val serverId: String = savedStateHandle["serverId"] ?: ""
+    private val repository: ServerRepository = ServiceLocator.serverRepository
+    private val serverAddress: String = repository.getServerById(serverId)?.address.orEmpty()
 
     private val _state = MutableStateFlow(JoinRequestsUiState())
     val state: StateFlow<JoinRequestsUiState> = _state
@@ -32,18 +36,24 @@ class JoinRequestsViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
     fun loadRequests() {
         viewModelScope.launch {
             _state.value = _state.value.copy(isLoading = true, error = null)
-            val client = ServiceLocator.connectionManager
-                .getClient(ServiceLocator.activeServerAddress)
+            if (serverAddress.isBlank()) {
+                _state.value = _state.value.copy(
+                    isLoading = false,
+                    error = "Сервер не найден",
+                )
+                return@launch
+            }
 
-            // Load server name
+            val client = ServiceLocator.connectionManager.getClient(serverAddress)
+
             when (val serverResult = client.getServer()) {
                 is ApiResult.Success -> {
                     _state.value = _state.value.copy(serverName = serverResult.data.name)
                 }
-                is ApiResult.Failure -> { /* use fallback */ }
+
+                is ApiResult.Failure -> Unit
             }
 
-            // Load join requests
             when (val result = client.getJoinRequests()) {
                 is ApiResult.Success -> {
                     _state.value = _state.value.copy(
@@ -51,10 +61,15 @@ class JoinRequestsViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
                         isLoading = false,
                     )
                 }
+
                 is ApiResult.Failure -> {
                     _state.value = _state.value.copy(
                         isLoading = false,
-                        error = result.error.name,
+                        error = apiErrorMessage(
+                            error = result.error,
+                            fallback = "Не удалось загрузить заявки",
+                            notFound = "Сервер не найден",
+                        ),
                     )
                 }
             }
@@ -63,30 +78,48 @@ class JoinRequestsViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
 
     fun approve(requestId: String) {
         viewModelScope.launch {
-            val client = ServiceLocator.connectionManager
-                .getClient(ServiceLocator.activeServerAddress)
-            when (client.updateJoinRequest(requestId, "APPROVED")) {
+            if (serverAddress.isBlank()) return@launch
+            val client = ServiceLocator.connectionManager.getClient(serverAddress)
+            when (val result = client.updateJoinRequest(requestId, "APPROVED")) {
                 is ApiResult.Success -> {
                     _state.value = _state.value.copy(
-                        requests = _state.value.requests.filter { it.id != requestId }
+                        requests = _state.value.requests.filter { it.id != requestId },
                     )
                 }
-                is ApiResult.Failure -> { /* silently fail */ }
+
+                is ApiResult.Failure -> {
+                    _state.value = _state.value.copy(
+                        error = apiErrorMessage(
+                            error = result.error,
+                            fallback = "Не удалось обработать заявку",
+                            notFound = "Заявка не найдена",
+                        ),
+                    )
+                }
             }
         }
     }
 
     fun decline(requestId: String) {
         viewModelScope.launch {
-            val client = ServiceLocator.connectionManager
-                .getClient(ServiceLocator.activeServerAddress)
-            when (client.updateJoinRequest(requestId, "DECLINED")) {
+            if (serverAddress.isBlank()) return@launch
+            val client = ServiceLocator.connectionManager.getClient(serverAddress)
+            when (val result = client.updateJoinRequest(requestId, "DECLINED")) {
                 is ApiResult.Success -> {
                     _state.value = _state.value.copy(
-                        requests = _state.value.requests.filter { it.id != requestId }
+                        requests = _state.value.requests.filter { it.id != requestId },
                     )
                 }
-                is ApiResult.Failure -> { /* silently fail */ }
+
+                is ApiResult.Failure -> {
+                    _state.value = _state.value.copy(
+                        error = apiErrorMessage(
+                            error = result.error,
+                            fallback = "Не удалось обработать заявку",
+                            notFound = "Заявка не найдена",
+                        ),
+                    )
+                }
             }
         }
     }
