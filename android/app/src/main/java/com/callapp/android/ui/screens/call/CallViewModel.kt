@@ -72,7 +72,9 @@ class CallViewModel(
     private var callRepository: CallRepository? = null
 
     init {
-        if (!isIncoming) {
+        if (isIncoming) {
+            getOrCreateCallRepository()
+        } else {
             startOutgoingCall()
         }
     }
