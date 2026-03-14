@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -36,8 +37,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,15 +49,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import com.callapp.android.ui.components.PulsingAvatar
 import com.callapp.android.ui.theme.AleAppTheme
+import io.getstream.webrtc.android.compose.VideoRenderer
+import io.getstream.webrtc.android.compose.VideoScalingType
 import org.webrtc.EglBase
 import org.webrtc.RendererCommon
 import org.webrtc.VideoTrack
@@ -84,23 +85,26 @@ private fun WebRtcVideoRenderer(
     scalingType: RendererCommon.ScalingType = RendererCommon.ScalingType.SCALE_ASPECT_FILL,
     mirror: Boolean = false,
 ) {
-    AndroidView(
-        factory = { context ->
-            org.webrtc.SurfaceViewRenderer(context).apply {
-                init(eglBase.eglBaseContext, null)
-                setScalingType(scalingType)
-                setMirror(mirror)
-                setEnableHardwareScaler(true)
-                videoTrack.addSink(this)
-            }
-        },
-        update = { renderer ->
+    val rendererEvents = remember {
+        object : RendererCommon.RendererEvents {
+            override fun onFirstFrameRendered() = Unit
+
+            override fun onFrameResolutionChanged(
+                videoWidth: Int,
+                videoHeight: Int,
+                rotation: Int,
+            ) = Unit
+        }
+    }
+
+    VideoRenderer(
+        videoTrack = videoTrack,
+        eglBaseContext = eglBase.eglBaseContext,
+        videoScalingType = scalingType.toVideoScalingType(),
+        onTextureViewCreated = { renderer ->
             renderer.setMirror(mirror)
         },
-        onRelease = { renderer ->
-            videoTrack.removeSink(renderer)
-            renderer.release()
-        },
+        rendererEvents = rendererEvents,
         modifier = modifier,
     )
 }
@@ -136,12 +140,14 @@ fun CallScreen(
     ) {
         // ── Remote video (fullscreen background) ─────────────────────────
         if (remoteVideoTrack != null && eglBase != null) {
-            WebRtcVideoRenderer(
-                videoTrack = remoteVideoTrack,
-                eglBase = eglBase,
-                modifier = Modifier.fillMaxSize(),
-                scalingType = RendererCommon.ScalingType.SCALE_ASPECT_FILL,
-            )
+            key("remote-video-renderer") {
+                WebRtcVideoRenderer(
+                    videoTrack = remoteVideoTrack,
+                    eglBase = eglBase,
+                    modifier = Modifier.fillMaxSize(),
+                    scalingType = RendererCommon.ScalingType.SCALE_ASPECT_FILL,
+                )
+            }
         }
 
         // ── Main UI overlay ──────────────────────────────────────────────
@@ -214,14 +220,16 @@ fun CallScreen(
 
         // ── Local video PiP (draggable, top-end) ─────────────────────────
         if (localVideoTrack != null && eglBase != null && isCameraOn) {
-            DraggableLocalVideo(
-                videoTrack = localVideoTrack,
-                eglBase = eglBase,
-                modifier = Modifier
-                    .windowInsetsPadding(WindowInsets.statusBars)
-                    .padding(top = 72.dp, end = 16.dp)
-                    .align(Alignment.TopEnd),
-            )
+            key("local-video-renderer") {
+                DraggableLocalVideo(
+                    videoTrack = localVideoTrack,
+                    eglBase = eglBase,
+                    modifier = Modifier
+                        .windowInsetsPadding(WindowInsets.statusBars)
+                        .padding(top = 72.dp, end = 16.dp)
+                        .align(Alignment.TopEnd),
+                )
+            }
         }
 
         // ── Info panel overlay ───────────────────────────────────────────
@@ -254,8 +262,10 @@ private fun DraggableLocalVideo(
     Box(
         modifier = modifier
             .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
-            .size(width = 120.dp, height = 160.dp)
+            .width(120.dp)
+            .aspectRatio(3f / 4f)
             .clip(RoundedCornerShape(12.dp))
+            .background(Color.Black.copy(alpha = 0.18f))
             .pointerInput(Unit) {
                 detectDragGestures { change, dragAmount ->
                     change.consume()
@@ -268,7 +278,7 @@ private fun DraggableLocalVideo(
             videoTrack = videoTrack,
             eglBase = eglBase,
             modifier = Modifier.fillMaxSize(),
-            scalingType = RendererCommon.ScalingType.SCALE_ASPECT_FILL,
+            scalingType = RendererCommon.ScalingType.SCALE_ASPECT_FIT,
             mirror = true,
         )
     }
@@ -514,6 +524,12 @@ private fun formatDuration(totalSeconds: Int): String {
     val minutes = totalSeconds / 60
     val seconds = totalSeconds % 60
     return "%02d:%02d".format(minutes, seconds)
+}
+
+private fun RendererCommon.ScalingType.toVideoScalingType(): VideoScalingType = when (this) {
+    RendererCommon.ScalingType.SCALE_ASPECT_FIT -> VideoScalingType.SCALE_ASPECT_FIT
+    RendererCommon.ScalingType.SCALE_ASPECT_FILL -> VideoScalingType.SCALE_ASPECT_FILL
+    RendererCommon.ScalingType.SCALE_ASPECT_BALANCED -> VideoScalingType.SCALE_ASPECT_BALANCED
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════ */
