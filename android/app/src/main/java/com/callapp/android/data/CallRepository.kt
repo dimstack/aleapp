@@ -63,7 +63,7 @@ class CallRepository(
     /** True once the first offer/answer exchange is complete and renegotiation is safe. */
     private var initialNegotiationDone = false
 
-    val webRtcManager = WebRtcManager(context, object : WebRtcManager.Listener {
+    val webRtcManager: WebRtcManager = WebRtcManager(context, object : WebRtcManager.Listener {
         override fun onIceCandidate(candidate: IceCandidate) {
             signalingClient.send(
                 SignalMessage.IceCandidate(
@@ -91,18 +91,7 @@ class CallRepository(
         }
 
         override fun onRenegotiationNeeded() {
-            // Only renegotiate after initial handshake is complete (not during setup)
-            if (!initialNegotiationDone || targetUserId.isEmpty()) return
-            scope.launch {
-                webRtcManager.createOffer { sdp ->
-                    signalingClient.send(
-                        SignalMessage.Offer(
-                            sdp = sdp.description,
-                            targetUserId = targetUserId,
-                        )
-                    )
-                }
-            }
+            onWebRtcRenegotiationNeeded()
         }
     })
 
@@ -115,6 +104,20 @@ class CallRepository(
     }
 
     // ── TURN credentials ─────────────────────────────────────────────────
+
+    private fun onWebRtcRenegotiationNeeded() {
+        if (!initialNegotiationDone || targetUserId.isEmpty()) return
+        scope.launch {
+            webRtcManager.createOffer { sdp ->
+                signalingClient.send(
+                    SignalMessage.Offer(
+                        sdp = sdp.description,
+                        targetUserId = targetUserId,
+                    )
+                )
+            }
+        }
+    }
 
     private var turnUsername: String = ""
     private var turnPassword: String = ""
