@@ -100,10 +100,7 @@ class CallViewModel(
                     }
                     CallConnectionState.FAILED,
                     CallConnectionState.DISCONNECTED -> {
-                        if (_callPhase.value == CallPhase.CONNECTED) {
-                            _callPhase.value = CallPhase.ENDED
-                            timerJob?.cancel()
-                        }
+                        finishCall()
                     }
                     else -> {}
                 }
@@ -165,16 +162,14 @@ class CallViewModel(
             }
             signaling.send(SignalMessage.CallDecline(targetUserId = userId))
         }
-        _callPhase.value = CallPhase.ENDED
-        timerJob?.cancel()
+        finishCall()
     }
 
     // ── End call ─────────────────────────────────────────────────────────
 
     fun endCall() {
         callRepository?.endCall()
-        _callPhase.value = CallPhase.ENDED
-        timerJob?.cancel()
+        finishCall()
     }
 
     // ── Media controls ───────────────────────────────────────────────────
@@ -206,6 +201,12 @@ class CallViewModel(
                 _elapsedSeconds.value++
             }
         }
+    }
+
+    private fun finishCall() {
+        if (_callPhase.value == CallPhase.ENDED) return
+        _callPhase.value = CallPhase.ENDED
+        timerJob?.cancel()
     }
 
     // ── Cleanup ──────────────────────────────────────────────────────────
