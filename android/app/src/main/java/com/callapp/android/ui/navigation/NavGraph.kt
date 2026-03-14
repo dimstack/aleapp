@@ -17,6 +17,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.callapp.android.calling.IncomingCallPayload
 import com.callapp.android.data.ServiceLocator
 import com.callapp.android.ui.screens.home.HomeScreen
 import com.callapp.android.ui.screens.home.HomeViewModel
@@ -58,6 +59,8 @@ fun AppNavGraph(
     modifier: Modifier = Modifier,
     isDarkTheme: Boolean = false,
     userStatus: UserStatus = UserStatus.ONLINE,
+    pendingIncomingCall: IncomingCallPayload? = null,
+    onIncomingCallConsumed: () -> Unit = {},
     onThemeChange: (Boolean) -> Unit = {},
     onStatusChange: (UserStatus) -> Unit = {},
 ) {
@@ -69,6 +72,21 @@ fun AppNavGraph(
         navController.navigate(
             Route.IncomingCall.createRoute(serverAddress, userId, contactName, serverName)
         )
+    }
+
+    LaunchedEffect(pendingIncomingCall) {
+        val payload = pendingIncomingCall ?: return@LaunchedEffect
+        navController.navigate(
+            Route.IncomingCall.createRoute(
+                payload.serverAddress,
+                payload.userId,
+                payload.contactName,
+                payload.serverName,
+            ),
+        ) {
+            launchSingleTop = true
+        }
+        onIncomingCallConsumed()
     }
 
     NavHost(

@@ -2,6 +2,7 @@ package com.callapp.android.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.callapp.android.calling.CallAvailabilityServiceController
 import com.callapp.android.domain.model.Server
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -27,9 +28,10 @@ data class ServerSession(
 )
 
 class SessionStore(context: Context) {
+    private val appContext = context.applicationContext
 
     private val prefs: SharedPreferences =
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     // ── Session management ────────────────────────────────────────────────
 
@@ -55,6 +57,7 @@ class SessionStore(context: Context) {
             .putString(KEY_ACTIVE_ADDRESS, serverAddress)
             .putString(KEY_ACTIVE_USER_ID, userId)
             .apply()
+        CallAvailabilityServiceController.sync(appContext)
     }
 
     fun getSessions(): Map<String, ServerSession> {
@@ -82,6 +85,7 @@ class SessionStore(context: Context) {
         }
 
         editor.apply()
+        CallAvailabilityServiceController.sync(appContext)
     }
 
     fun updateServerMetadata(

@@ -1,15 +1,25 @@
 package com.callapp.android
 
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.navigation.compose.rememberNavController
+import com.callapp.android.calling.CallAvailabilityServiceController
+import com.callapp.android.calling.IncomingCallIntentContract
+import com.callapp.android.calling.IncomingCallPayload
 import com.callapp.android.data.ServiceLocator
 import com.callapp.android.data.SessionStore
 import com.callapp.android.ui.navigation.AppNavGraph
@@ -18,6 +28,10 @@ import com.callapp.android.ui.theme.AleAppTheme
 import com.callapp.android.webrtc.WebRtcFactory
 
 class MainActivity : ComponentActivity() {
+    private val notificationsPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    private val pendingIncomingCallState = mutableStateOf<IncomingCallPayload?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -28,6 +42,9 @@ class MainActivity : ComponentActivity() {
         val sessionStore = SessionStore(applicationContext)
         ServiceLocator.sessionStore = sessionStore
         restoreSessions(sessionStore)
+        CallAvailabilityServiceController.sync(applicationContext)
+        requestNotificationsPermissionIfNeeded()
+        pendingIncomingCallState.value = extractIncomingCall(intent)
 
         setContent {
             var isDarkTheme by remember { mutableStateOf(sessionStore.isDarkTheme) }
@@ -37,6 +54,7 @@ class MainActivity : ComponentActivity() {
                     catch (_: Exception) { UserStatus.ONLINE }
                 )
             }
+            val pendingIncomingCall = pendingIncomingCallState.value
 
             // Update edge-to-edge based on theme
             enableEdgeToEdge(
@@ -64,6 +82,8 @@ class MainActivity : ComponentActivity() {
                     navController = navController,
                     isDarkTheme = isDarkTheme,
                     userStatus = userStatus,
+                    pendingIncomingCall = pendingIncomingCall,
+                    onIncomingCallConsumed = { pendingIncomingCallState.value = null },
                     onThemeChange = {
                         isDarkTheme = it
                         sessionStore.isDarkTheme = it
@@ -75,6 +95,12 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        pendingIncomingCallState.value = extractIncomingCall(intent)
     }
 
     private fun restoreSessions(sessionStore: SessionStore) {
@@ -91,5 +117,26 @@ class MainActivity : ComponentActivity() {
             ServiceLocator.activeServerAddress = activeAddress
             ServiceLocator.currentUserId = sessionStore.activeUserId
         }
+    }
+
+    private fun requestNotificationsPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        if (
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.POST_NOTIFICATIONS,
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+        notificationsPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
+
+    private fun extractIncomingCall(intent: Intent?): IncomingCallPayload? {
+        val payload = IncomingCallIntentContract.fromIntent(intent) ?: return null
+        if (payload.notificationId != 0) {
+            NotificationManagerCompat.from(this).cancel(payload.notificationId)
+        }
+        return payload
     }
 }
