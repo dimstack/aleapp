@@ -13,6 +13,7 @@ import org.webrtc.MediaConstraints
 import org.webrtc.MediaStream
 import org.webrtc.PeerConnection
 import org.webrtc.PeerConnectionFactory
+import org.webrtc.RtpReceiver
 import org.webrtc.SdpObserver
 import org.webrtc.SessionDescription
 import org.webrtc.SurfaceTextureHelper
@@ -28,6 +29,7 @@ class WebRtcManager(
         fun onIceCandidate(candidate: IceCandidate)
         fun onConnectionChange(state: PeerConnection.PeerConnectionState)
         fun onRemoteTrackAdded(track: MediaStream)
+        fun onRemoteVideoTrackReceived(track: VideoTrack) {}
         fun onRenegotiationNeeded() {}
     }
 
@@ -271,6 +273,14 @@ class WebRtcManager(
         override fun onIceConnectionReceivingChange(receiving: Boolean) {}
         override fun onIceGatheringChange(state: PeerConnection.IceGatheringState?) {}
         override fun onIceCandidatesRemoved(candidates: Array<out IceCandidate>?) {}
+        override fun onAddTrack(receiver: RtpReceiver?, mediaStreams: Array<out MediaStream>?) {
+            val track = receiver?.track()
+            if (track is VideoTrack) {
+                Log.d(TAG, "Remote video track received via onAddTrack")
+                listener.onRemoteVideoTrackReceived(track)
+            }
+        }
+
         override fun onRemoveStream(stream: MediaStream?) {}
         override fun onDataChannel(channel: org.webrtc.DataChannel?) {}
         override fun onRenegotiationNeeded() {

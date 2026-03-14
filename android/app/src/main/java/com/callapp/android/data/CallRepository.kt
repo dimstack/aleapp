@@ -18,6 +18,7 @@ import org.webrtc.IceCandidate
 import org.webrtc.MediaStream
 import org.webrtc.PeerConnection
 import org.webrtc.SessionDescription
+import org.webrtc.VideoTrack
 
 enum class CallConnectionState {
     IDLE,
@@ -40,6 +41,9 @@ class CallRepository(
 
     private val _remoteStream = MutableStateFlow<MediaStream?>(null)
     val remoteStream: StateFlow<MediaStream?> = _remoteStream
+
+    private val _remoteVideoTrack = MutableStateFlow<VideoTrack?>(null)
+    val remoteVideoTrack: StateFlow<VideoTrack?> = _remoteVideoTrack
 
     private var targetUserId: String = ""
     private var pendingOutgoingVideoEnabled: Boolean = false
@@ -88,6 +92,14 @@ class CallRepository(
 
         override fun onRemoteTrackAdded(track: MediaStream) {
             _remoteStream.value = track
+            // Also extract video track from the stream for initial calls with video
+            track.videoTracks?.firstOrNull()?.let { videoTrack ->
+                _remoteVideoTrack.value = videoTrack
+            }
+        }
+
+        override fun onRemoteVideoTrackReceived(track: VideoTrack) {
+            _remoteVideoTrack.value = track
         }
 
         override fun onRenegotiationNeeded() {
@@ -214,6 +226,7 @@ class CallRepository(
         clearPendingState()
         _connectionState.value = CallConnectionState.IDLE
         _remoteStream.value = null
+        _remoteVideoTrack.value = null
     }
 
     private fun clearPendingState() {

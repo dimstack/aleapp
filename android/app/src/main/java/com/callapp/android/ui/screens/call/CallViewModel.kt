@@ -111,8 +111,8 @@ class CallViewModel(
         }
 
         viewModelScope.launch {
-            repo.remoteStream.collect { stream ->
-                _remoteVideoTrack.value = stream?.videoTracks?.firstOrNull()
+            repo.remoteVideoTrack.collect { track ->
+                _remoteVideoTrack.value = track
             }
         }
 
