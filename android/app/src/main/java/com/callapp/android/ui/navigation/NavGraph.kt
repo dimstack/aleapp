@@ -132,18 +132,19 @@ fun AppNavGraph(
                 server = server,
                 membersState = membersState,
                 isAdmin = isAdmin,
+                currentUserId = viewModel.currentUserId,
                 pendingRequests = pendingRequests,
                 onBack = { navController.popBackStack() },
                 onCallClick = { userId, contactName ->
                     navController.navigate(Route.Call.createRoute(server.address, userId, contactName))
                 },
-                onProfileClick = {
-                    val serverId = server.id
-                    navController.navigate(Route.MyProfile.createRoute(serverId))
-                },
                 onContactClick = { userId ->
                     val serverId = server.id
-                    navController.navigate(Route.UserProfile.createRoute(serverId, userId))
+                    if (userId == viewModel.currentUserId) {
+                        navController.navigate(Route.MyProfile.createRoute(serverId))
+                    } else {
+                        navController.navigate(Route.UserProfile.createRoute(serverId, userId))
+                    }
                 },
                 onManageServer = {
                     val serverId = server.id

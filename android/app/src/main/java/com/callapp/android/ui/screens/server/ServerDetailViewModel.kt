@@ -33,6 +33,8 @@ class ServerDetailViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
     private val _isAdmin = MutableStateFlow(false)
     val isAdmin: StateFlow<Boolean> = _isAdmin.asStateFlow()
 
+    val currentUserId: String get() = ServiceLocator.currentUserId
+
     private val _pendingRequests = MutableStateFlow<List<JoinRequest>>(emptyList())
     val pendingRequests: StateFlow<List<JoinRequest>> = _pendingRequests.asStateFlow()
 

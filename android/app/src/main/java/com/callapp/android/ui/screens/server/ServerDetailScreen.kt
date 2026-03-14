@@ -24,7 +24,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.PersonAdd
@@ -101,10 +100,10 @@ fun ServerDetailScreen(
     server: Server = PreviewData.serverTech,
     membersState: UiState<List<User>> = UiState.Success(PreviewData.techMembers),
     isAdmin: Boolean = true,
+    currentUserId: String = "",
     pendingRequests: List<JoinRequest> = PreviewData.joinRequests,
     onBack: () -> Unit = {},
     onCallClick: (userId: String, contactName: String) -> Unit = { _, _ -> },
-    onProfileClick: () -> Unit = {},
     onContactClick: (String) -> Unit = {},
     onManageServer: () -> Unit = {},
     onViewRequests: () -> Unit = {},
@@ -126,7 +125,6 @@ fun ServerDetailScreen(
                 isAdmin = isAdmin,
                 pendingRequestsCount = pendingRequests.size,
                 onBack = onBack,
-                onProfileClick = onProfileClick,
                 onManageServer = onManageServer,
                 onViewRequests = onViewRequests,
             )
@@ -177,7 +175,9 @@ fun ServerDetailScreen(
                     }
                 }
                 is UiState.Success -> {
-                    val members = membersState.data
+                    val members = remember(membersState.data, currentUserId) {
+                        membersState.data.sortedWith(compareByDescending { it.id == currentUserId })
+                    }
                     val filteredMembers = remember(members, searchQuery) {
                         if (searchQuery.isBlank()) members
                         else members.filter {
@@ -196,6 +196,7 @@ fun ServerDetailScreen(
                     MembersSection(
                         members = filteredMembers,
                         isAdmin = isAdmin,
+                        currentUserId = currentUserId,
                         isEditMode = isEditMode,
                         onToggleEditMode = { isEditMode = !isEditMode },
                         onCallClick = onCallClick,
@@ -221,7 +222,6 @@ private fun ServerDetailTopBar(
     isAdmin: Boolean,
     pendingRequestsCount: Int,
     onBack: () -> Unit,
-    onProfileClick: () -> Unit,
     onManageServer: () -> Unit,
     onViewRequests: () -> Unit,
     modifier: Modifier = Modifier,
@@ -282,14 +282,6 @@ private fun ServerDetailTopBar(
                             contentDescription = "Управление сервером",
                         )
                     }
-                }
-
-                // Profile button
-                IconButton(onClick = onProfileClick) {
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = "Мой профиль",
-                    )
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(
@@ -477,6 +469,7 @@ private fun SearchBar(
 private fun MembersSection(
     members: List<User>,
     isAdmin: Boolean,
+    currentUserId: String,
     isEditMode: Boolean,
     onToggleEditMode: () -> Unit,
     onCallClick: (userId: String, contactName: String) -> Unit,
@@ -539,6 +532,7 @@ private fun MembersSection(
                 members.forEachIndexed { index, member ->
                     MemberRow(
                         member = member,
+                        isCurrentUser = member.id == currentUserId,
                         isEditMode = isEditMode,
                         onCallClick = { onCallClick(member.id, member.name) },
                         onContactClick = { onContactClick(member.id) },
@@ -600,6 +594,7 @@ private fun CountBadge(
 @Composable
 private fun MemberRow(
     member: User,
+    isCurrentUser: Boolean,
     isEditMode: Boolean,
     onCallClick: () -> Unit,
     onContactClick: () -> Unit,
@@ -647,7 +642,16 @@ private fun MemberRow(
             )
         }
 
-        if (isEditMode) {
+        if (isCurrentUser) {
+            Text(
+                text = "Вы",
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontWeight = FontWeight.Medium,
+                ),
+                color = colors.mutedForeground,
+                modifier = Modifier.padding(horizontal = 12.dp),
+            )
+        } else if (isEditMode) {
             IconButton(onClick = onRemoveClick) {
                 Icon(
                     imageVector = Icons.Default.Close,
@@ -1057,7 +1061,7 @@ private fun TopBarAdminPreview() {
             isAdmin = true,
             pendingRequestsCount = 2,
             onBack = {},
-            onProfileClick = {},
+
             onManageServer = {},
             onViewRequests = {},
         )
@@ -1073,7 +1077,7 @@ private fun TopBarRegularPreview() {
             isAdmin = false,
             pendingRequestsCount = 0,
             onBack = {},
-            onProfileClick = {},
+
             onManageServer = {},
             onViewRequests = {},
         )
@@ -1089,7 +1093,7 @@ private fun TopBarAdminDarkPreview() {
             isAdmin = true,
             pendingRequestsCount = 5,
             onBack = {},
-            onProfileClick = {},
+
             onManageServer = {},
             onViewRequests = {},
         )
@@ -1181,6 +1185,7 @@ private fun MemberRowOnlinePreview() {
         Surface(color = AleAppTheme.colors.card) {
             MemberRow(
                 member = PreviewData.userAnna,
+                isCurrentUser = false,
                 isEditMode = false,
                 onCallClick = {},
                 onContactClick = {},
@@ -1197,6 +1202,24 @@ private fun MemberRowOfflinePreview() {
         Surface(color = AleAppTheme.colors.card) {
             MemberRow(
                 member = PreviewData.userMaria,
+                isCurrentUser = false,
+                isEditMode = false,
+                onCallClick = {},
+                onContactClick = {},
+                onRemoveClick = {},
+            )
+        }
+    }
+}
+
+@Preview(name = "MemberRow — Current User", showBackground = true)
+@Composable
+private fun MemberRowCurrentUserPreview() {
+    AleAppTheme(darkTheme = false) {
+        Surface(color = AleAppTheme.colors.card) {
+            MemberRow(
+                member = PreviewData.userAnna,
+                isCurrentUser = true,
                 isEditMode = false,
                 onCallClick = {},
                 onContactClick = {},
@@ -1213,6 +1236,7 @@ private fun MemberRowEditModePreview() {
         Surface(color = AleAppTheme.colors.card) {
             MemberRow(
                 member = PreviewData.userAnna,
+                isCurrentUser = false,
                 isEditMode = true,
                 onCallClick = {},
                 onContactClick = {},
@@ -1232,6 +1256,7 @@ private fun MemberRowDarkPreview() {
                     id = "u2", name = "Алексей Козлов", username = "@alexey_k",
                     status = UserStatus.DO_NOT_DISTURB, serverId = "s1",
                 ),
+                isCurrentUser = false,
                 isEditMode = false,
                 onCallClick = {},
                 onContactClick = {},
@@ -1286,6 +1311,7 @@ private fun MembersCardPreview() {
             MembersSection(
                 members = PreviewData.techMembers,
                 isAdmin = true,
+                currentUserId = "",
                 isEditMode = false,
                 onToggleEditMode = {},
                 onCallClick = { _, _ -> },
@@ -1304,6 +1330,7 @@ private fun MembersEmptyPreview() {
             MembersSection(
                 members = emptyList(),
                 isAdmin = false,
+                currentUserId = "",
                 isEditMode = false,
                 onToggleEditMode = {},
                 onCallClick = { _, _ -> },
