@@ -40,6 +40,7 @@ class WebRtcManager(
     private var surfaceTextureHelper: SurfaceTextureHelper? = null
     private var videoSource: VideoSource? = null
     private var audioSource: AudioSource? = null
+    private var isVideoCapturing = false
 
     var localVideoTrack: VideoTrack? = null
         private set
@@ -131,6 +132,7 @@ class WebRtcManager(
             capturer.initialize(surfaceTextureHelper, context, videoSource!!.capturerObserver)
             capturer.startCapture(VIDEO_WIDTH, VIDEO_HEIGHT, VIDEO_FPS)
         }
+        isVideoCapturing = true
 
         localVideoTrack = peerConnectionFactory.createVideoTrack(VIDEO_TRACK_ID, videoSource).apply {
             setEnabled(true)
@@ -144,7 +146,33 @@ class WebRtcManager(
     }
 
     fun setVideoEnabled(enabled: Boolean) {
-        localVideoTrack?.setEnabled(enabled)
+        if (enabled) {
+            if (localVideoTrack == null) {
+                // Camera was never initialized — lazy init on first enable
+                initVideo()
+                localVideoTrack?.let { track ->
+                    peerConnection?.addTrack(track, listOf(LOCAL_STREAM_ID))
+                }
+            } else if (!isVideoCapturing) {
+                try {
+                    videoCapturer?.startCapture(VIDEO_WIDTH, VIDEO_HEIGHT, VIDEO_FPS)
+                    isVideoCapturing = true
+                } catch (e: Exception) {
+                    Log.w(TAG, "startCapture failed: ${e.message}")
+                }
+            }
+            localVideoTrack?.setEnabled(true)
+        } else {
+            localVideoTrack?.setEnabled(false)
+            if (isVideoCapturing) {
+                try {
+                    videoCapturer?.stopCapture()
+                } catch (e: Exception) {
+                    Log.w(TAG, "stopCapture failed: ${e.message}")
+                }
+                isVideoCapturing = false
+            }
+        }
     }
 
     fun setAudioEnabled(enabled: Boolean) {
@@ -190,7 +218,14 @@ class WebRtcManager(
     // ── Cleanup ──────────────────────────────────────────────────────────
 
     fun dispose() {
-        videoCapturer?.stopCapture()
+        if (isVideoCapturing) {
+            try {
+                videoCapturer?.stopCapture()
+            } catch (e: Exception) {
+                Log.w(TAG, "stopCapture on dispose failed: ${e.message}")
+            }
+            isVideoCapturing = false
+        }
         videoCapturer?.dispose()
         videoCapturer = null
 
