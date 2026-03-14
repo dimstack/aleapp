@@ -60,6 +60,9 @@ class CallRepository(
     /** True once [WebRtcManager.createPeerConnection] has been called. */
     private var peerConnectionReady = false
 
+    /** True once the first offer/answer exchange is complete and renegotiation is safe. */
+    private var initialNegotiationDone = false
+
     val webRtcManager = WebRtcManager(context, object : WebRtcManager.Listener {
         override fun onIceCandidate(candidate: IceCandidate) {
             signalingClient.send(
@@ -85,6 +88,21 @@ class CallRepository(
 
         override fun onRemoteTrackAdded(track: MediaStream) {
             _remoteStream.value = track
+        }
+
+        override fun onRenegotiationNeeded() {
+            // Only renegotiate after initial handshake is complete (not during setup)
+            if (!initialNegotiationDone || targetUserId.isEmpty()) return
+            scope.launch {
+                webRtcManager.createOffer { sdp ->
+                    signalingClient.send(
+                        SignalMessage.Offer(
+                            sdp = sdp.description,
+                            targetUserId = targetUserId,
+                        )
+                    )
+                }
+            }
         }
     })
 
@@ -199,6 +217,7 @@ class CallRepository(
         pendingRemoteOffer = null
         pendingIceCandidates.clear()
         peerConnectionReady = false
+        initialNegotiationDone = false
         pendingOutgoingVideoEnabled = false
         outgoingOfferStarted = false
     }
@@ -290,6 +309,7 @@ class CallRepository(
                     targetUserId = targetUserId,
                 ),
             )
+            initialNegotiationDone = true
         }
     }
 
@@ -309,6 +329,7 @@ class CallRepository(
                     targetUserId = callerUserId,
                 ),
             )
+            initialNegotiationDone = true
         }
     }
 

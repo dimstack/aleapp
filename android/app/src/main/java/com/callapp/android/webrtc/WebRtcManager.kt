@@ -28,6 +28,7 @@ class WebRtcManager(
         fun onIceCandidate(candidate: IceCandidate)
         fun onConnectionChange(state: PeerConnection.PeerConnectionState)
         fun onRemoteTrackAdded(track: MediaStream)
+        fun onRenegotiationNeeded() {}
     }
 
     /** EglBase from app-scoped [WebRtcFactory]. Do NOT release — it outlives any single call. */
@@ -272,7 +273,9 @@ class WebRtcManager(
         override fun onIceCandidatesRemoved(candidates: Array<out IceCandidate>?) {}
         override fun onRemoveStream(stream: MediaStream?) {}
         override fun onDataChannel(channel: org.webrtc.DataChannel?) {}
-        override fun onRenegotiationNeeded() {}
+        override fun onRenegotiationNeeded() {
+            listener.onRenegotiationNeeded()
+        }
     }
 
     // ── SDP observer helper ──────────────────────────────────────────────
