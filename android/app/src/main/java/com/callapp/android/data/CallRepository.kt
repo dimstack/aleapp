@@ -102,6 +102,11 @@ class CallRepository(
             _remoteVideoTrack.value = track
         }
 
+        override fun onRemoteVideoTrackRemoved() {
+            _remoteVideoTrack.value = null
+            _remoteStream.value = null
+        }
+
         override fun onRenegotiationNeeded() {
             onWebRtcRenegotiationNeeded()
         }

@@ -13,6 +13,7 @@ import org.webrtc.MediaConstraints
 import org.webrtc.MediaStream
 import org.webrtc.PeerConnection
 import org.webrtc.PeerConnectionFactory
+import org.webrtc.RtpSender
 import org.webrtc.RtpReceiver
 import org.webrtc.SdpObserver
 import org.webrtc.SessionDescription
@@ -30,6 +31,7 @@ class WebRtcManager(
         fun onConnectionChange(state: PeerConnection.PeerConnectionState)
         fun onRemoteTrackAdded(track: MediaStream)
         fun onRemoteVideoTrackReceived(track: VideoTrack) {}
+        fun onRemoteVideoTrackRemoved() {}
         fun onRenegotiationNeeded() {}
     }
 
@@ -43,6 +45,7 @@ class WebRtcManager(
     private var surfaceTextureHelper: SurfaceTextureHelper? = null
     private var videoSource: VideoSource? = null
     private var audioSource: AudioSource? = null
+    private var localVideoSender: RtpSender? = null
     private var isVideoCapturing = false
 
     var localVideoTrack: VideoTrack? = null
@@ -77,7 +80,7 @@ class WebRtcManager(
             peerConnection?.addTrack(track, listOf(LOCAL_STREAM_ID))
         }
         localVideoTrack?.let { track ->
-            peerConnection?.addTrack(track, listOf(LOCAL_STREAM_ID))
+            localVideoSender = peerConnection?.addTrack(track, listOf(LOCAL_STREAM_ID))
         }
     }
 
@@ -153,9 +156,6 @@ class WebRtcManager(
             if (localVideoTrack == null) {
                 // Camera was never initialized — lazy init on first enable
                 initVideo()
-                localVideoTrack?.let { track ->
-                    peerConnection?.addTrack(track, listOf(LOCAL_STREAM_ID))
-                }
             } else if (!isVideoCapturing) {
                 try {
                     videoCapturer?.startCapture(VIDEO_WIDTH, VIDEO_HEIGHT, VIDEO_FPS)
@@ -165,6 +165,7 @@ class WebRtcManager(
                 }
             }
             localVideoTrack?.setEnabled(true)
+            ensureLocalVideoSender()
         } else {
             localVideoTrack?.setEnabled(false)
             if (isVideoCapturing) {
@@ -175,6 +176,25 @@ class WebRtcManager(
                 }
                 isVideoCapturing = false
             }
+            removeLocalVideoSender()
+        }
+    }
+
+    private fun ensureLocalVideoSender() {
+        if (localVideoSender != null) return
+
+        val track = localVideoTrack ?: return
+        localVideoSender = peerConnection?.addTrack(track, listOf(LOCAL_STREAM_ID))
+    }
+
+    private fun removeLocalVideoSender() {
+        val sender = localVideoSender ?: return
+        val connection = peerConnection ?: return
+
+        if (connection.removeTrack(sender)) {
+            localVideoSender = null
+        } else {
+            Log.w(TAG, "Failed to remove local video sender")
         }
     }
 
@@ -234,6 +254,7 @@ class WebRtcManager(
 
         localVideoTrack?.dispose()
         localVideoTrack = null
+        localVideoSender = null
         localAudioTrack?.dispose()
         localAudioTrack = null
 
@@ -281,7 +302,19 @@ class WebRtcManager(
             }
         }
 
-        override fun onRemoveStream(stream: MediaStream?) {}
+        override fun onRemoveTrack(receiver: RtpReceiver?) {
+            if (receiver?.track() is VideoTrack) {
+                Log.d(TAG, "Remote video track removed via onRemoveTrack")
+                listener.onRemoteVideoTrackRemoved()
+            }
+        }
+
+        override fun onRemoveStream(stream: MediaStream?) {
+            if (stream?.videoTracks?.isNotEmpty() == true) {
+                Log.d(TAG, "Remote stream removed: ${stream.id}")
+                listener.onRemoteVideoTrackRemoved()
+            }
+        }
         override fun onDataChannel(channel: org.webrtc.DataChannel?) {}
         override fun onRenegotiationNeeded() {
             listener.onRenegotiationNeeded()
