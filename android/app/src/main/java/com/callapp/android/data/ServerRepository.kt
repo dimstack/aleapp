@@ -141,6 +141,58 @@ class ServerRepository(private val connectionManager: ServerConnectionManager) {
         return availability
     }
 
+    suspend fun processPendingApprovals() {
+        val store = getSessionStoreOrNull() ?: return
+        val pendingApprovals = store.getPendingApprovals().values.toList()
+        if (pendingApprovals.isEmpty()) return
+
+        pendingApprovals.forEach { pending ->
+            when (
+                val result = login(
+                    serverAddress = pending.serverAddress,
+                    inviteToken = pending.inviteToken,
+                    username = pending.username,
+                    password = pending.password,
+                )
+            ) {
+                is ApiResult.Success -> {
+                    val response = result.data
+                    when {
+                        response.isJoined -> {
+                            val shouldSetActive = store.activeServerAddress.isBlank()
+                            connectionManager.restoreSession(pending.serverAddress, response.sessionToken)
+                            store.saveSession(
+                                serverAddress = pending.serverAddress,
+                                sessionToken = response.sessionToken,
+                                userId = response.user?.id.orEmpty(),
+                                serverName = response.server?.name ?: pending.serverName,
+                                serverUsername = response.server?.username.orEmpty(),
+                                serverId = response.server?.id.orEmpty(),
+                                setActive = shouldSetActive,
+                            )
+                            if (shouldSetActive) {
+                                ServiceLocator.activeServerAddress = pending.serverAddress
+                                ServiceLocator.currentUserId = response.user?.id.orEmpty()
+                            }
+                            store.removePendingApproval(pending.serverAddress)
+                        }
+
+                        response.isPending -> {
+                            connectionManager.restoreSession(pending.serverAddress, response.sessionToken)
+                        }
+                    }
+                }
+
+                is ApiResult.Failure -> {
+                    when (result.error) {
+                        ApiError.NetworkError -> Unit
+                        else -> store.removePendingApproval(pending.serverAddress)
+                    }
+                }
+            }
+        }
+    }
+
     suspend fun updateServer(
         serverAddress: String,
         name: String? = null,

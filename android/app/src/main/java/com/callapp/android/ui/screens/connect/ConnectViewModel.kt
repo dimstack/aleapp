@@ -72,6 +72,11 @@ class ConnectViewModel : ViewModel() {
 
                     when {
                         response.isPending -> {
+                            savePendingApproval(
+                                serverAddress = serverAddress,
+                                username = response.user?.username ?: "",
+                                password = "",
+                            )
                             _state.value = ConnectUiState.Pending(
                                 serverAddress = serverAddress,
                                 serverName = currentServerName,
@@ -137,6 +142,11 @@ class ConnectViewModel : ViewModel() {
                 is ApiResult.Success -> {
                     when (val createResult = result.data) {
                         is CreateUserResult.Pending -> {
+                            savePendingApproval(
+                                serverAddress = currentServerAddress,
+                                username = createResult.response.user?.username ?: normalizeUsername(username),
+                                password = password,
+                            )
                             _state.value = ConnectUiState.Pending(
                                 serverAddress = currentServerAddress,
                                 serverName = currentServerName,
@@ -156,6 +166,11 @@ class ConnectViewModel : ViewModel() {
                                 is ApiResult.Success -> {
                                     val response = loginResult.data
                                     if (response.isPending) {
+                                        savePendingApproval(
+                                            serverAddress = currentServerAddress,
+                                            username = response.user?.username ?: normalizeUsername(username),
+                                            password = password,
+                                        )
                                         _state.value = ConnectUiState.Pending(
                                             serverAddress = currentServerAddress,
                                             serverName = currentServerName,
@@ -218,6 +233,11 @@ class ConnectViewModel : ViewModel() {
                 is ApiResult.Success -> {
                     val response = result.data
                     if (response.isPending) {
+                        savePendingApproval(
+                            serverAddress = currentServerAddress,
+                            username = response.user?.username ?: normalizeUsername(username),
+                            password = password,
+                        )
                         _state.value = ConnectUiState.Pending(
                             serverAddress = currentServerAddress,
                             serverName = currentServerName,
@@ -271,8 +291,28 @@ class ConnectViewModel : ViewModel() {
                 serverUsername = server?.username.orEmpty(),
                 serverId = server?.id.orEmpty(),
             )
+            ServiceLocator.sessionStore.removePendingApproval(serverAddress)
         } catch (_: UninitializedPropertyAccessException) {
             // SessionStore is not initialized yet. This should not happen in normal flow.
+        }
+    }
+
+    private fun savePendingApproval(
+        serverAddress: String,
+        username: String,
+        password: String,
+    ) {
+        if (serverAddress.isBlank() || currentTokenCode.isBlank() || username.isBlank() || password.isBlank()) return
+        try {
+            ServiceLocator.sessionStore.savePendingApproval(
+                serverAddress = serverAddress,
+                inviteToken = currentTokenCode,
+                username = username,
+                password = password,
+                serverName = currentServerName,
+            )
+        } catch (_: UninitializedPropertyAccessException) {
+            // Ignore in previews/tests.
         }
     }
 }

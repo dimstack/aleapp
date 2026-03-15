@@ -15,6 +15,7 @@ private const val PREFS_NAME = "callapp_sessions"
 private const val KEY_SESSIONS = "sessions"
 private const val KEY_ACTIVE_ADDRESS = "active_address"
 private const val KEY_ACTIVE_USER_ID = "active_user_id"
+private const val KEY_PENDING_APPROVALS = "pending_approvals"
 private const val KEY_DARK_THEME = "dark_theme"
 private const val KEY_USER_STATUS = "user_status"
 
@@ -28,6 +29,15 @@ data class ServerSession(
     val serverName: String = "",
     val serverUsername: String = "",
     val serverId: String = "",
+)
+
+@Serializable
+data class PendingApprovalSession(
+    val serverAddress: String,
+    val inviteToken: String,
+    val username: String,
+    val password: String,
+    val serverName: String = "",
 )
 
 class SessionStore(context: Context) {
@@ -47,6 +57,7 @@ class SessionStore(context: Context) {
         serverName: String = "",
         serverUsername: String = "",
         serverId: String = "",
+        setActive: Boolean = true,
     ) {
         val sessions = readSessions().toMutableMap()
         sessions[serverAddress] = ServerSession(
@@ -57,11 +68,13 @@ class SessionStore(context: Context) {
             serverUsername = serverUsername,
             serverId = serverId,
         )
-        prefs.edit()
-            .putString(KEY_SESSIONS, json.encodeToString(sessions))
-            .putString(KEY_ACTIVE_ADDRESS, serverAddress)
-            .putString(KEY_ACTIVE_USER_ID, userId)
-            .apply()
+        prefs.edit().apply {
+            putString(KEY_SESSIONS, json.encodeToString(sessions))
+            if (setActive) {
+                putString(KEY_ACTIVE_ADDRESS, serverAddress)
+                putString(KEY_ACTIVE_USER_ID, userId)
+            }
+        }.apply()
         _sessionsFlow.value = sessions.toMap()
         CallAvailabilityServiceController.sync(appContext)
     }
@@ -81,6 +94,43 @@ class SessionStore(context: Context) {
 
     fun getSession(serverAddress: String): ServerSession? =
         getSessions()[serverAddress]
+
+    fun savePendingApproval(
+        serverAddress: String,
+        inviteToken: String,
+        username: String,
+        password: String,
+        serverName: String = "",
+    ) {
+        val pending = getPendingApprovals().toMutableMap()
+        pending[serverAddress] = PendingApprovalSession(
+            serverAddress = serverAddress,
+            inviteToken = inviteToken,
+            username = username,
+            password = password,
+            serverName = serverName,
+        )
+        prefs.edit()
+            .putString(KEY_PENDING_APPROVALS, json.encodeToString(pending))
+            .apply()
+    }
+
+    fun getPendingApprovals(): Map<String, PendingApprovalSession> {
+        val raw = prefs.getString(KEY_PENDING_APPROVALS, null) ?: return emptyMap()
+        return try {
+            json.decodeFromString<Map<String, PendingApprovalSession>>(raw)
+        } catch (_: Exception) {
+            emptyMap()
+        }
+    }
+
+    fun removePendingApproval(serverAddress: String) {
+        val pending = getPendingApprovals().toMutableMap()
+        pending.remove(serverAddress)
+        prefs.edit()
+            .putString(KEY_PENDING_APPROVALS, json.encodeToString(pending))
+            .apply()
+    }
 
     fun removeSession(serverAddress: String) {
         val sessions = readSessions().toMutableMap()

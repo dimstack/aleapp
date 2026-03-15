@@ -50,6 +50,7 @@ class HomeViewModel : ViewModel() {
     fun loadData() {
         viewModelScope.launch {
             _favoritesState.value = UiState.Loading
+            repo.processPendingApprovals()
             repo.refreshConnectedServersAvailability()
             try {
                 val activeAddress = ServiceLocator.activeServerAddress

@@ -19,6 +19,7 @@ object ServiceLocator {
 
         try {
             sessionStore.removeSession(serverAddress)
+            sessionStore.removePendingApproval(serverAddress)
         } catch (_: UninitializedPropertyAccessException) {
             // Ignore in previews/tests.
         }
