@@ -1,5 +1,6 @@
 package com.callapp.android.ui.screens.servermanage
 
+import android.widget.Toast
 import android.content.res.Configuration
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
@@ -42,8 +43,11 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -75,6 +79,8 @@ fun InviteTokensScreen(
     modifier: Modifier = Modifier,
 ) {
     val colors = AleAppTheme.colors
+    val clipboardManager = LocalClipboardManager.current
+    val context = LocalContext.current
     var showCreateDialog by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -132,7 +138,14 @@ fun InviteTokensScreen(
                                 val address = serverAddress
                                     .removePrefix("http://")
                                     .removePrefix("https://")
-                                onCopyToken("$address/${token.code}")
+                                val fullToken = "$address/${token.code}"
+                                clipboardManager.setText(AnnotatedString(fullToken))
+                                onCopyToken(fullToken)
+                                Toast.makeText(
+                                    context,
+                                    "Токен скопирован в буфер обмена",
+                                    Toast.LENGTH_SHORT,
+                                ).show()
                             },
                         )
                     }
