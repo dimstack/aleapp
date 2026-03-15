@@ -22,6 +22,7 @@ import com.callapp.android.data.ServiceLocator
 import com.callapp.android.ui.screens.home.HomeScreen
 import com.callapp.android.ui.screens.home.HomeViewModel
 import com.callapp.android.ui.screens.server.ServerDetailScreen
+import com.callapp.android.ui.screens.server.ServerDetailEvent
 import com.callapp.android.ui.screens.server.ServerDetailViewModel
 import com.callapp.android.ui.screens.server.UnavailableServerScreen
 import com.callapp.android.ui.screens.server.UnavailableServerViewModel
@@ -154,6 +155,22 @@ fun AppNavGraph(
             val isAdmin by viewModel.isAdmin.collectAsState()
             val pendingRequests by viewModel.pendingRequests.collectAsState()
 
+            LaunchedEffect(viewModel) {
+                viewModel.events.collect { event ->
+                    when (event) {
+                        is ServerDetailEvent.NavigateToCall -> {
+                            navController.navigate(
+                                Route.Call.createRoute(
+                                    event.serverAddress,
+                                    event.userId,
+                                    event.contactName,
+                                ),
+                            )
+                        }
+                    }
+                }
+            }
+
             ServerDetailScreen(
                 server = server,
                 membersState = membersState,
@@ -161,9 +178,7 @@ fun AppNavGraph(
                 currentUserId = viewModel.currentUserId,
                 pendingRequests = pendingRequests,
                 onBack = { navController.popBackStack() },
-                onCallClick = { userId, contactName ->
-                    navController.navigate(Route.Call.createRoute(server.address, userId, contactName))
-                },
+                onCallClick = viewModel::callUser,
                 onContactClick = { userId ->
                     val serverId = server.id
                     if (userId == viewModel.currentUserId) {
@@ -180,6 +195,7 @@ fun AppNavGraph(
                     val serverId = server.id
                     navController.navigate(Route.JoinRequests.createRoute(serverId))
                 },
+                onRemoveMember = viewModel::removeUser,
                 onRetry = viewModel::loadMembers,
             )
         }
