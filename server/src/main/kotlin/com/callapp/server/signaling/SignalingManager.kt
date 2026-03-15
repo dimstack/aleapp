@@ -4,6 +4,7 @@ import com.callapp.server.auth.SessionPrincipal
 import com.callapp.server.models.NotificationType
 import com.callapp.server.repository.NotificationRepository
 import com.callapp.server.repository.ServerRepository
+import com.callapp.server.repository.UserRepository
 import io.ktor.websocket.CloseReason
 import io.ktor.websocket.Frame
 import io.ktor.websocket.WebSocketSession
@@ -13,6 +14,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 class SignalingManager(
     private val serverRepository: ServerRepository,
+    private val userRepository: UserRepository,
     private val notificationRepository: NotificationRepository,
 ) {
     private val sessions = ConcurrentHashMap<String, ConnectedClient>()
@@ -30,7 +32,11 @@ class SignalingManager(
 
     suspend fun handleIncoming(principal: SessionPrincipal, rawMessage: String) {
         val senderId = requireNotNull(principal.userId)
-        val message = SignalMessage.fromJson(rawMessage).withSender(senderId)
+        val message = SignalMessage.fromJson(rawMessage).withSender(
+            senderId = senderId,
+            senderDisplayName = userRepository.findById(senderId)?.displayName.orEmpty(),
+            senderServerName = serverRepository.getCurrentServer()?.name.orEmpty(),
+        )
         val target = sessions[message.targetUserId]
 
         if (message is SignalMessage.StatusUpdate) {
@@ -71,11 +77,19 @@ private data class ConnectedClient(
     val session: WebSocketSession,
 )
 
-private fun SignalMessage.withSender(senderId: String): SignalMessage = when (this) {
+private fun SignalMessage.withSender(
+    senderId: String,
+    senderDisplayName: String,
+    senderServerName: String,
+): SignalMessage = when (this) {
     is SignalMessage.Offer -> copy(fromUserId = senderId)
     is SignalMessage.Answer -> copy(fromUserId = senderId)
     is SignalMessage.IceCandidate -> copy(fromUserId = senderId)
-    is SignalMessage.CallRequest -> copy(fromUserId = senderId)
+    is SignalMessage.CallRequest -> copy(
+        fromUserId = senderId,
+        fromUserName = senderDisplayName.ifBlank { fromUserName },
+        fromServerName = senderServerName.ifBlank { fromServerName },
+    )
     is SignalMessage.CallResponse -> copy(fromUserId = senderId)
     is SignalMessage.CallEnd -> this
     is SignalMessage.CallDecline -> this

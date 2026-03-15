@@ -51,7 +51,7 @@ fun Application.module() {
     val joinRequestRepository = JoinRequestRepository(dataSource)
     val favoriteRepository = FavoriteRepository(dataSource)
     val notificationRepository = NotificationRepository(dataSource)
-    val signalingManager = SignalingManager(serverRepository, notificationRepository)
+    val signalingManager = SignalingManager(serverRepository, userRepository, notificationRepository)
     val turnCredentialsService = TurnCredentialsService(appConfig.turn)
     val inviteTokenService = InviteTokenService(inviteTokenRepository, inviteTokenParser)
     val onboardingService = OnboardingService(
