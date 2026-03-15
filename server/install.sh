@@ -38,6 +38,10 @@ read_from_tty() {
   printf '%s' "$answer"
 }
 
+print_to_tty() {
+  printf '%s\n' "$1" >/dev/tty
+}
+
 prompt() {
   local label="$1"
   local default_value="${2-}"
@@ -153,10 +157,10 @@ installation_exists() {
 prompt_existing_install_action() {
   local choice
 
-  echo
-  echo "Найдена уже существующая установка CallApp."
-  echo "1) Обновить контейнеры до версии из этого скрипта с сохранением текущих данных."
-  echo "2) Полностью снести старый сервер и установить заново."
+  print_to_tty ""
+  print_to_tty "Найдена уже существующая установка CallApp."
+  print_to_tty "1) Обновить контейнеры до версии из этого скрипта с сохранением текущих данных."
+  print_to_tty "2) Полностью снести старый сервер и установить заново."
 
   while true; do
     choice="$(read_from_tty "Выберите вариант (1/2): ")"
@@ -166,7 +170,7 @@ prompt_existing_install_action() {
         return
         ;;
       *)
-        echo "Введите 1 или 2."
+        print_to_tty "Введите 1 или 2."
         ;;
     esac
   done
@@ -175,9 +179,9 @@ prompt_existing_install_action() {
 confirm_full_reinstall() {
   local confirmation
 
-  echo
-  echo "ВНИМАНИЕ: это полностью удалит все данные старого сервера."
-  echo "Будут удалены база данных, invite-токены и конфигурация старой установки."
+  print_to_tty ""
+  print_to_tty "ВНИМАНИЕ: это полностью удалит все данные старого сервера."
+  print_to_tty "Будут удалены база данных, invite-токены и конфигурация старой установки."
   confirmation="$(read_from_tty "Чтобы подтвердить полную переустановку, введите DELETE: ")"
 
   if [[ "$confirmation" != "DELETE" ]]; then
@@ -240,19 +244,31 @@ remove_existing_installation() {
   $SUDO rm -f "$compose_dir/.env" "$compose_dir/docker-compose.yml" "$compose_dir/turnserver.conf"
 }
 
+handle_existing_installation() {
+  local compose_dir="$1"
+  local existing_action
+
+  existing_action="$(prompt_existing_install_action)"
+  if [[ "$existing_action" == "1" ]]; then
+    update_existing_installation "$compose_dir"
+  fi
+
+  confirm_full_reinstall
+  remove_existing_installation "$compose_dir"
+}
+
 echo "=== CallApp backend installer ==="
 
 ensure_docker
 
-install_dir="$(prompt "Куда установить backend" "$INSTALL_DIR_DEFAULT")"
-if installation_exists "$install_dir"; then
-  existing_action="$(prompt_existing_install_action)"
-  if [[ "$existing_action" == "1" ]]; then
-    update_existing_installation "$install_dir"
+if installation_exists "$INSTALL_DIR_DEFAULT"; then
+  install_dir="$INSTALL_DIR_DEFAULT"
+  handle_existing_installation "$install_dir"
+else
+  install_dir="$(prompt "Куда установить backend" "$INSTALL_DIR_DEFAULT")"
+  if installation_exists "$install_dir"; then
+    handle_existing_installation "$install_dir"
   fi
-
-  confirm_full_reinstall
-  remove_existing_installation "$install_dir"
 fi
 
 public_host="$(prompt "Публичный домен или IP сервера (без http://)" "$PUBLIC_HOST_DEFAULT")"
