@@ -62,6 +62,11 @@ class ServerDetailViewModel(
     private val dependencies: ServerDetailDependencies = DefaultServerDetailDependencies,
 ) : ViewModel() {
 
+    constructor(savedStateHandle: SavedStateHandle) : this(
+        savedStateHandle = savedStateHandle,
+        dependencies = DefaultServerDetailDependencies,
+    )
+
     private val serverId: String = savedStateHandle["serverId"] ?: ""
 
     private val _server = MutableStateFlow(

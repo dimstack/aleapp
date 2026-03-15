@@ -49,6 +49,8 @@ class HomeViewModel(
     private val dependencies: HomeDependencies = DefaultHomeDependencies,
 ) : ViewModel() {
 
+    constructor() : this(DefaultHomeDependencies)
+
     private val _serversState = MutableStateFlow<UiState<List<Server>>>(UiState.Loading)
     val serversState: StateFlow<UiState<List<Server>>> = _serversState.asStateFlow()
 
