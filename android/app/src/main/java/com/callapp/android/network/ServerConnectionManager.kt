@@ -36,14 +36,8 @@ class ServerConnectionManager {
          * Returns a pair of (serverAddress, tokenCode) or null when the format is invalid.
          */
         fun parseInviteToken(rawToken: String): Pair<String, String>? {
-            val trimmed = rawToken.trim()
-            val lastSlash = trimmed.lastIndexOf('/')
-            if (lastSlash <= 0 || lastSlash == trimmed.lastIndex) return null
-            val address = trimmed.substring(0, lastSlash)
-            val code = trimmed.substring(lastSlash + 1)
-            if (address.isBlank() || code.isBlank()) return null
-            val baseUrl = if (address.startsWith("http")) address else "http://$address"
-            return baseUrl to code
+            val parsed = InviteTokenParser.parse(rawToken) ?: return null
+            return parsed.serverAddress to parsed.code
         }
     }
 }

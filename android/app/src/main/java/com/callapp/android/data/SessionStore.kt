@@ -8,8 +8,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
 private const val PREFS_NAME = "callapp_sessions"
 private const val KEY_SESSIONS = "sessions"
@@ -40,15 +40,27 @@ data class PendingApprovalSession(
     val serverName: String = "",
 )
 
-class SessionStore(context: Context) {
-    private val appContext = context.applicationContext
+class SessionStore private constructor(
+    private val prefs: SharedPreferences,
+    private val syncAvailability: () -> Unit,
+) {
+    constructor(context: Context) : this(
+        prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE),
+        syncAvailability = { CallAvailabilityServiceController.sync(context.applicationContext) },
+    )
 
-    private val prefs: SharedPreferences =
-        appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val _sessionsFlow = MutableStateFlow(readSessions())
     val sessionsFlow: StateFlow<Map<String, ServerSession>> = _sessionsFlow.asStateFlow()
 
-    // ── Session management ────────────────────────────────────────────────
+    companion object {
+        internal fun createForTests(
+            prefs: SharedPreferences,
+            syncAvailability: () -> Unit = {},
+        ): SessionStore = SessionStore(
+            prefs = prefs,
+            syncAvailability = syncAvailability,
+        )
+    }
 
     fun saveSession(
         serverAddress: String,
@@ -76,12 +88,10 @@ class SessionStore(context: Context) {
             }
         }.apply()
         _sessionsFlow.value = sessions.toMap()
-        CallAvailabilityServiceController.sync(appContext)
+        syncAvailability()
     }
 
-    fun getSessions(): Map<String, ServerSession> {
-        return _sessionsFlow.value
-    }
+    fun getSessions(): Map<String, ServerSession> = _sessionsFlow.value
 
     private fun readSessions(): Map<String, ServerSession> {
         val raw = prefs.getString(KEY_SESSIONS, null) ?: return emptyMap()
@@ -92,8 +102,7 @@ class SessionStore(context: Context) {
         }
     }
 
-    fun getSession(serverAddress: String): ServerSession? =
-        getSessions()[serverAddress]
+    fun getSession(serverAddress: String): ServerSession? = getSessions()[serverAddress]
 
     fun savePendingApproval(
         serverAddress: String,
@@ -146,7 +155,7 @@ class SessionStore(context: Context) {
 
         editor.apply()
         _sessionsFlow.value = sessions.toMap()
-        CallAvailabilityServiceController.sync(appContext)
+        syncAvailability()
     }
 
     fun updateServerMetadata(
@@ -166,7 +175,6 @@ class SessionStore(context: Context) {
         )
     }
 
-    /** Convert stored sessions to a list of Server domain objects. */
     fun getConnectedServers(): List<Server> =
         getSessions().values.map { session ->
             Server(
@@ -177,23 +185,27 @@ class SessionStore(context: Context) {
             )
         }
 
-    // ── Active server ─────────────────────────────────────────────────────
-
     var activeServerAddress: String
         get() = prefs.getString(KEY_ACTIVE_ADDRESS, "") ?: ""
-        set(value) { prefs.edit().putString(KEY_ACTIVE_ADDRESS, value).apply() }
+        set(value) {
+            prefs.edit().putString(KEY_ACTIVE_ADDRESS, value).apply()
+        }
 
     var activeUserId: String
         get() = prefs.getString(KEY_ACTIVE_USER_ID, "") ?: ""
-        set(value) { prefs.edit().putString(KEY_ACTIVE_USER_ID, value).apply() }
-
-    // ── Preferences ───────────────────────────────────────────────────────
+        set(value) {
+            prefs.edit().putString(KEY_ACTIVE_USER_ID, value).apply()
+        }
 
     var isDarkTheme: Boolean
         get() = prefs.getBoolean(KEY_DARK_THEME, false)
-        set(value) { prefs.edit().putBoolean(KEY_DARK_THEME, value).apply() }
+        set(value) {
+            prefs.edit().putBoolean(KEY_DARK_THEME, value).apply()
+        }
 
     var userStatus: String
         get() = prefs.getString(KEY_USER_STATUS, "ONLINE") ?: "ONLINE"
-        set(value) { prefs.edit().putString(KEY_USER_STATUS, value).apply() }
+        set(value) {
+            prefs.edit().putString(KEY_USER_STATUS, value).apply()
+        }
 }

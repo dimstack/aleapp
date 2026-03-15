@@ -1,18 +1,18 @@
-package com.callapp.server.service
+package com.callapp.android.network
 
 import java.net.URI
 
-data class ServerAddress(
+data class ParsedInviteToken(
     val host: String,
     val port: Int,
-)
-
-data class ParsedInviteToken(
-    val serverAddress: ServerAddress,
     val code: String,
-)
+) {
+    val serverAddress: String = "http://$host:$port"
+}
 
-class InviteTokenParser {
+object InviteTokenParser {
+    private const val DEFAULT_PORT = 3000
+
     fun parse(rawToken: String): ParsedInviteToken? {
         val trimmed = rawToken.trim()
         if (trimmed.isBlank()) return null
@@ -30,24 +30,9 @@ class InviteTokenParser {
         if (host.isBlank()) return null
 
         return ParsedInviteToken(
-            serverAddress = ServerAddress(
-                host = host,
-                port = if (uri.port == -1) 3000 else uri.port,
-            ),
+            host = host,
+            port = if (uri.port == -1) DEFAULT_PORT else uri.port,
             code = code,
         )
-    }
-
-    fun extractCode(rawToken: String): String {
-        val trimmed = rawToken.trim()
-        require(trimmed.isNotBlank()) { "Invite token is blank" }
-        val slashIndex = trimmed.lastIndexOf('/')
-        return if (slashIndex >= 0) {
-            trimmed.substring(slashIndex + 1).trim().also {
-                require(it.isNotBlank()) { "Invite token code is blank" }
-            }
-        } else {
-            trimmed
-        }
     }
 }
