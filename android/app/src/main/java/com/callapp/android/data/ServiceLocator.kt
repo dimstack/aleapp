@@ -15,6 +15,7 @@ object ServiceLocator {
 
     fun clearServerSession(serverAddress: String) {
         connectionManager.removeClient(serverAddress)
+        serverRepository.clearAvailability(serverAddress)
 
         try {
             sessionStore.removeSession(serverAddress)

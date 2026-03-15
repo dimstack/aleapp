@@ -23,6 +23,8 @@ import com.callapp.android.ui.screens.home.HomeScreen
 import com.callapp.android.ui.screens.home.HomeViewModel
 import com.callapp.android.ui.screens.server.ServerDetailScreen
 import com.callapp.android.ui.screens.server.ServerDetailViewModel
+import com.callapp.android.ui.screens.server.UnavailableServerScreen
+import com.callapp.android.ui.screens.server.UnavailableServerViewModel
 import com.callapp.android.ui.screens.joinrequests.JoinRequestsScreen
 import com.callapp.android.ui.screens.joinrequests.JoinRequestItem
 import com.callapp.android.ui.screens.joinrequests.JoinRequestsViewModel
@@ -52,6 +54,7 @@ import com.callapp.android.ui.screens.notifications.NotificationsScreen
 import com.callapp.android.ui.screens.notifications.NotificationsViewModel
 import com.callapp.android.ui.screens.settings.SettingsScreen
 import com.callapp.android.ui.screens.settings.UserStatus
+import com.callapp.android.domain.model.ServerAvailabilityStatus
 
 @Composable
 fun AppNavGraph(
@@ -104,8 +107,13 @@ fun AppNavGraph(
                 favoritesState = favoritesState,
                 serversState = serversState,
                 notificationCount = notificationCount,
-                onServerClick = { serverId ->
-                    navController.navigate(Route.ServerDetail.createRoute(serverId))
+                onServerClick = { server ->
+                    val route = if (server.availabilityStatus == ServerAvailabilityStatus.AVAILABLE) {
+                        Route.ServerDetail.createRoute(server.id)
+                    } else {
+                        Route.UnavailableServer.createRoute(server.id)
+                    }
+                    navController.navigate(route)
                 },
                 onSettingsClick = {
                     navController.navigate(Route.Settings.route)
@@ -173,6 +181,40 @@ fun AppNavGraph(
                     navController.navigate(Route.JoinRequests.createRoute(serverId))
                 },
                 onRetry = viewModel::loadMembers,
+            )
+        }
+
+        composable(
+            route = Route.UnavailableServer.route,
+            arguments = listOf(navArgument("serverId") { type = NavType.StringType }),
+        ) {
+            val viewModel: UnavailableServerViewModel = viewModel()
+            val state by viewModel.state.collectAsState()
+
+            LaunchedEffect(state.openServer) {
+                if (state.openServer) {
+                    val serverId = state.server?.id ?: return@LaunchedEffect
+                    viewModel.consumeOpenServer()
+                    navController.navigate(Route.ServerDetail.createRoute(serverId)) {
+                        popUpTo(Route.UnavailableServer.createRoute(serverId)) { inclusive = true }
+                    }
+                }
+            }
+
+            LaunchedEffect(state.isRemoved) {
+                if (state.isRemoved) {
+                    navController.popBackStack()
+                }
+            }
+
+            UnavailableServerScreen(
+                server = state.server,
+                isLoading = state.isLoading,
+                isRefreshing = state.isRefreshing,
+                isRemoving = state.isRemoving,
+                onBack = { navController.popBackStack() },
+                onRetry = viewModel::refreshConnection,
+                onRemove = viewModel::removeServer,
             )
         }
 

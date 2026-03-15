@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.callapp.android.data.ServiceLocator
 import com.callapp.android.domain.model.Server
+import com.callapp.android.domain.model.ServerAvailabilityStatus
 import com.callapp.android.domain.model.User
 import com.callapp.android.network.result.ApiError
 import com.callapp.android.network.result.ApiResult
@@ -37,6 +38,11 @@ class HomeViewModel : ViewModel() {
         viewModelScope.launch {
             repo.observeConnectedServers().collectLatest { servers ->
                 _serversState.value = UiState.Success(servers)
+                if (servers.any { it.availabilityStatus == ServerAvailabilityStatus.UNKNOWN }) {
+                    viewModelScope.launch {
+                        repo.refreshConnectedServersAvailability()
+                    }
+                }
             }
         }
     }
@@ -44,6 +50,7 @@ class HomeViewModel : ViewModel() {
     fun loadData() {
         viewModelScope.launch {
             _favoritesState.value = UiState.Loading
+            repo.refreshConnectedServersAvailability()
             try {
                 val activeAddress = ServiceLocator.activeServerAddress
                 if (activeAddress.isNotEmpty()) {

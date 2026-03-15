@@ -22,6 +22,9 @@ sealed class Route(val route: String) {
     data object ServerDetail : Route("server_detail/{serverId}") {
         fun createRoute(serverId: String) = "server_detail/$serverId"
     }
+    data object UnavailableServer : Route("unavailable_server/{serverId}") {
+        fun createRoute(serverId: String) = "unavailable_server/$serverId"
+    }
     data object Settings : Route("settings")
     data object Notifications : Route("notifications/{serverId}") {
         fun createRoute(serverId: String) = "notifications/$serverId"

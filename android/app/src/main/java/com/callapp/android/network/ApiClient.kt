@@ -42,8 +42,10 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
+import io.ktor.serialization.JsonConvertException
 import io.ktor.serialization.kotlinx.json.json
 import java.io.IOException
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 
 class ApiClient(private val baseUrl: String) {
@@ -244,6 +246,10 @@ class ApiClient(private val baseUrl: String) {
             ApiResult.Success(block())
         } catch (e: ClientRequestException) {
             handleError(e)
+        } catch (_: JsonConvertException) {
+            ApiResult.Failure(ApiError.ServerError("Invalid server response"))
+        } catch (_: SerializationException) {
+            ApiResult.Failure(ApiError.ServerError("Invalid server response"))
         } catch (_: ServerResponseException) {
             ApiResult.Failure(ApiError.ServerError())
         } catch (_: IllegalStateException) {

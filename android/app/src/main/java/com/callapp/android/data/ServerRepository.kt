@@ -2,20 +2,39 @@ package com.callapp.android.data
 
 import com.callapp.android.domain.model.InviteToken
 import com.callapp.android.domain.model.Server
+import com.callapp.android.domain.model.ServerAvailabilityStatus
 import com.callapp.android.domain.model.User
 import com.callapp.android.network.ServerConnectionManager
 import com.callapp.android.network.dto.AuthResponse
 import com.callapp.android.network.dto.ConnectResponse
+import com.callapp.android.network.result.ApiError
 import com.callapp.android.network.result.ApiResult
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+
+data class ServerAvailabilityInfo(
+    val status: ServerAvailabilityStatus,
+    val message: String? = null,
+)
 
 class ServerRepository(private val connectionManager: ServerConnectionManager) {
 
+    private val availabilityMutex = Mutex()
+    private val _availabilityByAddress = MutableStateFlow<Map<String, ServerAvailabilityInfo>>(emptyMap())
+    val availabilityByAddress: StateFlow<Map<String, ServerAvailabilityInfo>> = _availabilityByAddress.asStateFlow()
+
     fun getConnectedServers(): List<Server> {
         val store = getSessionStoreOrNull() ?: return emptyList()
-        return store.getConnectedServers()
+        return store.getConnectedServers().map { server ->
+            applyAvailability(server, availabilityByAddress.value)
+        }
     }
 
     fun getServerById(id: String): Server? =
@@ -23,13 +42,16 @@ class ServerRepository(private val connectionManager: ServerConnectionManager) {
 
     fun observeConnectedServers(): Flow<List<Server>> {
         val store = getSessionStoreOrNull() ?: return flowOf(emptyList())
-        return store.sessionsFlow.map { sessions ->
+        return combine(store.sessionsFlow, availabilityByAddress) { sessions, availability ->
             sessions.values.map { session ->
-                Server(
-                    id = session.serverId.ifEmpty { session.serverAddress },
-                    name = session.serverName.ifEmpty { session.serverAddress },
-                    username = session.serverUsername,
-                    address = session.serverAddress,
+                applyAvailability(
+                    server = Server(
+                        id = session.serverId.ifEmpty { session.serverAddress },
+                        name = session.serverName.ifEmpty { session.serverAddress },
+                        username = session.serverUsername,
+                        address = session.serverAddress,
+                    ),
+                    availabilityByAddress = availability,
                 )
             }
         }
@@ -81,6 +103,44 @@ class ServerRepository(private val connectionManager: ServerConnectionManager) {
         return connectionManager.getClient(serverAddress).getServer()
     }
 
+    suspend fun refreshConnectedServersAvailability() {
+        val servers = getConnectedServers()
+        trimAvailability(servers.map { it.address }.toSet())
+        servers.forEach { server ->
+            val currentStatus = availabilityByAddress.value[server.address]?.status
+            if (currentStatus != ServerAvailabilityStatus.CHECKING) {
+                refreshServerAvailability(server.address)
+            }
+        }
+    }
+
+    suspend fun refreshServerAvailability(serverAddress: String): ServerAvailabilityInfo {
+        setAvailability(
+            serverAddress = serverAddress,
+            availability = ServerAvailabilityInfo(
+                status = ServerAvailabilityStatus.CHECKING,
+                message = "Проверка подключения...",
+            ),
+        )
+
+        val availability = when (val result = getServerRemote(serverAddress)) {
+            is ApiResult.Success -> {
+                updateStoredServer(result.data)
+                ServerAvailabilityInfo(ServerAvailabilityStatus.AVAILABLE)
+            }
+
+            is ApiResult.Failure -> {
+                ServerAvailabilityInfo(
+                    status = ServerAvailabilityStatus.UNAVAILABLE,
+                    message = availabilityMessage(result.error),
+                )
+            }
+        }
+
+        setAvailability(serverAddress, availability)
+        return availability
+    }
+
     suspend fun updateServer(
         serverAddress: String,
         name: String? = null,
@@ -121,6 +181,11 @@ class ServerRepository(private val connectionManager: ServerConnectionManager) {
 
     fun disconnect(serverAddress: String) {
         connectionManager.removeClient(serverAddress)
+        clearAvailability(serverAddress)
+    }
+
+    fun clearAvailability(serverAddress: String) {
+        _availabilityByAddress.value = _availabilityByAddress.value - serverAddress
     }
 
     private fun getSessionStoreOrNull(): SessionStore? {
@@ -129,5 +194,47 @@ class ServerRepository(private val connectionManager: ServerConnectionManager) {
         } catch (_: UninitializedPropertyAccessException) {
             null
         }
+    }
+
+    private fun applyAvailability(
+        server: Server,
+        availabilityByAddress: Map<String, ServerAvailabilityInfo>,
+    ): Server {
+        val availability = availabilityByAddress[server.address]
+        return if (availability == null) {
+            server
+        } else {
+            server.copy(
+                availabilityStatus = availability.status,
+                availabilityMessage = availability.message,
+            )
+        }
+    }
+
+    private suspend fun updateStoredServer(server: Server) {
+        val store = getSessionStoreOrNull() ?: return
+        availabilityMutex.withLock {
+            store.updateServerMetadata(
+                serverAddress = server.address,
+                serverId = server.id,
+                serverName = server.name,
+                serverUsername = server.username,
+            )
+        }
+    }
+
+    private fun setAvailability(serverAddress: String, availability: ServerAvailabilityInfo) {
+        _availabilityByAddress.value = _availabilityByAddress.value + (serverAddress to availability)
+    }
+
+    private fun trimAvailability(currentAddresses: Set<String>) {
+        _availabilityByAddress.value = _availabilityByAddress.value.filterKeys { it in currentAddresses }
+    }
+
+    private fun availabilityMessage(error: ApiError): String = when (error) {
+        ApiError.NetworkError -> "Сервер недоступен"
+        ApiError.NotFound -> "Сервер недоступен"
+        is ApiError.Unauthorized -> "Сервер недоступен"
+        else -> "Сервер недоступен"
     }
 }

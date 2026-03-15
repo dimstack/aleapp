@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.callapp.android.domain.model.Server
+import com.callapp.android.domain.model.ServerAvailabilityStatus
 import com.callapp.android.domain.model.User
 import com.callapp.android.domain.model.UserStatus
 import com.callapp.android.ui.common.UiState
@@ -89,7 +90,7 @@ fun HomeScreen(
     favoritesState: UiState<List<User>> = UiState.Success(PreviewData.favorites),
     serversState: UiState<List<Server>> = UiState.Success(PreviewData.servers),
     notificationCount: Int = 1,
-    onServerClick: (String) -> Unit = {},
+    onServerClick: (Server) -> Unit = {},
     onSettingsClick: () -> Unit = {},
     onNotificationsClick: () -> Unit = {},
     onCallClick: (serverId: String, userId: String, contactName: String) -> Unit = { _, _, _ -> },
@@ -171,7 +172,7 @@ fun HomeScreen(
                     servers.forEachIndexed { index, server ->
                         ServerRow(
                             server = server,
-                            onClick = { onServerClick(server.id) },
+                            onClick = { onServerClick(server) },
                         )
                         if (index < servers.lastIndex) {
                             HorizontalDivider(
@@ -524,9 +525,13 @@ private fun ServerRow(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = server.username,
+                text = serverSubtitle(server),
                 style = MaterialTheme.typography.bodySmall,
-                color = colors.mutedForeground,
+                color = if (server.availabilityStatus == ServerAvailabilityStatus.UNAVAILABLE) {
+                    colors.destructive
+                } else {
+                    colors.mutedForeground
+                },
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -538,6 +543,12 @@ private fun ServerRow(
             tint = colors.mutedForeground,
         )
     }
+}
+
+private fun serverSubtitle(server: Server): String = when (server.availabilityStatus) {
+    ServerAvailabilityStatus.UNAVAILABLE -> server.availabilityMessage ?: "Сервер недоступен"
+    ServerAvailabilityStatus.CHECKING -> server.availabilityMessage ?: "Проверка подключения..."
+    else -> server.username
 }
 
 @Composable
