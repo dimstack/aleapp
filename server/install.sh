@@ -31,18 +31,25 @@ command_exists() {
   command -v "$1" >/dev/null 2>&1
 }
 
+read_from_tty() {
+  local answer
+  local prompt_text="$1"
+  read -r -p "$prompt_text" answer </dev/tty
+  printf '%s' "$answer"
+}
+
 prompt() {
   local label="$1"
   local default_value="${2-}"
   local answer
 
   if [[ -n "$default_value" ]]; then
-    read -r -p "$label (Enter = $default_value): " answer
+    answer="$(read_from_tty "$label (Enter = $default_value): ")"
     if [[ -z "$answer" ]]; then
       answer="$default_value"
     fi
   else
-    read -r -p "$label: " answer
+    answer="$(read_from_tty "$label: ")"
   fi
 
   printf '%s' "$answer"
@@ -134,7 +141,7 @@ autogen_hint() {
 prompt_or_auto() {
   local label="$1"
   local answer
-  read -r -p "$label (Enter = сгенерировать автоматически): " answer
+  answer="$(read_from_tty "$label (Enter = сгенерировать автоматически): ")"
   printf '%s' "$answer"
 }
 
@@ -152,7 +159,7 @@ prompt_existing_install_action() {
   echo "2) Полностью снести старый сервер и установить заново."
 
   while true; do
-    read -r -p "Выберите вариант (1/2): " choice
+    choice="$(read_from_tty "Выберите вариант (1/2): ")"
     case "$choice" in
       1|2)
         printf '%s' "$choice"
@@ -171,7 +178,7 @@ confirm_full_reinstall() {
   echo
   echo "ВНИМАНИЕ: это полностью удалит все данные старого сервера."
   echo "Будут удалены база данных, invite-токены и конфигурация старой установки."
-  read -r -p "Чтобы подтвердить полную переустановку, введите DELETE: " confirmation
+  confirmation="$(read_from_tty "Чтобы подтвердить полную переустановку, введите DELETE: ")"
 
   if [[ "$confirmation" != "DELETE" ]]; then
     echo "Переустановка отменена."
