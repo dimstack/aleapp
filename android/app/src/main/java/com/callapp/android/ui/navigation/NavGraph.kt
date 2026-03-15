@@ -167,6 +167,12 @@ fun AppNavGraph(
                                 ),
                             )
                         }
+                        ServerDetailEvent.ServerDisconnected -> {
+                            navController.navigate(Route.Home.route) {
+                                popUpTo(Route.Home.route) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
                     }
                 }
             }
@@ -195,6 +201,7 @@ fun AppNavGraph(
                     val serverId = server.id
                     navController.navigate(Route.JoinRequests.createRoute(serverId))
                 },
+                onDisconnectServer = viewModel::disconnectServer,
                 onRemoveMember = viewModel::removeUser,
                 onRetry = viewModel::loadMembers,
             )

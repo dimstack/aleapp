@@ -28,6 +28,8 @@ sealed interface ServerDetailEvent {
         val userId: String,
         val contactName: String,
     ) : ServerDetailEvent
+
+    data object ServerDisconnected : ServerDetailEvent
 }
 
 interface ServerDetailDependencies {
@@ -36,6 +38,7 @@ interface ServerDetailDependencies {
     suspend fun getUsers(serverAddress: String): ApiResult<List<User>>
     suspend fun getJoinRequests(serverAddress: String): ApiResult<List<JoinRequest>>
     suspend fun removeUser(serverAddress: String, userId: String): ApiResult<Unit>
+    fun disconnectServer(serverAddress: String)
     fun currentUserId(): String
 }
 
@@ -53,6 +56,10 @@ object DefaultServerDetailDependencies : ServerDetailDependencies {
 
     override suspend fun removeUser(serverAddress: String, userId: String): ApiResult<Unit> =
         ServiceLocator.connectionManager.getClient(serverAddress).deleteUser(userId)
+
+    override fun disconnectServer(serverAddress: String) {
+        ServiceLocator.clearServerSession(serverAddress)
+    }
 
     override fun currentUserId(): String = ServiceLocator.currentUserId
 }
@@ -212,6 +219,19 @@ class ServerDetailViewModel(
                     contactName = contactName,
                 ),
             )
+        }
+    }
+
+    fun disconnectServer() {
+        viewModelScope.launch {
+            val address = _server.value.address
+            if (address.isBlank()) {
+                _actionError.value = "Адрес сервера не указан"
+                return@launch
+            }
+
+            dependencies.disconnectServer(address)
+            _events.emit(ServerDetailEvent.ServerDisconnected)
         }
     }
 

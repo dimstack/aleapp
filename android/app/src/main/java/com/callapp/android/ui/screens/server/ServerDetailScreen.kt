@@ -2,6 +2,7 @@ package com.callapp.android.ui.screens.server
 
 import android.content.res.Configuration
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,9 +12,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -21,9 +24,11 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.PersonAdd
@@ -53,16 +58,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.DialogProperties
 import com.callapp.android.domain.model.JoinRequest
 import com.callapp.android.domain.model.Server
 import com.callapp.android.domain.model.User
 import com.callapp.android.domain.model.UserStatus
+import androidx.compose.ui.window.Dialog
 import com.callapp.android.ui.components.AleAppButton
 import com.callapp.android.ui.components.AleAppButtonSize
 import com.callapp.android.ui.components.AleAppButtonVariant
@@ -107,6 +115,7 @@ fun ServerDetailScreen(
     onContactClick: (String) -> Unit = {},
     onManageServer: () -> Unit = {},
     onViewRequests: () -> Unit = {},
+    onDisconnectServer: () -> Unit = {},
     onRemoveMember: (String) -> Unit = {},
     onApproveRequest: (String) -> Unit = {},
     onDeclineRequest: (String) -> Unit = {},
@@ -116,6 +125,17 @@ fun ServerDetailScreen(
     val colors = AleAppTheme.colors
     var searchQuery by remember { mutableStateOf("") }
     var isEditMode by remember { mutableStateOf(false) }
+    var showDisconnectDialog by remember { mutableStateOf(false) }
+
+    if (showDisconnectDialog) {
+        DisconnectServerDialog(
+            onDismiss = { showDisconnectDialog = false },
+            onConfirm = {
+                showDisconnectDialog = false
+                onDisconnectServer()
+            },
+        )
+    }
 
     Scaffold(
         containerColor = colors.background,
@@ -127,6 +147,7 @@ fun ServerDetailScreen(
                 onBack = onBack,
                 onManageServer = onManageServer,
                 onViewRequests = onViewRequests,
+                onDisconnectServer = { showDisconnectDialog = true },
             )
         },
     ) { padding ->
@@ -211,6 +232,141 @@ fun ServerDetailScreen(
     }
 }
 
+@Composable
+private fun DisconnectServerDialog(
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = AleAppTheme.colors
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Box(
+            modifier = modifier
+                .fillMaxWidth()
+                .widthIn(max = 440.dp)
+                .padding(horizontal = 20.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = (-18).dp, y = 18.dp)
+                    .size(72.dp)
+                    .clip(CircleShape)
+                    .background(colors.accent.copy(alpha = 0.12f)),
+            )
+
+            AleAppCard(
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column(
+                    modifier = Modifier.padding(22.dp),
+                    verticalArrangement = Arrangement.spacedBy(18.dp),
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(52.dp)
+                                .clip(CircleShape)
+                                .background(colors.destructive.copy(alpha = 0.12f))
+                                .border(
+                                    width = 1.dp,
+                                    color = colors.destructive.copy(alpha = 0.2f),
+                                    shape = CircleShape,
+                                ),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.LinkOff,
+                                contentDescription = null,
+                                tint = colors.destructive,
+                                modifier = Modifier.size(24.dp),
+                            )
+                        }
+
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Text(
+                                text = "Отключить сервер",
+                                style = MaterialTheme.typography.titleLarge.copy(
+                                    fontWeight = FontWeight.SemiBold,
+                                ),
+                                color = colors.foreground,
+                            )
+                            Text(
+                                text = "Подключение будет удалено только на этом устройстве.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = colors.mutedForeground,
+                            )
+                        }
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = colors.secondary.copy(alpha = if (colors.isDark) 0.85f else 0.6f),
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Text(
+                                text = "Что произойдёт",
+                                style = MaterialTheme.typography.labelLarge.copy(
+                                    fontWeight = FontWeight.Medium,
+                                ),
+                                color = colors.foreground,
+                            )
+                            Text(
+                                text = "Сервер исчезнет из списка, а подключиться обратно можно будет позже по инвайт-токену.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = colors.mutedForeground,
+                            )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        AleAppButton(
+                            onClick = onDismiss,
+                            variant = AleAppButtonVariant.Outline,
+                            modifier = Modifier.weight(1f),
+                            size = AleAppButtonSize.Large,
+                        ) {
+                            Text(
+                                text = "Отмена",
+                                maxLines = 1,
+                                textAlign = TextAlign.Center,
+                            )
+                        }
+                        AleAppButton(
+                            onClick = onConfirm,
+                            variant = AleAppButtonVariant.Destructive,
+                            modifier = Modifier.weight(1.15f),
+                            size = AleAppButtonSize.Large,
+                        ) {
+                            Text(
+                                text = "Отключить",
+                                maxLines = 1,
+                                textAlign = TextAlign.Center,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════ */
 /*  Top Bar                                                                   */
 /* ═══════════════════════════════════════════════════════════════════════════ */
@@ -224,6 +380,7 @@ private fun ServerDetailTopBar(
     onBack: () -> Unit,
     onManageServer: () -> Unit,
     onViewRequests: () -> Unit,
+    onDisconnectServer: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = AleAppTheme.colors
@@ -247,6 +404,14 @@ private fun ServerDetailTopBar(
                 }
             },
             actions = {
+                IconButton(onClick = onDisconnectServer) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.Logout,
+                        contentDescription = "Отключить сервер",
+                        tint = colors.destructive,
+                    )
+                }
+
                 if (isAdmin) {
                     // Join requests button with badge
                     IconButton(onClick = onViewRequests) {
@@ -1061,7 +1226,7 @@ private fun TopBarAdminPreview() {
             isAdmin = true,
             pendingRequestsCount = 2,
             onBack = {},
-
+            onDisconnectServer = {},
             onManageServer = {},
             onViewRequests = {},
         )
@@ -1077,7 +1242,7 @@ private fun TopBarRegularPreview() {
             isAdmin = false,
             pendingRequestsCount = 0,
             onBack = {},
-
+            onDisconnectServer = {},
             onManageServer = {},
             onViewRequests = {},
         )
@@ -1093,7 +1258,7 @@ private fun TopBarAdminDarkPreview() {
             isAdmin = true,
             pendingRequestsCount = 5,
             onBack = {},
-
+            onDisconnectServer = {},
             onManageServer = {},
             onViewRequests = {},
         )
