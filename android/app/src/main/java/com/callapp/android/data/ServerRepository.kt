@@ -7,6 +7,9 @@ import com.callapp.android.network.ServerConnectionManager
 import com.callapp.android.network.dto.AuthResponse
 import com.callapp.android.network.dto.ConnectResponse
 import com.callapp.android.network.result.ApiResult
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 
 class ServerRepository(private val connectionManager: ServerConnectionManager) {
 
@@ -17,6 +20,23 @@ class ServerRepository(private val connectionManager: ServerConnectionManager) {
 
     fun getServerById(id: String): Server? =
         getConnectedServers().find { it.id == id }
+
+    fun observeConnectedServers(): Flow<List<Server>> {
+        val store = getSessionStoreOrNull() ?: return flowOf(emptyList())
+        return store.sessionsFlow.map { sessions ->
+            sessions.values.map { session ->
+                Server(
+                    id = session.serverId.ifEmpty { session.serverAddress },
+                    name = session.serverName.ifEmpty { session.serverAddress },
+                    username = session.serverUsername,
+                    address = session.serverAddress,
+                )
+            }
+        }
+    }
+
+    fun observeServerById(id: String): Flow<Server?> =
+        observeConnectedServers().map { servers -> servers.find { it.id == id } }
 
     suspend fun getUsers(serverAddress: String): ApiResult<List<User>> {
         return connectionManager.getClient(serverAddress).getUsers()

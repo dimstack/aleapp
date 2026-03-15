@@ -4,6 +4,9 @@ import android.content.Context
 import android.content.SharedPreferences
 import com.callapp.android.calling.CallAvailabilityServiceController
 import com.callapp.android.domain.model.Server
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
@@ -32,6 +35,8 @@ class SessionStore(context: Context) {
 
     private val prefs: SharedPreferences =
         appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val _sessionsFlow = MutableStateFlow(readSessions())
+    val sessionsFlow: StateFlow<Map<String, ServerSession>> = _sessionsFlow.asStateFlow()
 
     // ── Session management ────────────────────────────────────────────────
 
@@ -43,7 +48,7 @@ class SessionStore(context: Context) {
         serverUsername: String = "",
         serverId: String = "",
     ) {
-        val sessions = getSessions().toMutableMap()
+        val sessions = readSessions().toMutableMap()
         sessions[serverAddress] = ServerSession(
             serverAddress = serverAddress,
             sessionToken = sessionToken,
@@ -57,10 +62,15 @@ class SessionStore(context: Context) {
             .putString(KEY_ACTIVE_ADDRESS, serverAddress)
             .putString(KEY_ACTIVE_USER_ID, userId)
             .apply()
+        _sessionsFlow.value = sessions.toMap()
         CallAvailabilityServiceController.sync(appContext)
     }
 
     fun getSessions(): Map<String, ServerSession> {
+        return _sessionsFlow.value
+    }
+
+    private fun readSessions(): Map<String, ServerSession> {
         val raw = prefs.getString(KEY_SESSIONS, null) ?: return emptyMap()
         return try {
             json.decodeFromString<Map<String, ServerSession>>(raw)
@@ -73,7 +83,7 @@ class SessionStore(context: Context) {
         getSessions()[serverAddress]
 
     fun removeSession(serverAddress: String) {
-        val sessions = getSessions().toMutableMap()
+        val sessions = readSessions().toMutableMap()
         sessions.remove(serverAddress)
         val editor = prefs.edit()
             .putString(KEY_SESSIONS, json.encodeToString(sessions))
@@ -85,6 +95,7 @@ class SessionStore(context: Context) {
         }
 
         editor.apply()
+        _sessionsFlow.value = sessions.toMap()
         CallAvailabilityServiceController.sync(appContext)
     }
 

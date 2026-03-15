@@ -12,6 +12,7 @@ import com.callapp.android.ui.common.apiErrorMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 class HomeViewModel : ViewModel() {
@@ -28,16 +29,22 @@ class HomeViewModel : ViewModel() {
     val notificationCount: StateFlow<Int> = _notificationCount.asStateFlow()
 
     init {
+        observeServers()
         loadData()
+    }
+
+    private fun observeServers() {
+        viewModelScope.launch {
+            repo.observeConnectedServers().collectLatest { servers ->
+                _serversState.value = UiState.Success(servers)
+            }
+        }
     }
 
     fun loadData() {
         viewModelScope.launch {
-            _serversState.value = UiState.Loading
             _favoritesState.value = UiState.Loading
             try {
-                _serversState.value = UiState.Success(repo.getConnectedServers())
-
                 val activeAddress = ServiceLocator.activeServerAddress
                 if (activeAddress.isNotEmpty()) {
                     when (val result = repo.getFavoritesRemote(activeAddress)) {
@@ -46,9 +53,6 @@ class HomeViewModel : ViewModel() {
                         }
 
                         is ApiResult.Failure -> {
-                            if (result.error is ApiError.Unauthorized && result.error.code == "unauthorized") {
-                                _serversState.value = UiState.Success(repo.getConnectedServers())
-                            }
                             _favoritesState.value = UiState.Error(
                                 apiErrorMessage(
                                     error = result.error,
@@ -66,7 +70,6 @@ class HomeViewModel : ViewModel() {
 
                         is ApiResult.Failure -> {
                             if (result.error is ApiError.Unauthorized && result.error.code == "unauthorized") {
-                                _serversState.value = UiState.Success(repo.getConnectedServers())
                                 _favoritesState.value = UiState.Error("Сессия истекла")
                             }
                             _notificationCount.value = 0
@@ -77,7 +80,6 @@ class HomeViewModel : ViewModel() {
                     _notificationCount.value = 0
                 }
             } catch (_: Exception) {
-                _serversState.value = UiState.Error("Не удалось загрузить данные")
                 _favoritesState.value = UiState.Error("Не удалось загрузить данные")
                 _notificationCount.value = 0
             }

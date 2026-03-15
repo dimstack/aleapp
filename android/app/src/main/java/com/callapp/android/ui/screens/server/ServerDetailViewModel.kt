@@ -14,6 +14,7 @@ import com.callapp.android.ui.common.apiErrorMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 
 class ServerDetailViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
@@ -39,7 +40,18 @@ class ServerDetailViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
     val pendingRequests: StateFlow<List<JoinRequest>> = _pendingRequests.asStateFlow()
 
     init {
+        observeServer()
         loadMembers()
+    }
+
+    private fun observeServer() {
+        viewModelScope.launch {
+            repo.observeServerById(serverId)
+                .filterNotNull()
+                .collect { updatedServer ->
+                    _server.value = updatedServer
+                }
+        }
     }
 
     fun loadMembers() {
