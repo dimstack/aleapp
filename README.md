@@ -1,16 +1,17 @@
 # aleapp
 
-CallApp backend and Android client.
+Android-клиент и backend для CallApp.
 
-## Install backend
+## Установка backend
 
-Run the installer directly from GitHub:
+Запуск установщика напрямую из GitHub:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/dimstack/aleapp/main/server/install.sh | bash
+bash <(curl -fsSL https://raw.githubusercontent.com/dimstack/aleapp/main/server/install.sh)
 ```
 
-The script installs Docker if needed, deploys the backend, and on repeated runs lets you either:
+Скрипт:
 
-- update containers to the latest version with data preserved
-- fully reinstall the server after explicit confirmation
+- при необходимости установит Docker
+- развернёт backend на сервере
+- при повторном запуске предложит обновить контейнеры с сохранением данных или полностью переустановить сервер после явного подтверждения
