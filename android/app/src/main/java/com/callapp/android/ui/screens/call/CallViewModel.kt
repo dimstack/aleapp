@@ -6,11 +6,14 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.callapp.android.data.CallConnectionState
 import com.callapp.android.data.CallRepository
+import com.callapp.android.data.CallRepositoryEvent
 import com.callapp.android.data.ServiceLocator
 import com.callapp.android.network.signaling.ConnectionState
 import com.callapp.android.network.signaling.SignalMessage
+import com.callapp.android.network.signaling.SignalingClient
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,10 +30,123 @@ enum class CallPhase {
     ENDED,
 }
 
+interface CallSession {
+    val connectionState: StateFlow<CallConnectionState>
+    val remoteVideoTrack: StateFlow<VideoTrack?>
+    val events: Flow<CallRepositoryEvent>
+    val localVideoTrack: VideoTrack?
+    val eglBase: EglBase?
+
+    suspend fun startOutgoingCall(targetUserId: String, enableVideo: Boolean)
+    suspend fun acceptIncomingCall(callerUserId: String, enableVideo: Boolean)
+    fun declineIncomingCall(callerUserId: String)
+    fun endCall()
+    fun setMicEnabled(enabled: Boolean)
+    fun setVideoEnabled(enabled: Boolean)
+    fun switchCamera()
+    fun dispose()
+}
+
+interface CallSignalingGateway {
+    val connectionState: StateFlow<ConnectionState>
+    fun connect()
+    fun send(message: SignalMessage)
+}
+
+interface CallViewModelDependencies {
+    fun createCallSession(application: Application, serverAddress: String): CallSession
+    fun getSignaling(serverAddress: String): CallSignalingGateway
+    val callTimeoutMillis: Long
+        get() = 30_000L
+}
+
+private class RepositoryCallSession(
+    application: Application,
+    serverAddress: String,
+    signalingClient: SignalingClient,
+) : CallSession {
+    private val repository = CallRepository(
+        context = application,
+        signalingClient = signalingClient,
+        serverAddress = serverAddress,
+    )
+
+    override val connectionState: StateFlow<CallConnectionState> = repository.connectionState
+    override val remoteVideoTrack: StateFlow<VideoTrack?> = repository.remoteVideoTrack
+    override val events: Flow<CallRepositoryEvent> = repository.events
+    override val localVideoTrack: VideoTrack?
+        get() = repository.webRtcManager.localVideoTrack
+    override val eglBase: EglBase?
+        get() = repository.webRtcManager.eglBase
+
+    override suspend fun startOutgoingCall(targetUserId: String, enableVideo: Boolean) {
+        repository.startOutgoingCall(targetUserId, enableVideo)
+    }
+
+    override suspend fun acceptIncomingCall(callerUserId: String, enableVideo: Boolean) {
+        repository.acceptIncomingCall(callerUserId, enableVideo)
+    }
+
+    override fun declineIncomingCall(callerUserId: String) {
+        repository.declineIncomingCall(callerUserId)
+    }
+
+    override fun endCall() {
+        repository.endCall()
+    }
+
+    override fun setMicEnabled(enabled: Boolean) {
+        repository.setMicEnabled(enabled)
+    }
+
+    override fun setVideoEnabled(enabled: Boolean) {
+        repository.setVideoEnabled(enabled)
+    }
+
+    override fun switchCamera() {
+        repository.switchCamera()
+    }
+
+    override fun dispose() {
+        repository.dispose()
+    }
+}
+
+private class SignalingGatewayAdapter(
+    private val signalingClient: SignalingClient,
+) : CallSignalingGateway {
+    override val connectionState: StateFlow<ConnectionState> = signalingClient.connectionState
+
+    override fun connect() {
+        signalingClient.connect()
+    }
+
+    override fun send(message: SignalMessage) {
+        signalingClient.send(message)
+    }
+}
+
+object DefaultCallViewModelDependencies : CallViewModelDependencies {
+    override fun createCallSession(application: Application, serverAddress: String): CallSession {
+        val signaling = ServiceLocator.connectionManager.getSignaling(serverAddress)
+        signaling.connect()
+        return RepositoryCallSession(application, serverAddress, signaling)
+    }
+
+    override fun getSignaling(serverAddress: String): CallSignalingGateway =
+        SignalingGatewayAdapter(ServiceLocator.connectionManager.getSignaling(serverAddress))
+}
+
 class CallViewModel(
     application: Application,
     savedStateHandle: SavedStateHandle,
+    private val dependencies: CallViewModelDependencies = DefaultCallViewModelDependencies,
 ) : AndroidViewModel(application) {
+
+    constructor(
+        application: Application,
+        savedStateHandle: SavedStateHandle,
+    ) : this(application, savedStateHandle, DefaultCallViewModelDependencies)
 
     private val serverAddress: String = (savedStateHandle.get<String>("serverAddress") ?: "")
         .let { java.net.URLDecoder.decode(it, "UTF-8") }
@@ -66,86 +182,97 @@ class CallViewModel(
     val remoteVideoTrack: StateFlow<VideoTrack?> = _remoteVideoTrack.asStateFlow()
 
     val eglBase: EglBase?
-        get() = callRepository?.webRtcManager?.eglBase
+        get() = callSession?.eglBase
 
     private var timerJob: Job? = null
-    private var callRepository: CallRepository? = null
+    private var timeoutJob: Job? = null
+    private var callSession: CallSession? = null
 
     init {
         if (isIncoming) {
-            getOrCreateCallRepository()
+            getOrCreateCallSession()
         } else {
             startOutgoingCall()
         }
     }
 
-    private fun getOrCreateCallRepository(): CallRepository {
-        callRepository?.let { return it }
+    private fun getOrCreateCallSession(): CallSession {
+        callSession?.let { return it }
 
-        val connManager = ServiceLocator.connectionManager
-        val signaling = connManager.getSignaling(serverAddress)
-        signaling.connect()
-
-        val repo = CallRepository(
-            context = getApplication(),
-            signalingClient = signaling,
-            serverAddress = serverAddress,
-        )
-        callRepository = repo
+        val session = dependencies.createCallSession(getApplication(), serverAddress)
+        callSession = session
 
         viewModelScope.launch {
-            repo.connectionState.collect { state ->
+            session.connectionState.collect { state ->
                 when (state) {
                     CallConnectionState.CONNECTED -> {
                         _callPhase.value = CallPhase.CONNECTED
+                        cancelTimeout()
                         startTimer()
                     }
+
                     CallConnectionState.FAILED,
                     CallConnectionState.DISCONNECTED -> {
                         finishCall()
                     }
-                    else -> {}
+
+                    else -> Unit
                 }
             }
         }
 
         viewModelScope.launch {
-            repo.remoteVideoTrack.collect { track ->
+            session.remoteVideoTrack.collect { track ->
                 _remoteVideoTrack.value = track
             }
         }
 
-        return repo
+        viewModelScope.launch {
+            session.events.collect { event ->
+                when (event) {
+                    CallRepositoryEvent.AnswerReceived -> {
+                        _callPhase.value = CallPhase.CONNECTED
+                        cancelTimeout()
+                        startTimer()
+                    }
+
+                    CallRepositoryEvent.CallDeclined -> {
+                        finishCall()
+                    }
+
+                    is CallRepositoryEvent.IceCandidateSent -> Unit
+                }
+            }
+        }
+
+        return session
     }
 
     private fun updateLocalTrack() {
-        _localVideoTrack.value = callRepository?.webRtcManager?.localVideoTrack
+        _localVideoTrack.value = callSession?.localVideoTrack
     }
-
-    // ── Outgoing call ────────────────────────────────────────────────────
 
     private fun startOutgoingCall() {
         _callPhase.value = CallPhase.CALLING
 
         viewModelScope.launch {
-            val repo = getOrCreateCallRepository()
-            repo.startOutgoingCall(
+            val session = getOrCreateCallSession()
+            session.startOutgoingCall(
                 targetUserId = userId,
                 enableVideo = _isCameraOn.value,
             )
             updateLocalTrack()
             _callPhase.value = CallPhase.RINGING
+            startTimeoutCountdown()
         }
     }
-
-    // ── Incoming call ────────────────────────────────────────────────────
 
     fun acceptCall() {
         if (_callPhase.value != CallPhase.INCOMING) return
 
         viewModelScope.launch {
-            val repo = getOrCreateCallRepository()
-            repo.acceptIncomingCall(
+            val session = getOrCreateCallSession()
+            session.acceptIncomingCall(
                 callerUserId = userId,
                 enableVideo = _isCameraOn.value,
             )
@@ -154,11 +281,11 @@ class CallViewModel(
     }
 
     fun declineCall() {
-        val repo = callRepository
-        if (repo != null) {
-            repo.declineIncomingCall(userId)
+        val session = callSession
+        if (session != null) {
+            session.declineIncomingCall(userId)
         } else if (serverAddress.isNotEmpty()) {
-            val signaling = ServiceLocator.connectionManager.getSignaling(serverAddress)
+            val signaling = dependencies.getSignaling(serverAddress)
             if (signaling.connectionState.value == ConnectionState.Disconnected) {
                 signaling.connect()
             }
@@ -167,33 +294,27 @@ class CallViewModel(
         finishCall()
     }
 
-    // ── End call ─────────────────────────────────────────────────────────
-
     fun endCall() {
-        callRepository?.endCall()
+        callSession?.endCall()
         finishCall()
     }
-
-    // ── Media controls ───────────────────────────────────────────────────
 
     fun toggleMic() {
         val newState = !_isMicOn.value
         _isMicOn.value = newState
-        callRepository?.setMicEnabled(newState)
+        callSession?.setMicEnabled(newState)
     }
 
     fun toggleCamera() {
         val newState = !_isCameraOn.value
         _isCameraOn.value = newState
-        callRepository?.setVideoEnabled(newState)
-        _localVideoTrack.value = if (newState) callRepository?.webRtcManager?.localVideoTrack else null
+        callSession?.setVideoEnabled(newState)
+        _localVideoTrack.value = if (newState) callSession?.localVideoTrack else null
     }
 
     fun switchCamera() {
-        callRepository?.switchCamera()
+        callSession?.switchCamera()
     }
-
-    // ── Timer ────────────────────────────────────────────────────────────
 
     private fun startTimer() {
         if (timerJob?.isActive == true) return
@@ -205,17 +326,40 @@ class CallViewModel(
         }
     }
 
+    private fun startTimeoutCountdown() {
+        cancelTimeout()
+        timeoutJob = viewModelScope.launch {
+            delay(dependencies.callTimeoutMillis)
+            if (_callPhase.value == CallPhase.CALLING || _callPhase.value == CallPhase.RINGING) {
+                endCall()
+            }
+        }
+    }
+
+    private fun cancelTimeout() {
+        timeoutJob?.cancel()
+        timeoutJob = null
+    }
+
+    private fun cleanupSession() {
+        callSession?.dispose()
+        callSession = null
+        _localVideoTrack.value = null
+        _remoteVideoTrack.value = null
+    }
+
     private fun finishCall() {
         if (_callPhase.value == CallPhase.ENDED) return
         _callPhase.value = CallPhase.ENDED
         timerJob?.cancel()
+        cancelTimeout()
+        cleanupSession()
     }
-
-    // ── Cleanup ──────────────────────────────────────────────────────────
 
     override fun onCleared() {
         super.onCleared()
-        callRepository?.dispose()
-        callRepository = null
+        timerJob?.cancel()
+        cancelTimeout()
+        cleanupSession()
     }
 }

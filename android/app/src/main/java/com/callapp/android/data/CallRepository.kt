@@ -11,7 +11,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import org.webrtc.IceCandidate
@@ -26,6 +28,12 @@ enum class CallConnectionState {
     CONNECTED,
     DISCONNECTED,
     FAILED,
+}
+
+sealed interface CallRepositoryEvent {
+    data object AnswerReceived : CallRepositoryEvent
+    data object CallDeclined : CallRepositoryEvent
+    data class IceCandidateSent(val message: SignalMessage.IceCandidate) : CallRepositoryEvent
 }
 
 class CallRepository(
@@ -44,6 +52,9 @@ class CallRepository(
 
     private val _remoteVideoTrack = MutableStateFlow<VideoTrack?>(null)
     val remoteVideoTrack: StateFlow<VideoTrack?> = _remoteVideoTrack
+
+    private val _events = MutableSharedFlow<CallRepositoryEvent>(extraBufferCapacity = 16)
+    val events: SharedFlow<CallRepositoryEvent> = _events
 
     private var targetUserId: String = ""
     private var pendingOutgoingVideoEnabled: Boolean = false
@@ -69,14 +80,14 @@ class CallRepository(
 
     val webRtcManager: WebRtcManager = WebRtcManager(context, object : WebRtcManager.Listener {
         override fun onIceCandidate(candidate: IceCandidate) {
-            signalingClient.send(
-                SignalMessage.IceCandidate(
-                    candidate = candidate.sdp,
-                    sdpMid = candidate.sdpMid,
-                    sdpMLineIndex = candidate.sdpMLineIndex,
-                    targetUserId = targetUserId,
-                )
+            val message = SignalMessage.IceCandidate(
+                candidate = candidate.sdp,
+                sdpMid = candidate.sdpMid,
+                sdpMLineIndex = candidate.sdpMLineIndex,
+                targetUserId = targetUserId,
             )
+            signalingClient.send(message)
+            _events.tryEmit(CallRepositoryEvent.IceCandidateSent(message))
         }
 
         override fun onConnectionChange(state: PeerConnection.PeerConnectionState) {
@@ -260,6 +271,7 @@ class CallRepository(
             }
 
             is SignalMessage.Answer -> {
+                _events.tryEmit(CallRepositoryEvent.AnswerReceived)
                 val sdp = SessionDescription(SessionDescription.Type.ANSWER, message.sdp)
                 webRtcManager.setRemoteDescription(sdp)
             }
@@ -285,6 +297,7 @@ class CallRepository(
             }
 
             is SignalMessage.CallDecline -> {
+                _events.tryEmit(CallRepositoryEvent.CallDeclined)
                 _connectionState.value = CallConnectionState.DISCONNECTED
                 clearPendingState()
             }
