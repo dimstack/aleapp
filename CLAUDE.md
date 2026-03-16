@@ -1,7 +1,10 @@
 # CallApp — Decentralized P2P Calling Application
 
 ## Communication
-- Общение с пользователем ведётся на **русском языке** (пояснения, комментарии, описания).
+- Communicate with the user in **Russian** (explanations, comments, descriptions).
+- If the user writes `КИП`, it means: perform `git commit` and `git push` to GitHub.
+- For every new feature, write tests whenever possible.
+- After making changes, verify compilation and run the tests.
 
 ## Project Overview
 
