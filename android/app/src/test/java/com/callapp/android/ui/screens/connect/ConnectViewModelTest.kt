@@ -25,6 +25,8 @@ class ConnectViewModelTest {
         private const val NETWORK_ERROR_MESSAGE = "\u041D\u0435\u0442\u0020\u0441\u043E\u0435\u0434\u0438\u043D\u0435\u043D\u0438\u044F\u0020\u0441\u0020\u0441\u0435\u0440\u0432\u0435\u0440\u043E\u043C"
         private const val INVALID_CREDENTIALS_MESSAGE = "\u041D\u0435\u0432\u0435\u0440\u043D\u044B\u0439\u0020\u0075\u0073\u0065\u0072\u006E\u0061\u006D\u0065\u0020\u0438\u043B\u0438\u0020\u043F\u0430\u0440\u043E\u043B\u044C"
         private const val PASSWORD_TOO_SHORT = "\u041F\u0430\u0440\u043E\u043B\u044C\u0020\u0434\u043E\u043B\u0436\u0435\u043D\u0020\u0441\u043E\u0434\u0435\u0440\u0436\u0430\u0442\u044C\u0020\u043C\u0438\u043D\u0438\u043C\u0443\u043C\u0020\u0038\u0020\u0441\u0438\u043C\u0432\u043E\u043B\u043E\u0432"
+        private const val SERVER_NOT_DEFINED = "\u0421\u0435\u0440\u0432\u0435\u0440\u0020\u043D\u0435\u0020\u043E\u043F\u0440\u0435\u0434\u0435\u043B\u0435\u043D"
+        private const val PROFILE_CREATED_BUT_SESSION_FAILED = "\u041F\u0440\u043E\u0444\u0438\u043B\u044C\u0020\u0441\u043E\u0437\u0434\u0430\u043D\u002C\u0020\u043D\u043E\u0020\u043D\u0435\u0020\u0443\u0434\u0430\u043B\u043E\u0441\u044C\u0020\u043E\u0442\u043A\u0440\u044B\u0442\u044C\u0020\u0441\u0435\u0441\u0441\u0438\u044E\u002E\u0020\u041F\u043E\u043F\u0440\u043E\u0431\u0443\u0439\u0442\u0435\u0020\u0432\u043E\u0439\u0442\u0438\u0020\u0432\u0440\u0443\u0447\u043D\u0443\u044E\u002E"
     }
 
     @get:Rule
@@ -81,6 +83,57 @@ class ConnectViewModelTest {
     }
 
     @Test
+    fun submitToken_joinedResponse_savesSessionAndGoesToJoined() = runTest {
+        val deps = FakeConnectDependencies().apply {
+            connectResult = ApiResult.Success(
+                ConnectResponse(
+                    sessionToken = "session-joined",
+                    user = userDto(id = "user-joined", username = "@alex"),
+                    server = serverDto(),
+                    status = "joined",
+                ),
+            )
+        }
+        val viewModel = ConnectViewModel(deps)
+
+        viewModel.connectWithToken("server.example.com:3000/ABCD1234")
+        advanceUntilIdle()
+
+        val state = viewModel.state.value as ConnectUiState.Joined
+        assertEquals("http://server.example.com:3000", state.serverAddress)
+        assertEquals("Test Server", state.serverName)
+        assertEquals(1, deps.savedSessions.size)
+        assertEquals("session-joined", deps.savedSessions.single().sessionToken)
+        assertEquals("user-joined", deps.savedSessions.single().userId)
+        assertEquals(listOf("http://server.example.com:3000"), deps.removedPendingApprovals)
+    }
+
+    @Test
+    fun submitToken_pendingResponse_setsPendingState() = runTest {
+        val deps = FakeConnectDependencies().apply {
+            connectResult = ApiResult.Success(
+                ConnectResponse(
+                    sessionToken = "session-pending",
+                    user = userDto(username = "@alex"),
+                    server = serverDto(),
+                    status = "pending",
+                ),
+            )
+        }
+        val viewModel = ConnectViewModel(deps)
+
+        viewModel.connectWithToken("server.example.com:3000/ABCD1234")
+        advanceUntilIdle()
+
+        val state = viewModel.state.value as ConnectUiState.Pending
+        assertEquals("http://server.example.com:3000", state.serverAddress)
+        assertEquals("Test Server", state.serverName)
+        assertEquals("@alex", state.userName)
+        assertTrue(deps.savedPendingApprovals.isEmpty())
+        assertTrue(deps.savedSessions.isEmpty())
+    }
+
+    @Test
     fun createProfile_pendingApproval() = runTest {
         val deps = FakeConnectDependencies().apply {
             connectResult = ApiResult.Success(
@@ -113,6 +166,7 @@ class ConnectViewModelTest {
         assertEquals("Test Server", state.serverName)
         assertEquals("@alex", state.userName)
         assertEquals(1, deps.savedPendingApprovals.size)
+        assertEquals("ABCD1234", deps.savedPendingApprovals.single().inviteToken)
     }
 
     @Test
@@ -155,6 +209,84 @@ class ConnectViewModelTest {
         assertEquals("Test Server", state.serverName)
         assertEquals(1, deps.savedSessions.size)
         assertEquals("session-joined", deps.restoredSessions.single().second)
+        assertEquals(listOf("http://server.example.com:3000"), deps.removedPendingApprovals)
+    }
+
+    @Test
+    fun createProfile_joinedThenLoginFails_showsProfileCreatedButSessionFailed() = runTest {
+        val deps = FakeConnectDependencies().apply {
+            connectResult = ApiResult.Success(
+                ConnectResponse(
+                    sessionToken = "session-1",
+                    server = serverDto(),
+                    status = "needs_profile",
+                ),
+            )
+            createUserResult = ApiResult.Success(
+                CreateUserResult.Joined(
+                    User(
+                        id = "user-1",
+                        name = "Alex",
+                        username = "@alex",
+                    ),
+                ),
+            )
+            loginResult = ApiResult.Failure(ApiError.NetworkError)
+        }
+        val viewModel = ConnectViewModel(deps)
+        viewModel.connectWithToken("server.example.com:3000/ABCD1234")
+        advanceUntilIdle()
+
+        viewModel.createProfile(username = "alex", name = "Alex", password = "password123")
+        advanceUntilIdle()
+
+        assertEquals(
+            PROFILE_CREATED_BUT_SESSION_FAILED,
+            (viewModel.state.value as ConnectUiState.Error).message,
+        )
+        assertTrue(deps.savedSessions.isEmpty())
+        assertTrue(deps.savedPendingApprovals.isEmpty())
+    }
+
+    @Test
+    fun createProfile_joinedThenLoginPending_goesToPending() = runTest {
+        val deps = FakeConnectDependencies().apply {
+            connectResult = ApiResult.Success(
+                ConnectResponse(
+                    sessionToken = "session-1",
+                    server = serverDto(),
+                    status = "needs_profile",
+                ),
+            )
+            createUserResult = ApiResult.Success(
+                CreateUserResult.Joined(
+                    User(
+                        id = "user-1",
+                        name = "Alex",
+                        username = "@alex",
+                    ),
+                ),
+            )
+            loginResult = ApiResult.Success(
+                AuthResponse(
+                    sessionToken = "session-pending",
+                    user = userDto(id = "user-1", username = "@alex"),
+                    server = serverDto(),
+                    status = "pending",
+                ),
+            )
+        }
+        val viewModel = ConnectViewModel(deps)
+        viewModel.connectWithToken("server.example.com:3000/ABCD1234")
+        advanceUntilIdle()
+
+        viewModel.createProfile(username = "alex", name = "Alex", password = "password123")
+        advanceUntilIdle()
+
+        val state = viewModel.state.value as ConnectUiState.Pending
+        assertEquals("@alex", state.userName)
+        assertEquals(1, deps.savedPendingApprovals.size)
+        assertTrue(deps.savedSessions.isEmpty())
     }
 
     @Test
@@ -187,6 +319,39 @@ class ConnectViewModelTest {
         assertEquals("http://server.example.com:3000", state.serverAddress)
         assertEquals("Test Server", state.serverName)
         assertEquals(1, deps.savedSessions.size)
+        assertEquals(listOf("http://server.example.com:3000"), deps.removedPendingApprovals)
+    }
+
+    @Test
+    fun login_pendingResponse_savesPendingAndGoesToPending() = runTest {
+        val deps = FakeConnectDependencies().apply {
+            connectResult = ApiResult.Success(
+                ConnectResponse(
+                    sessionToken = "session-1",
+                    server = serverDto(),
+                    status = "needs_profile",
+                ),
+            )
+            loginResult = ApiResult.Success(
+                AuthResponse(
+                    sessionToken = "session-login",
+                    user = userDto(id = "user-42", username = "@alex"),
+                    server = serverDto(),
+                    status = "pending",
+                ),
+            )
+        }
+        val viewModel = ConnectViewModel(deps)
+        viewModel.connectWithToken("server.example.com:3000/ABCD1234")
+        advanceUntilIdle()
+
+        viewModel.login(username = "alex", password = "password123")
+        advanceUntilIdle()
+
+        val state = viewModel.state.value as ConnectUiState.Pending
+        assertEquals("@alex", state.userName)
+        assertEquals(1, deps.savedPendingApprovals.size)
+        assertTrue(deps.savedSessions.isEmpty())
     }
 
     @Test
@@ -215,6 +380,18 @@ class ConnectViewModelTest {
     }
 
     @Test
+    fun createProfile_withoutCurrentServer_showsServerNotDefined() = runTest {
+        val viewModel = ConnectViewModel(FakeConnectDependencies())
+
+        viewModel.createProfile(username = "alex", name = "Alex", password = "password123")
+
+        assertEquals(
+            SERVER_NOT_DEFINED,
+            (viewModel.state.value as ConnectUiState.Error).message,
+        )
+    }
+
+    @Test
     fun createProfile_validatesPasswordLength() = runTest {
         val deps = FakeConnectDependencies().apply {
             connectResult = ApiResult.Success(
@@ -238,6 +415,58 @@ class ConnectViewModelTest {
         assertTrue(deps.createUserCalls.isEmpty())
     }
 
+    @Test
+    fun login_withoutCurrentServer_showsServerNotDefined() = runTest {
+        val viewModel = ConnectViewModel(FakeConnectDependencies())
+
+        viewModel.login(username = "alex", password = "password123")
+
+        assertEquals(
+            SERVER_NOT_DEFINED,
+            (viewModel.state.value as ConnectUiState.Error).message,
+        )
+    }
+
+    @Test
+    fun successfulJoin_removesPendingApproval() = runTest {
+        val deps = FakeConnectDependencies().apply {
+            connectResult = ApiResult.Success(
+                ConnectResponse(
+                    sessionToken = "session-1",
+                    server = serverDto(),
+                    status = "needs_profile",
+                ),
+            )
+            loginResult = ApiResult.Success(
+                AuthResponse(
+                    sessionToken = "session-login",
+                    user = userDto(id = "user-42", username = "@alex"),
+                    server = serverDto(),
+                    status = "joined",
+                ),
+            )
+        }
+        val viewModel = ConnectViewModel(deps)
+        viewModel.connectWithToken("server.example.com:3000/ABCD1234")
+        advanceUntilIdle()
+
+        viewModel.login(username = "alex", password = "password123")
+        advanceUntilIdle()
+
+        assertEquals(1, deps.removePendingApprovalCalls)
+        assertEquals(listOf("http://server.example.com:3000"), deps.removedPendingApprovals)
+    }
+
+    @Test
+    fun resetState_returnsIdle() = runTest {
+        val viewModel = ConnectViewModel(FakeConnectDependencies())
+
+        viewModel.connectWithToken("")
+        viewModel.resetState()
+
+        assertTrue(viewModel.state.value is ConnectUiState.Idle)
+    }
+
     private class FakeConnectDependencies : ConnectDependencies {
         var connectResult: ApiResult<ConnectResponse> = ApiResult.Failure(ApiError.NetworkError)
         var createUserResult: ApiResult<CreateUserResult> = ApiResult.Failure(ApiError.NetworkError)
@@ -247,6 +476,8 @@ class ConnectViewModelTest {
         val savedPendingApprovals = mutableListOf<SavedPendingApproval>()
         val savedSessions = mutableListOf<SavedSession>()
         val restoredSessions = mutableListOf<Pair<String, String>>()
+        var removePendingApprovalCalls = 0
+        val removedPendingApprovals = mutableListOf<String>()
 
         override fun parseInviteToken(rawToken: String): Pair<String, String>? =
             com.callapp.android.network.ServerConnectionManager.parseInviteToken(rawToken)
@@ -294,7 +525,10 @@ class ConnectViewModelTest {
             savedPendingApprovals += SavedPendingApproval(serverAddress, inviteToken, username, password, serverName)
         }
 
-        override fun removePendingApproval(serverAddress: String) = Unit
+        override fun removePendingApproval(serverAddress: String) {
+            removePendingApprovalCalls += 1
+            removedPendingApprovals += serverAddress
+        }
     }
 
     private data class CreateUserCall(

@@ -37,6 +37,26 @@ class TokenParserTest {
     }
 
     @Test
+    fun parseTokenWithHttpScheme() {
+        val parsed = InviteTokenParser.parse("http://server.example.com/ABCD1234")
+
+        requireNotNull(parsed)
+        assertEquals("server.example.com", parsed.host)
+        assertEquals(3000, parsed.port)
+        assertEquals("ABCD1234", parsed.code)
+    }
+
+    @Test
+    fun parseTokenWithLeadingTrailingWhitespace() {
+        val parsed = InviteTokenParser.parse("  server.example.com:3000/ABCD1234  ")
+
+        requireNotNull(parsed)
+        assertEquals("server.example.com", parsed.host)
+        assertEquals(3000, parsed.port)
+        assertEquals("ABCD1234", parsed.code)
+    }
+
+    @Test
     fun parseTokenMissingCode() {
         assertNull(InviteTokenParser.parse("server.example.com:3000/"))
     }
@@ -44,6 +64,21 @@ class TokenParserTest {
     @Test
     fun parseEmptyToken() {
         assertNull(InviteTokenParser.parse(""))
+    }
+
+    @Test
+    fun parseMalformedPort_returnsNull() {
+        assertNull(InviteTokenParser.parse("server.example.com:abc/ABCD1234"))
+    }
+
+    @Test
+    fun parseMissingHost_returnsNull() {
+        assertNull(InviteTokenParser.parse(":3000/ABCD1234"))
+    }
+
+    @Test
+    fun parseOnlyCode_returnsNull() {
+        assertNull(InviteTokenParser.parse("ABCD1234"))
     }
 
     @Test
