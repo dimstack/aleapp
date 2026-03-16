@@ -4,13 +4,14 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.callapp.android.data.ServiceLocator
-import com.callapp.android.data.ServerRepository
 import com.callapp.android.domain.model.JoinRequest
 import com.callapp.android.domain.model.JoinRequestStatus
+import com.callapp.android.domain.model.Server
 import com.callapp.android.network.result.ApiResult
 import com.callapp.android.ui.common.apiErrorMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 data class JoinRequestsUiState(
@@ -20,14 +21,46 @@ data class JoinRequestsUiState(
     val error: String? = null,
 )
 
-class JoinRequestsViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
+interface JoinRequestsDependencies {
+    fun getServerById(serverId: String): Server?
+    suspend fun getServer(serverAddress: String): ApiResult<Server>
+    suspend fun getJoinRequests(serverAddress: String): ApiResult<List<JoinRequest>>
+    suspend fun updateJoinRequest(serverAddress: String, requestId: String, status: String): ApiResult<JoinRequest>
+}
+
+object DefaultJoinRequestsDependencies : JoinRequestsDependencies {
+    override fun getServerById(serverId: String): Server? =
+        ServiceLocator.serverRepository.getServerById(serverId)
+
+    override suspend fun getServer(serverAddress: String): ApiResult<Server> =
+        ServiceLocator.connectionManager.getClient(serverAddress).getServer()
+
+    override suspend fun getJoinRequests(serverAddress: String): ApiResult<List<JoinRequest>> =
+        ServiceLocator.connectionManager.getClient(serverAddress).getJoinRequests()
+
+    override suspend fun updateJoinRequest(
+        serverAddress: String,
+        requestId: String,
+        status: String,
+    ): ApiResult<JoinRequest> =
+        ServiceLocator.connectionManager.getClient(serverAddress).updateJoinRequest(requestId, status)
+}
+
+class JoinRequestsViewModel(
+    savedStateHandle: SavedStateHandle,
+    private val dependencies: JoinRequestsDependencies = DefaultJoinRequestsDependencies,
+) : ViewModel() {
+
+    constructor(savedStateHandle: SavedStateHandle) : this(
+        savedStateHandle = savedStateHandle,
+        dependencies = DefaultJoinRequestsDependencies,
+    )
 
     private val serverId: String = savedStateHandle["serverId"] ?: ""
-    private val repository: ServerRepository = ServiceLocator.serverRepository
-    private val serverAddress: String = repository.getServerById(serverId)?.address.orEmpty()
+    private val serverAddress: String = dependencies.getServerById(serverId)?.address.orEmpty()
 
     private val _state = MutableStateFlow(JoinRequestsUiState())
-    val state: StateFlow<JoinRequestsUiState> = _state
+    val state: StateFlow<JoinRequestsUiState> = _state.asStateFlow()
 
     init {
         loadRequests()
@@ -44,9 +77,7 @@ class JoinRequestsViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
                 return@launch
             }
 
-            val client = ServiceLocator.connectionManager.getClient(serverAddress)
-
-            when (val serverResult = client.getServer()) {
+            when (val serverResult = dependencies.getServer(serverAddress)) {
                 is ApiResult.Success -> {
                     _state.value = _state.value.copy(serverName = serverResult.data.name)
                 }
@@ -54,7 +85,7 @@ class JoinRequestsViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
                 is ApiResult.Failure -> Unit
             }
 
-            when (val result = client.getJoinRequests()) {
+            when (val result = dependencies.getJoinRequests(serverAddress)) {
                 is ApiResult.Success -> {
                     _state.value = _state.value.copy(
                         requests = result.data.filter { it.status == JoinRequestStatus.PENDING },
@@ -79,8 +110,7 @@ class JoinRequestsViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
     fun approve(requestId: String) {
         viewModelScope.launch {
             if (serverAddress.isBlank()) return@launch
-            val client = ServiceLocator.connectionManager.getClient(serverAddress)
-            when (val result = client.updateJoinRequest(requestId, "APPROVED")) {
+            when (val result = dependencies.updateJoinRequest(serverAddress, requestId, "APPROVED")) {
                 is ApiResult.Success -> {
                     _state.value = _state.value.copy(
                         requests = _state.value.requests.filter { it.id != requestId },
@@ -103,8 +133,7 @@ class JoinRequestsViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
     fun decline(requestId: String) {
         viewModelScope.launch {
             if (serverAddress.isBlank()) return@launch
-            val client = ServiceLocator.connectionManager.getClient(serverAddress)
-            when (val result = client.updateJoinRequest(requestId, "DECLINED")) {
+            when (val result = dependencies.updateJoinRequest(serverAddress, requestId, "DECLINED")) {
                 is ApiResult.Success -> {
                     _state.value = _state.value.copy(
                         requests = _state.value.requests.filter { it.id != requestId },

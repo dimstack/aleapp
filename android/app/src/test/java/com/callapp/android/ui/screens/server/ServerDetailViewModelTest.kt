@@ -176,6 +176,8 @@ class ServerDetailViewModelTest {
             return removeUserResult
         }
 
+        override fun disconnectServer(serverAddress: String) = Unit
+
         override fun currentUserId(): String = currentUserId
     }
 
