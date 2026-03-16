@@ -9,10 +9,16 @@ import com.callapp.android.network.dto.AuthResponse
 import com.callapp.android.network.dto.ConnectResponse
 import com.callapp.android.network.result.ApiError
 import com.callapp.android.network.result.ApiResult
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -24,11 +30,20 @@ data class ServerAvailabilityInfo(
     val message: String? = null,
 )
 
+sealed interface PendingApprovalEvent {
+    data class Declined(
+        val serverAddress: String,
+        val serverName: String,
+    ) : PendingApprovalEvent
+}
+
 class ServerRepository(private val connectionManager: ServerConnectionManager) {
 
     private val availabilityMutex = Mutex()
     private val _availabilityByAddress = MutableStateFlow<Map<String, ServerAvailabilityInfo>>(emptyMap())
     val availabilityByAddress: StateFlow<Map<String, ServerAvailabilityInfo>> = _availabilityByAddress.asStateFlow()
+    private val _pendingApprovalEvents = MutableSharedFlow<PendingApprovalEvent>(extraBufferCapacity = 1)
+    val pendingApprovalEvents: SharedFlow<PendingApprovalEvent> = _pendingApprovalEvents.asSharedFlow()
 
     fun getConnectedServers(): List<Server> {
         val store = getSessionStoreOrNull() ?: return emptyList()
@@ -68,7 +83,11 @@ class ServerRepository(private val connectionManager: ServerConnectionManager) {
         serverAddress: String,
         inviteToken: String,
     ): ApiResult<ConnectResponse> {
-        return connectionManager.getClient(serverAddress).connect(inviteToken)
+        val result = connectionManager.getClient(serverAddress).connect(inviteToken)
+        if (result is ApiResult.Success) {
+            persistConnectSession(serverAddress, result.data)
+        }
+        return result
     }
 
     suspend fun login(
@@ -77,7 +96,11 @@ class ServerRepository(private val connectionManager: ServerConnectionManager) {
         username: String,
         password: String,
     ): ApiResult<AuthResponse> {
-        return connectionManager.getClient(serverAddress).login(inviteToken, username, password)
+        val result = connectionManager.getClient(serverAddress).login(inviteToken, username, password)
+        if (result is ApiResult.Success) {
+            persistAuthSession(serverAddress, result.data)
+        }
+        return result
     }
 
     suspend fun createInviteToken(
@@ -106,11 +129,15 @@ class ServerRepository(private val connectionManager: ServerConnectionManager) {
     suspend fun refreshConnectedServersAvailability() {
         val servers = getConnectedServers()
         trimAvailability(servers.map { it.address }.toSet())
-        servers.forEach { server ->
-            val currentStatus = availabilityByAddress.value[server.address]?.status
-            if (currentStatus != ServerAvailabilityStatus.CHECKING) {
-                refreshServerAvailability(server.address)
-            }
+        coroutineScope {
+            servers.mapNotNull { server ->
+                val currentStatus = availabilityByAddress.value[server.address]?.status
+                if (currentStatus != ServerAvailabilityStatus.CHECKING) {
+                    async { refreshServerAvailability(server.address) }
+                } else {
+                    null
+                }
+            }.awaitAll()
         }
     }
 
@@ -160,15 +187,11 @@ class ServerRepository(private val connectionManager: ServerConnectionManager) {
                     when {
                         response.isJoined -> {
                             val shouldSetActive = store.activeServerAddress.isBlank()
-                            connectionManager.restoreSession(pending.serverAddress, response.sessionToken)
-                            store.saveSession(
+                            persistAuthSession(
                                 serverAddress = pending.serverAddress,
-                                sessionToken = response.sessionToken,
-                                userId = response.user?.id.orEmpty(),
-                                serverName = response.server?.name ?: pending.serverName,
-                                serverUsername = response.server?.username.orEmpty(),
-                                serverId = response.server?.id.orEmpty(),
+                                response = response,
                                 setActive = shouldSetActive,
+                                fallbackServerName = pending.serverName,
                             )
                             if (shouldSetActive) {
                                 ServiceLocator.activeServerAddress = pending.serverAddress
@@ -186,7 +209,15 @@ class ServerRepository(private val connectionManager: ServerConnectionManager) {
                 is ApiResult.Failure -> {
                     when (result.error) {
                         ApiError.NetworkError -> Unit
-                        else -> store.removePendingApproval(pending.serverAddress)
+                        else -> {
+                            store.removePendingApproval(pending.serverAddress)
+                            _pendingApprovalEvents.tryEmit(
+                                PendingApprovalEvent.Declined(
+                                    serverAddress = pending.serverAddress,
+                                    serverName = pending.serverName,
+                                ),
+                            )
+                        }
                     }
                 }
             }
@@ -281,6 +312,51 @@ class ServerRepository(private val connectionManager: ServerConnectionManager) {
 
     private fun trimAvailability(currentAddresses: Set<String>) {
         _availabilityByAddress.value = _availabilityByAddress.value.filterKeys { it in currentAddresses }
+    }
+
+    private fun persistConnectSession(
+        serverAddress: String,
+        response: ConnectResponse,
+    ) {
+        if (!response.isJoined) return
+        val store = getSessionStoreOrNull() ?: return
+        connectionManager.restoreSession(serverAddress, response.sessionToken)
+        ServiceLocator.activeServerAddress = serverAddress
+        ServiceLocator.currentUserId = response.user?.id.orEmpty()
+        store.saveSession(
+            serverAddress = serverAddress,
+            sessionToken = response.sessionToken,
+            userId = response.user?.id.orEmpty(),
+            serverName = response.server?.name.orEmpty(),
+            serverUsername = response.server?.username.orEmpty(),
+            serverId = response.server?.id.orEmpty(),
+        )
+    }
+
+    private fun persistAuthSession(
+        serverAddress: String,
+        response: AuthResponse,
+        setActive: Boolean = true,
+        fallbackServerName: String = "",
+    ) {
+        if (!response.isJoined) return
+        val store = getSessionStoreOrNull() ?: return
+        connectionManager.restoreSession(serverAddress, response.sessionToken)
+        if (setActive) {
+            ServiceLocator.activeServerAddress = serverAddress
+            ServiceLocator.currentUserId = response.user?.id.orEmpty()
+        }
+        store.saveSession(
+            serverAddress = serverAddress,
+            sessionToken = response.sessionToken,
+            userId = response.user?.id.orEmpty(),
+            serverName = response.server?.name ?: fallbackServerName,
+            serverUsername = response.server?.username.orEmpty(),
+            serverId = response.server?.id.orEmpty(),
+            setActive = setActive,
+        )
+        store.removePendingApproval(serverAddress)
+        setAvailability(serverAddress, ServerAvailabilityInfo(ServerAvailabilityStatus.AVAILABLE))
     }
 
     private fun availabilityMessage(error: ApiError): String = when (error) {
