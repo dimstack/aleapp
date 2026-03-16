@@ -1,6 +1,7 @@
 package com.callapp.server
 
 import io.ktor.client.request.bearerAuth
+import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.statement.bodyAsText
@@ -68,6 +69,34 @@ class FavoritesEdgeCasesTest {
 
         val favoritesResponse = client.get("/api/favorites") {
             bearerAuth(token)
+        }
+        val favorites = testJson.parseToJsonElement(favoritesResponse.bodyAsText()).jsonArray
+        assertEquals(0, favorites.size)
+    }
+
+    @Test
+    fun `favoriteRemovedUser_disappearsFromList`() = testWithDatabase("test-favorites-edge") { dbPath ->
+        application { module() }
+        client.get("/health")
+        seedInviteToken(dbPath, "FAV00001")
+        seedInviteToken(dbPath, "FAV00002")
+        seedUser(dbPath, "@user", "verysecure")
+        seedUser(dbPath, "@admin", "supersecure", role = "ADMIN")
+        val friendId = seedUser(dbPath, "@friend", "verysecure")
+        val userToken = login("FAV00001", "user", "verysecure")
+        val adminToken = login("FAV00002", "admin", "supersecure")
+
+        client.post("/api/favorites/$friendId") {
+            bearerAuth(userToken)
+        }
+
+        val deleteResponse = client.delete("/api/users/$friendId") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.NoContent, deleteResponse.status)
+
+        val favoritesResponse = client.get("/api/favorites") {
+            bearerAuth(userToken)
         }
         val favorites = testJson.parseToJsonElement(favoritesResponse.bodyAsText()).jsonArray
         assertEquals(0, favorites.size)

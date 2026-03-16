@@ -117,4 +117,27 @@ class LoginRateLimitingTest {
         assertEquals(HttpStatusCode.Locked, lockedResponse.status)
         assertEquals(HttpStatusCode.Unauthorized, otherUserResponse.status)
     }
+
+    @Test
+    fun `lockoutExpired_wrongPasswordStartsNewCounter`() = testWithDatabase("test-login-rate") { dbPath ->
+        application { module() }
+        client.get("/health")
+        seedInviteToken(dbPath, "LOGIN123")
+        seedUser(dbPath, "@tester", "verysecure")
+        seedLoginAttempt(
+            dbPath = dbPath,
+            username = "@tester",
+            failedAttempts = 5,
+            lockedUntil = Instant.now().minus(16, ChronoUnit.MINUTES),
+        )
+
+        val response = client.post("/api/auth/login") {
+            header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+            setBody("""{"invite_token":"LOGIN123","username":"tester","password":"wrong-pass"}""")
+        }
+
+        assertEquals(HttpStatusCode.Unauthorized, response.status)
+        val body = testJson.parseToJsonElement(response.bodyAsText()).jsonObject
+        assertEquals("unauthorized", body["code"]!!.jsonPrimitive.content)
+    }
 }

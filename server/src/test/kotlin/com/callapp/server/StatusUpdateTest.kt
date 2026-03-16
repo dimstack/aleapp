@@ -98,4 +98,32 @@ class StatusUpdateTest {
             assertEquals("offline", message.status)
         }
     }
+
+    @Test
+    fun `statusUpdate_notBroadcastToOtherServers`() = testWithDatabase("test-status-update") { dbPath ->
+        application { module() }
+        client.get("/health")
+        seedInviteToken(dbPath, "STATUS01", serverId = "test-server")
+        val senderId = seedUser(dbPath, "@sender", "verysecure", serverId = "test-server")
+        val receiverId = seedUser(dbPath, "@receiver", "verysecure", serverId = "other-server")
+        val senderToken = login("STATUS01", "sender", "verysecure")
+        val receiverToken = createUserToken(
+            userId = receiverId,
+            serverId = "other-server",
+        )
+
+        val wsClient = createClient { install(WebSockets) }
+        wsClient.webSocket("/ws?token=$receiverToken") {
+            val senderJob = async {
+                wsClient.webSocket("/ws?token=$senderToken") {
+                    send(Frame.Text(SignalMessage.StatusUpdate(userId = senderId, status = "online").toJson()))
+                    delay(1_500)
+                }
+            }
+
+            val frame = withTimeoutOrNull(1_000) { incoming.receiveCatching().getOrNull() }
+            assertNull(frame)
+            senderJob.await()
+        }
+    }
 }

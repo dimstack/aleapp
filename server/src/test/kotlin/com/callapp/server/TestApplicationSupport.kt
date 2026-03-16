@@ -1,5 +1,7 @@
 package com.callapp.server
 
+import com.auth0.jwt.JWT
+import com.auth0.jwt.algorithms.Algorithm
 import com.callapp.server.models.UserStatus
 import com.callapp.server.service.PasswordService
 import io.ktor.client.request.header
@@ -14,6 +16,7 @@ import io.ktor.server.testing.testApplication
 import java.io.File
 import java.sql.DriverManager
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
@@ -222,4 +225,26 @@ internal fun seedLoginAttempt(
             statement.executeUpdate()
         }
     }
+}
+
+internal fun createUserToken(
+    userId: String,
+    serverId: String,
+    role: String = "MEMBER",
+    jwtSecret: String = "test-secret",
+    issuer: String = "test-issuer",
+    audience: String = "test-audience",
+): String {
+    val sessionType = if (role == "ADMIN") "ADMIN" else "USER"
+    val now = Instant.now()
+    return JWT.create()
+        .withIssuer(issuer)
+        .withAudience(audience)
+        .withIssuedAt(java.util.Date.from(now))
+        .withExpiresAt(java.util.Date.from(now.plus(30, ChronoUnit.DAYS)))
+        .withSubject(userId)
+        .withClaim("serverId", serverId)
+        .withClaim("sessionType", sessionType)
+        .withClaim("role", role)
+        .sign(Algorithm.HMAC256(jwtSecret))
 }

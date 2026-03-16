@@ -48,8 +48,12 @@ class OnboardingService(
         val server = requireServer()
         val normalizedUsername = normalizeUsername(request.username)
         val attempt = loginAttemptRepository.find(server.id, normalizedUsername)
-        if (attempt?.lockedUntil != null && attempt.lockedUntil.isAfter(Instant.now(clock))) {
+        val now = Instant.now(clock)
+        if (attempt?.lockedUntil != null && attempt.lockedUntil.isAfter(now)) {
             throw ApiException(HttpStatusCode.Locked, "login_locked", "Too many failed login attempts")
+        }
+        if (attempt?.lockedUntil != null && !attempt.lockedUntil.isAfter(now)) {
+            loginAttemptRepository.reset(server.id, normalizedUsername)
         }
 
         val pendingRequest = userRepository.findPendingJoinRequest(server.id, normalizedUsername)
