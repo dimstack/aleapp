@@ -4,6 +4,7 @@ import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,10 +24,15 @@ enum class ConnectionState { Disconnected, Connecting, Connected, Error }
 class SignalingClient(
     private val serverAddress: String,
     @Volatile var sessionToken: String,
+    private val okHttpClient: OkHttpClient = OkHttpClient.Builder()
+        .readTimeout(0, TimeUnit.MILLISECONDS)
+        .build(),
+    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+    private val initialRetryDelayMillis: Long = INITIAL_RETRY_DELAY,
+    private val maxRetryDelayMillis: Long = MAX_RETRY_DELAY,
+    private val maxReconnectAttempts: Int = Int.MAX_VALUE,
+    private val onReconnectScheduled: (delayMillis: Long, attempt: Int) -> Unit = { _, _ -> },
 ) {
-
-    private var scopeJob = SupervisorJob()
-    private var scope = CoroutineScope(scopeJob + Dispatchers.IO)
 
     private val _connectionState = MutableStateFlow(ConnectionState.Disconnected)
     val connectionState: StateFlow<ConnectionState> = _connectionState
@@ -34,18 +40,16 @@ class SignalingClient(
     private val _messages = MutableSharedFlow<SignalMessage>(extraBufferCapacity = 64)
     val messages: SharedFlow<SignalMessage> = _messages
 
-    private val okHttpClient = OkHttpClient.Builder()
-        .readTimeout(0, TimeUnit.MILLISECONDS)
-        .build()
-
     private var webSocket: WebSocket? = null
     private var autoReconnect = true
-    private var retryDelay = INITIAL_RETRY_DELAY
+    private var retryDelay = initialRetryDelayMillis
+    private var reconnectAttempts = 0
 
     fun connect() {
         if (_connectionState.value == ConnectionState.Connecting) return
         autoReconnect = true
-        retryDelay = INITIAL_RETRY_DELAY
+        retryDelay = initialRetryDelayMillis
+        reconnectAttempts = 0
         openWebSocket()
     }
 
@@ -64,13 +68,14 @@ class SignalingClient(
     /** Полное уничтожение — после вызова объект нельзя переиспользовать. */
     fun destroy() {
         disconnect()
-        scopeJob.cancel()
+        scope.cancel()
     }
 
     fun reconnect() {
         webSocket?.close(NORMAL_CLOSURE, null)
         webSocket = null
-        retryDelay = INITIAL_RETRY_DELAY
+        retryDelay = initialRetryDelayMillis
+        reconnectAttempts = 0
         openWebSocket()
     }
 
@@ -91,8 +96,14 @@ class SignalingClient(
 
     private fun scheduleReconnect() {
         if (!autoReconnect) return
+        if (reconnectAttempts >= maxReconnectAttempts) {
+            _connectionState.value = ConnectionState.Disconnected
+            return
+        }
+        reconnectAttempts += 1
         val currentDelay = retryDelay
-        retryDelay = (retryDelay * 2).coerceAtMost(MAX_RETRY_DELAY)
+        retryDelay = (retryDelay * 2).coerceAtMost(maxRetryDelayMillis)
+        onReconnectScheduled(currentDelay, reconnectAttempts)
         scope.launch {
             delay(currentDelay)
             if (autoReconnect) openWebSocket()
@@ -103,7 +114,6 @@ class SignalingClient(
 
         override fun onOpen(webSocket: WebSocket, response: Response) {
             _connectionState.value = ConnectionState.Connected
-            retryDelay = INITIAL_RETRY_DELAY
         }
 
         override fun onMessage(webSocket: WebSocket, text: String) {
