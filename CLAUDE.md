@@ -5,6 +5,7 @@
 - If the user writes `КИП`, it means: perform `git commit` and `git push` to GitHub.
 - For every new feature, write tests whenever possible.
 - After making changes, verify compilation and run the tests.
+- In PowerShell, do not use `&&` as a command separator; use `;` or run commands separately.
 
 ## Project Overview
 
