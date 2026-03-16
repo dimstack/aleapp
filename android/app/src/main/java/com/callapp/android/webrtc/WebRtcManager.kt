@@ -84,7 +84,7 @@ class WebRtcManager(
         }
     }
 
-    private fun buildIceServers(
+    internal fun buildIceServers(
         serverAddress: String,
         turnUsername: String,
         turnPassword: String,
@@ -209,9 +209,9 @@ class WebRtcManager(
             mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"))
             mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveVideo", "true"))
         }
-        peerConnection?.createOffer(sdpObserver(
+        peerConnection?.createOffer(createSdpObserver(
             onCreateSuccess = { sdp ->
-                peerConnection?.setLocalDescription(sdpObserver(), sdp)
+                peerConnection?.setLocalDescription(createSdpObserver(), sdp)
                 callback(sdp)
             }
         ), constraints)
@@ -222,16 +222,16 @@ class WebRtcManager(
             mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"))
             mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveVideo", "true"))
         }
-        peerConnection?.createAnswer(sdpObserver(
+        peerConnection?.createAnswer(createSdpObserver(
             onCreateSuccess = { sdp ->
-                peerConnection?.setLocalDescription(sdpObserver(), sdp)
+                peerConnection?.setLocalDescription(createSdpObserver(), sdp)
                 callback(sdp)
             }
         ), constraints)
     }
 
     fun setRemoteDescription(sdp: SessionDescription) {
-        peerConnection?.setRemoteDescription(sdpObserver(), sdp)
+        peerConnection?.setRemoteDescription(createSdpObserver(), sdp)
     }
 
     fun addIceCandidate(candidate: IceCandidate) {
@@ -323,7 +323,7 @@ class WebRtcManager(
 
     // ── SDP observer helper ──────────────────────────────────────────────
 
-    private fun sdpObserver(
+    internal fun createSdpObserver(
         onCreateSuccess: ((SessionDescription) -> Unit)? = null,
     ): SdpObserver = object : SdpObserver {
         override fun onCreateSuccess(sdp: SessionDescription) {
