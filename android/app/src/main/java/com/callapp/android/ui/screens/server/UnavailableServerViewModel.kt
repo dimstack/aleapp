@@ -3,9 +3,11 @@ package com.callapp.android.ui.screens.server
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.callapp.android.data.ServerAvailabilityInfo
 import com.callapp.android.data.ServiceLocator
 import com.callapp.android.domain.model.Server
 import com.callapp.android.domain.model.ServerAvailabilityStatus
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,12 +22,36 @@ data class UnavailableServerUiState(
     val isRemoved: Boolean = false,
 )
 
+interface UnavailableServerDependencies {
+    fun observeServerById(serverId: String): Flow<Server?>
+    suspend fun refreshServerAvailability(serverAddress: String): ServerAvailabilityInfo
+    fun clearServerSession(serverAddress: String)
+}
+
+object DefaultUnavailableServerDependencies : UnavailableServerDependencies {
+    private val repository get() = ServiceLocator.serverRepository
+
+    override fun observeServerById(serverId: String): Flow<Server?> = repository.observeServerById(serverId)
+
+    override suspend fun refreshServerAvailability(serverAddress: String): ServerAvailabilityInfo =
+        repository.refreshServerAvailability(serverAddress)
+
+    override fun clearServerSession(serverAddress: String) {
+        ServiceLocator.clearServerSession(serverAddress)
+    }
+}
+
 class UnavailableServerViewModel(
     savedStateHandle: SavedStateHandle,
+    private val dependencies: UnavailableServerDependencies = DefaultUnavailableServerDependencies,
 ) : ViewModel() {
 
+    constructor(savedStateHandle: SavedStateHandle) : this(
+        savedStateHandle = savedStateHandle,
+        dependencies = DefaultUnavailableServerDependencies,
+    )
+
     private val serverId: String = savedStateHandle["serverId"] ?: ""
-    private val repository = ServiceLocator.serverRepository
 
     private val _state = MutableStateFlow(UnavailableServerUiState())
     val state: StateFlow<UnavailableServerUiState> = _state.asStateFlow()
@@ -38,7 +64,7 @@ class UnavailableServerViewModel(
 
     private fun observeServer() {
         viewModelScope.launch {
-            repository.observeServerById(serverId).collect { server ->
+            dependencies.observeServerById(serverId).collect { server ->
                 serverAddress = server?.address.orEmpty()
                 _state.value = _state.value.copy(
                     isLoading = false,
@@ -53,7 +79,7 @@ class UnavailableServerViewModel(
         if (serverAddress.isBlank()) return
         _state.value = _state.value.copy(isRefreshing = true)
         viewModelScope.launch {
-            val availability = repository.refreshServerAvailability(serverAddress)
+            val availability = dependencies.refreshServerAvailability(serverAddress)
             _state.value = _state.value.copy(
                 isRefreshing = false,
                 openServer = availability.status == ServerAvailabilityStatus.AVAILABLE,
@@ -64,7 +90,7 @@ class UnavailableServerViewModel(
     fun removeServer() {
         if (serverAddress.isBlank()) return
         _state.value = _state.value.copy(isRemoving = true)
-        ServiceLocator.clearServerSession(serverAddress)
+        dependencies.clearServerSession(serverAddress)
         _state.value = _state.value.copy(
             isRemoving = false,
             isRemoved = true,
