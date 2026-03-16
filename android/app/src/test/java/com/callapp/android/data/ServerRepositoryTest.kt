@@ -356,6 +356,23 @@ class ServerRepositoryTest {
         }
     }
 
+    @Test
+    fun processPendingApprovals_networkError_keepsPending() = runTest {
+        val address = "http://127.0.0.1:9"
+        sessionStore.savePendingApproval(
+            serverAddress = address,
+            inviteToken = "INVITE123",
+            username = "@alex",
+            password = "password123",
+            serverName = "Alpha",
+        )
+
+        repository.processPendingApprovals()
+
+        assertTrue(sessionStore.getPendingApprovals().containsKey(address))
+        assertFalse(sessionStore.getSessions().containsKey(address))
+    }
+
     private fun createServer(): MockWebServer =
         MockWebServer().also {
             it.start()

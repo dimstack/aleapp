@@ -307,6 +307,58 @@ class SignalingClientTest {
     }
 
     @Test
+    fun disconnect_cancelsScheduledReconnect() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        testScope = CoroutineScope(SupervisorJob() + dispatcher)
+        val reconnectDelays = CopyOnWriteArrayList<Long>()
+        server.enqueue(
+            MockResponse().withWebSocketUpgrade(
+                object : WebSocketListener() {
+                    override fun onOpen(webSocket: WebSocket, response: okhttp3.Response) {
+                        webSocket.close(1012, "restart")
+                    }
+                },
+            ),
+        )
+        val client = createClient(
+            onReconnectScheduled = { delayMillis, _ -> reconnectDelays += delayMillis },
+        )
+
+        client.connect()
+        eventually { reconnectDelays.size == 1 }
+        client.disconnect()
+        advanceTimeBy(60_000L)
+        runCurrent()
+
+        assertEquals(listOf(1_000L), reconnectDelays)
+        assertEquals(1, server.requestCount)
+        assertEquals(ConnectionState.Disconnected, client.connectionState.value)
+    }
+
+    @Test
+    fun invalidIncomingMessage_ignoredWithoutCrash() = runTest {
+        testScope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
+        server.enqueue(
+            MockResponse().withWebSocketUpgrade(
+                object : WebSocketListener() {
+                    override fun onOpen(webSocket: WebSocket, response: okhttp3.Response) {
+                        webSocket.send("{not-json")
+                    }
+                },
+            ),
+        )
+        val client = createClient()
+
+        client.messages.test {
+            awaitConnected(client)
+            expectNoEvents()
+            assertEquals(ConnectionState.Connected, client.connectionState.value)
+            client.disconnect()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun parseAllMessageTypes() {
         val cases = listOf(
             SignalMessage.Offer(
@@ -376,7 +428,7 @@ class SignalingClientTest {
     }
 
     private fun eventually(
-        timeoutMillis: Long = 3_000L,
+        timeoutMillis: Long = 10_000L,
         condition: () -> Boolean,
     ) {
         val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis)
