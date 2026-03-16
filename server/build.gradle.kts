@@ -1,6 +1,7 @@
 plugins {
     kotlin("jvm") version "2.2.10"
     kotlin("plugin.serialization") version "2.2.10"
+    id("org.jetbrains.kotlinx.kover") version "0.9.1"
     application
 }
 
@@ -45,4 +46,33 @@ dependencies {
 
 tasks.test {
     useJUnitPlatform()
+}
+
+kover {
+    reports {
+        filters {
+            excludes {
+                classes(
+                    "*.ApplicationKt",
+                    "*.AppDependenciesKt"
+                )
+            }
+        }
+
+        total {
+            html {
+                onCheck = false
+            }
+            xml {
+                onCheck = false
+            }
+            verify {
+                rule {
+                    bound {
+                        minValue = 0
+                    }
+                }
+            }
+        }
+    }
 }
