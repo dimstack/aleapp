@@ -24,9 +24,17 @@ class SignalingManager(
         sessions[userId] = ConnectedClient(principal, session)
     }
 
-    fun disconnect(userId: String?) {
-        if (userId != null) {
-            sessions.remove(userId)
+    suspend fun disconnect(principal: SessionPrincipal?) {
+        val userId = principal?.userId ?: return
+        val removed = sessions.remove(userId) ?: return
+        if (removed.principal.serverId == principal.serverId) {
+            broadcastStatus(
+                serverId = principal.serverId,
+                message = SignalMessage.StatusUpdate(
+                    userId = userId,
+                    status = "offline",
+                ),
+            )
         }
     }
 
@@ -40,6 +48,9 @@ class SignalingManager(
         val target = sessions[message.targetUserId]
 
         if (message is SignalMessage.StatusUpdate) {
+            if (message.status.equals("invisible", ignoreCase = true)) {
+                return
+            }
             broadcastStatus(principal.serverId, message)
             return
         }

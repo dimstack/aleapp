@@ -43,7 +43,7 @@ class InviteTokenRepository(
             SET current_uses = current_uses + 1
             WHERE id = ?
               AND is_revoked = 0
-              AND (max_uses = 0 OR current_uses < max_uses)
+              AND (max_uses IS NULL OR max_uses = 0 OR current_uses < max_uses)
             """.trimIndent(),
         ).use { statement ->
             statement.setString(1, inviteTokenId)

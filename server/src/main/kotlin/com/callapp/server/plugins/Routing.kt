@@ -243,7 +243,10 @@ fun Application.configureRouting() {
                 val principal = call.requireSessionPrincipal()
                 requireUser(principal)
                 val favorites = this@configureRouting.dependencies.managementService
-                    .listFavorites(principal.userId.orEmpty())
+                    .listFavorites(
+                        userId = principal.userId.orEmpty(),
+                        serverId = principal.serverId,
+                    )
                     .map { it.toDto() }
                 call.respond(HttpStatusCode.OK, favorites)
             }
@@ -320,7 +323,7 @@ fun Application.configureRouting() {
                     }
                 }
             } finally {
-                this@configureRouting.dependencies.signalingManager.disconnect(principal.userId)
+                this@configureRouting.dependencies.signalingManager.disconnect(principal)
             }
         }
     }

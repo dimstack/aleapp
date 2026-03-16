@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS invite_tokens (
     label TEXT NOT NULL,
     server_id TEXT NOT NULL,
     created_by TEXT,
-    max_uses INTEGER NOT NULL DEFAULT 0,
+    max_uses INTEGER DEFAULT 0,
     current_uses INTEGER NOT NULL DEFAULT 0,
     granted_role TEXT NOT NULL DEFAULT 'MEMBER',
     require_approval INTEGER NOT NULL DEFAULT 0,

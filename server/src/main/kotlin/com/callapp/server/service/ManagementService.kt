@@ -70,6 +70,9 @@ class ManagementService(
         }
 
     fun deleteUser(actorUserId: String, isAdmin: Boolean, userId: String) {
+        if (isAdmin && actorUserId == userId) {
+            throw ApiException(HttpStatusCode.BadRequest, "validation_error", "Admin cannot delete themselves")
+        }
         if (!isAdmin && actorUserId != userId) {
             throw ApiException(HttpStatusCode.Forbidden, "forbidden", "Cannot delete another user")
         }
@@ -111,7 +114,7 @@ class ManagementService(
         }
     }
 
-    fun listFavorites(userId: String) = favoriteRepository.listFavorites(userId)
+    fun listFavorites(userId: String, serverId: String) = favoriteRepository.listFavorites(userId, serverId)
 
     fun addFavorite(userId: String, favoriteUserId: String) {
         if (userId == favoriteUserId) {

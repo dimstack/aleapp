@@ -49,7 +49,7 @@ class OnboardingService(
         val normalizedUsername = normalizeUsername(request.username)
         val attempt = loginAttemptRepository.find(server.id, normalizedUsername)
         if (attempt?.lockedUntil != null && attempt.lockedUntil.isAfter(Instant.now(clock))) {
-            throw ApiException(HttpStatusCode.Unauthorized, "login_locked", "Too many failed login attempts")
+            throw ApiException(HttpStatusCode.Locked, "login_locked", "Too many failed login attempts")
         }
 
         val pendingRequest = userRepository.findPendingJoinRequest(server.id, normalizedUsername)
@@ -168,10 +168,11 @@ class OnboardingService(
         val failedAttempts = (current?.failedAttempts ?: 0) + 1
         val lockedUntil = if (failedAttempts >= 5) Instant.now(clock).plus(15, ChronoUnit.MINUTES) else null
         loginAttemptRepository.upsert(serverId, username, failedAttempts, lockedUntil)
+        val isLockedResponse = failedAttempts > 5
         throw ApiException(
-            status = HttpStatusCode.Unauthorized,
-            code = if (lockedUntil != null) "login_locked" else "unauthorized",
-            message = if (lockedUntil != null) "Too many failed login attempts" else "Invalid username or password",
+            status = if (isLockedResponse) HttpStatusCode.Locked else HttpStatusCode.Unauthorized,
+            code = if (isLockedResponse) "login_locked" else "unauthorized",
+            message = if (isLockedResponse) "Too many failed login attempts" else "Invalid username or password",
         )
     }
 

@@ -6,7 +6,7 @@ import javax.sql.DataSource
 class FavoriteRepository(
     private val dataSource: DataSource,
 ) {
-    fun listFavorites(userId: String): List<UserRecord> {
+    fun listFavorites(userId: String, serverId: String): List<UserRecord> {
         dataSource.connection.use { connection ->
             connection.prepareStatement(
                 """
@@ -14,11 +14,12 @@ class FavoriteRepository(
                        u.server_id, u.is_approved, u.created_at, u.updated_at, u.last_seen_at, u.lockout_until
                 FROM favorites f
                 JOIN users u ON u.id = f.favorite_user_id
-                WHERE f.user_id = ?
+                WHERE f.user_id = ? AND u.server_id = ?
                 ORDER BY u.display_name, u.username
                 """.trimIndent(),
             ).use { statement ->
                 statement.setString(1, userId)
+                statement.setString(2, serverId)
                 statement.executeQuery().use { rs ->
                     return buildList {
                         while (rs.next()) add(rs.toUserRecord())
