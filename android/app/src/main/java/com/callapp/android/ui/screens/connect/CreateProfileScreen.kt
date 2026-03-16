@@ -23,6 +23,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,6 +31,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -51,18 +53,52 @@ import com.callapp.android.ui.theme.AleAppTheme
 @Composable
 fun CreateProfileScreen(
     serverName: String = "New Server",
+    initialUsername: String = "",
+    initialName: String = "",
+    initialPassword: String = "",
+    initialConfirmPassword: String = "",
+    initialAvatarUrl: String = "",
+    triggerSubmitOnLaunch: Boolean = false,
     onCreateProfile: (username: String, name: String, password: String, avatarUrl: String?) -> Unit =
         { _, _, _, _ -> },
     modifier: Modifier = Modifier,
 ) {
     val colors = AleAppTheme.colors
 
-    var username by remember { mutableStateOf("") }
-    var name by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var confirmPassword by remember { mutableStateOf("") }
-    var avatarUrl by remember { mutableStateOf("") }
+    var username by remember { mutableStateOf(initialUsername) }
+    var name by remember { mutableStateOf(initialName) }
+    var password by remember { mutableStateOf(initialPassword) }
+    var confirmPassword by remember { mutableStateOf(initialConfirmPassword) }
+    var avatarUrl by remember { mutableStateOf(initialAvatarUrl) }
     var error by remember { mutableStateOf<String?>(null) }
+
+    val submitProfile = {
+        when {
+            username.isBlank() -> error = "Username РѕР±СЏР·Р°С‚РµР»РµРЅ"
+            !isValidUsername(username.trim()) ->
+                error = "Username РјРѕР¶РµС‚ СЃРѕРґРµСЂР¶Р°С‚СЊ С‚РѕР»СЊРєРѕ Р±СѓРєРІС‹, С†РёС„СЂС‹ Рё РїРѕРґС‡С‘СЂРєРёРІР°РЅРёРµ"
+            name.isBlank() -> error = "РРјСЏ РѕР±СЏР·Р°С‚РµР»СЊРЅРѕ"
+            password.length < MIN_PASSWORD_LENGTH ->
+                error = "РџР°СЂРѕР»СЊ РґРѕР»Р¶РµРЅ СЃРѕРґРµСЂР¶Р°С‚СЊ РјРёРЅРёРјСѓРј $MIN_PASSWORD_LENGTH СЃРёРјРІРѕР»РѕРІ"
+            password != confirmPassword ->
+                error = "РџР°СЂРѕР»Рё РЅРµ СЃРѕРІРїР°РґР°СЋС‚"
+            else -> {
+                error = null
+                onCreateProfile(
+                    username.trim(),
+                    name.trim(),
+                    password,
+                    avatarUrl.trim().ifEmpty { null },
+                )
+            }
+        }
+    }
+
+    LaunchedEffect(triggerSubmitOnLaunch) {
+        if (triggerSubmitOnLaunch) {
+            submitProfile()
+        }
+    }
 
     Box(
         modifier = modifier
@@ -96,6 +132,7 @@ fun CreateProfileScreen(
                         placeholder = "username",
                         singleLine = true,
                         prefix = "@ ",
+                        testTag = "create_profile_username_input",
                         helperText = "Только буквы, цифры и подчёркивание",
                     )
 
@@ -107,6 +144,7 @@ fun CreateProfileScreen(
                         onValueChange = { name = it; error = null },
                         placeholder = "Введите ваше имя",
                         singleLine = true,
+                        testTag = "create_profile_name_input",
                     )
 
                     // Password field
@@ -118,6 +156,7 @@ fun CreateProfileScreen(
                         placeholder = "Минимум 8 символов",
                         singleLine = true,
                         isPassword = true,
+                        testTag = "create_profile_password_input",
                         helperText = "Пароль понадобится для входа с другого устройства",
                     )
 
@@ -130,6 +169,7 @@ fun CreateProfileScreen(
                         placeholder = "Повторите пароль",
                         singleLine = true,
                         isPassword = true,
+                        testTag = "create_profile_confirm_password_input",
                     )
 
                     // Avatar URL field
@@ -140,6 +180,7 @@ fun CreateProfileScreen(
                         onValueChange = { avatarUrl = it },
                         placeholder = "https://example.com/avatar.jpg",
                         singleLine = true,
+                        testTag = "create_profile_avatar_input",
                     )
 
                     // Error message
@@ -156,7 +197,9 @@ fun CreateProfileScreen(
                                 text = error!!,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = colors.destructive,
-                                modifier = Modifier.padding(12.dp),
+                                modifier = Modifier
+                                    .padding(12.dp)
+                                    .testTag("create_profile_error"),
                             )
                         }
                     }
@@ -187,7 +230,9 @@ fun CreateProfileScreen(
                         },
                         variant = AleAppButtonVariant.Primary,
                         size = AleAppButtonSize.Large,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("create_profile_submit_button"),
                     ) {
                         Text("Создать профиль")
                     }
@@ -197,9 +242,7 @@ fun CreateProfileScreen(
             Spacer(Modifier.height(16.dp))
 
             // ── Hint block ──────────────────────────────────────────────────
-            ProfileHint(
-                modifier = Modifier.fillMaxWidth(),
-            )
+            ProfileHint(modifier = Modifier.fillMaxWidth())
         }
     }
 }

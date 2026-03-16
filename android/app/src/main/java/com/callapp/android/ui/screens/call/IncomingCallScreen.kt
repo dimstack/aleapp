@@ -32,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -72,6 +73,12 @@ fun IncomingCallScreen(
             .padding(horizontal = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        Box(
+            modifier = Modifier
+                .size(1.dp)
+                .testTag("incoming_call_type_marker_${callType.name.lowercase()}"),
+        )
+
         // ── Top: avatar + info ──────────────────────────────────────────────
         Column(
             modifier = Modifier
@@ -151,6 +158,7 @@ fun IncomingCallScreen(
                     )
                 },
                 onClick = onDecline,
+                modifier = Modifier.testTag("incoming_call_decline_button"),
             )
 
             // Accept
@@ -168,6 +176,7 @@ fun IncomingCallScreen(
                     )
                 },
                 onClick = onAccept,
+                modifier = Modifier.testTag("incoming_call_accept_button"),
             )
         }
 
@@ -195,7 +204,7 @@ private fun CallTypeBadge(
     val colors = AleAppTheme.colors
 
     Surface(
-        modifier = modifier,
+        modifier = modifier.testTag("incoming_call_type_${callType.name.lowercase()}"),
         shape = RoundedCornerShape(50),
         color = colors.card,
         border = androidx.compose.foundation.BorderStroke(1.dp, colors.border),
@@ -210,7 +219,9 @@ private fun CallTypeBadge(
                 else Icons.Filled.Call,
                 contentDescription = null,
                 tint = colors.primary,
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier
+                    .size(20.dp)
+                    .testTag("incoming_call_icon_${callType.name.lowercase()}"),
             )
             Text(
                 text = callType.label,
@@ -218,6 +229,7 @@ private fun CallTypeBadge(
                     fontWeight = FontWeight.Medium,
                 ),
                 color = colors.cardForeground,
+                modifier = Modifier.testTag("incoming_call_type_${callType.name.lowercase()}"),
             )
         }
     }

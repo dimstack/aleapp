@@ -46,6 +46,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -125,6 +128,7 @@ fun HomeScreen(
             modifier = modifier
                 .fillMaxSize()
                 .padding(padding)
+                .testTag("home_screen")
                 .verticalScroll(rememberScrollState()),
         ) {
             Spacer(Modifier.height(8.dp))
@@ -285,9 +289,15 @@ private fun HomeTopBar(
             actions = {
                 IconButton(onClick = onNotificationsClick) {
                     BadgedBox(
+                        modifier = Modifier.testTag("home_notifications_button"),
                         badge = {
                             if (notificationCount > 0) {
                                 Badge(
+                                    modifier = Modifier
+                                        .testTag("home_notification_badge")
+                                        .semantics {
+                                            contentDescription = "unread_notifications_$notificationCount"
+                                        },
                                     containerColor = colors.destructive,
                                     contentColor = colors.destructiveForeground,
                                 ) {
@@ -416,7 +426,10 @@ private fun FavoriteContactRow(
             )
         }
 
-        IconButton(onClick = onCallClick) {
+        IconButton(
+            onClick = onCallClick,
+            modifier = Modifier.testTag("favorite_call_${user.id}"),
+        ) {
             Icon(
                 imageVector = Icons.Default.Phone,
                 contentDescription = "Позвонить ${user.name}",

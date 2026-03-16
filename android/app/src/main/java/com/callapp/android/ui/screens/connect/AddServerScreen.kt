@@ -35,6 +35,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -91,6 +92,7 @@ fun AddServerScreen(
                         onValueChange = { token = it; localError = null },
                         placeholder = "server.example.com:3000/ABCD1234",
                         singleLine = true,
+                        testTag = "add_server_token_input",
                     )
 
                     error?.let {
@@ -103,7 +105,9 @@ fun AddServerScreen(
                                 text = it,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = colors.destructive,
-                                modifier = Modifier.padding(12.dp),
+                                modifier = Modifier
+                                    .padding(12.dp)
+                                    .testTag("add_server_error"),
                             )
                         }
                     }
@@ -127,7 +131,9 @@ fun AddServerScreen(
                         enabled = !isLoading,
                         variant = AleAppButtonVariant.Primary,
                         size = AleAppButtonSize.Large,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("add_server_submit_button"),
                     ) {
                         Text("Подключиться")
                     }

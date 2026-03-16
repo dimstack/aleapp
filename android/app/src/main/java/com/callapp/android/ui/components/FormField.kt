@@ -20,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -44,6 +45,7 @@ fun FormField(
     helperText: String? = null,
     isPassword: Boolean = false,
     minHeight: Int = 0,
+    testTag: String? = null,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
 ) {
     val colors = AleAppTheme.colors
@@ -119,7 +121,9 @@ fun FormField(
                         } else {
                             VisualTransformation.None
                         },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .then(if (testTag != null) Modifier.testTag(testTag) else Modifier),
                     )
                 }
             }

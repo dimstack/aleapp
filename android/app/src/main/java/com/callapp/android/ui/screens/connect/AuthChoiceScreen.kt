@@ -30,6 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -118,6 +119,7 @@ fun AuthChoiceScreen(
                         title = "Создать аккаунт",
                         description = "Зарегистрировать новый профиль на сервере",
                         onClick = onCreateAccount,
+                        modifier = Modifier.testTag("auth_choice_create_account"),
                     )
 
                     // Login option
@@ -126,6 +128,7 @@ fun AuthChoiceScreen(
                         title = "Войти в существующий",
                         description = "Войти с помощью username и пароля",
                         onClick = onLogin,
+                        modifier = Modifier.testTag("auth_choice_login"),
                     )
                 }
             }

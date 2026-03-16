@@ -22,12 +22,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -49,6 +51,9 @@ import com.callapp.android.ui.theme.AleAppTheme
 @Composable
 fun LoginScreen(
     serverName: String = "Server",
+    initialUsername: String = "",
+    initialPassword: String = "",
+    triggerSubmitOnLaunch: Boolean = false,
     isLoading: Boolean = false,
     externalError: String? = null,
     onLogin: (username: String, password: String) -> Unit = { _, _ -> },
@@ -56,12 +61,24 @@ fun LoginScreen(
 ) {
     val colors = AleAppTheme.colors
 
-    var username by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
+    var username by remember { mutableStateOf(initialUsername) }
+    var password by remember { mutableStateOf(initialPassword) }
     var error by remember { mutableStateOf<String?>(null) }
 
     // Show external error from ViewModel
     val displayError = externalError ?: error
+
+    LaunchedEffect(triggerSubmitOnLaunch, isLoading) {
+        if (
+            triggerSubmitOnLaunch &&
+            !isLoading &&
+            username.isNotBlank() &&
+            password.isNotBlank()
+        ) {
+            error = null
+            onLogin(username.trim(), password)
+        }
+    }
 
     Box(
         modifier = modifier
@@ -92,6 +109,7 @@ fun LoginScreen(
                         placeholder = "username",
                         singleLine = true,
                         prefix = "@ ",
+                        testTag = "login_username_input",
                         helperText = "Username, указанный при регистрации",
                     )
 
@@ -104,11 +122,13 @@ fun LoginScreen(
                         placeholder = "Введите пароль",
                         singleLine = true,
                         isPassword = true,
+                        testTag = "login_password_input",
                     )
 
                     // Error message
                     if (displayError != null) {
                         Surface(
+                            modifier = Modifier.testTag("login_error"),
                             shape = RoundedCornerShape(8.dp),
                             color = colors.destructive.copy(alpha = 0.1f),
                             border = BorderStroke(
@@ -141,7 +161,9 @@ fun LoginScreen(
                         variant = AleAppButtonVariant.Primary,
                         size = AleAppButtonSize.Large,
                         enabled = !isLoading,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("login_submit_button"),
                     ) {
                         Text(if (isLoading) "Вход..." else "Войти")
                     }
