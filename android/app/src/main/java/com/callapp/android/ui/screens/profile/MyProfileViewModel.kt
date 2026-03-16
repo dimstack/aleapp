@@ -4,6 +4,8 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.callapp.android.data.ServiceLocator
+import com.callapp.android.domain.model.Server
+import com.callapp.android.domain.model.User
 import com.callapp.android.domain.model.UserRole
 import com.callapp.android.network.result.ApiResult
 import com.callapp.android.ui.common.apiErrorMessage
@@ -21,12 +23,47 @@ data class MyProfileUiState(
     val saveSuccess: Boolean = false,
 )
 
+interface MyProfileDependencies {
+    fun getServerById(serverId: String): Server?
+    fun currentUserId(): String
+    suspend fun getUser(serverAddress: String, userId: String): ApiResult<User>
+    suspend fun updateUser(
+        serverAddress: String,
+        userId: String,
+        name: String,
+        username: String,
+    ): ApiResult<User>
+}
+
+object DefaultMyProfileDependencies : MyProfileDependencies {
+    private val repository get() = ServiceLocator.serverRepository
+
+    override fun getServerById(serverId: String): Server? = repository.getServerById(serverId)
+
+    override fun currentUserId(): String = ServiceLocator.currentUserId
+
+    override suspend fun getUser(serverAddress: String, userId: String): ApiResult<User> =
+        repository.getUser(serverAddress, userId)
+
+    override suspend fun updateUser(
+        serverAddress: String,
+        userId: String,
+        name: String,
+        username: String,
+    ): ApiResult<User> = repository.updateUser(serverAddress, userId, name = name, username = username)
+}
+
 class MyProfileViewModel(
     savedStateHandle: SavedStateHandle,
+    private val dependencies: MyProfileDependencies = DefaultMyProfileDependencies,
 ) : ViewModel() {
 
+    constructor(savedStateHandle: SavedStateHandle) : this(
+        savedStateHandle = savedStateHandle,
+        dependencies = DefaultMyProfileDependencies,
+    )
+
     private val serverId: String = savedStateHandle["serverId"] ?: ""
-    private val repository = ServiceLocator.serverRepository
 
     private val _state = MutableStateFlow(MyProfileUiState())
     val state: StateFlow<MyProfileUiState> = _state.asStateFlow()
@@ -37,9 +74,9 @@ class MyProfileViewModel(
         loadProfile()
     }
 
-    private fun loadProfile() {
-        val server = repository.getServerById(serverId)
-        val userId = ServiceLocator.currentUserId
+    fun loadProfile() {
+        val server = dependencies.getServerById(serverId)
+        val userId = dependencies.currentUserId()
 
         if (server == null || userId.isEmpty()) {
             _state.value = MyProfileUiState(isLoading = false, error = "Данные не найдены")
@@ -49,7 +86,7 @@ class MyProfileViewModel(
         serverAddress = server.address
 
         viewModelScope.launch {
-            when (val result = repository.getUser(serverAddress, userId)) {
+            when (val result = dependencies.getUser(serverAddress, userId)) {
                 is ApiResult.Success -> {
                     val user = result.data
                     _state.value = MyProfileUiState(
@@ -78,12 +115,12 @@ class MyProfileViewModel(
     }
 
     fun saveProfile(name: String, username: String) {
-        val userId = ServiceLocator.currentUserId
+        val userId = dependencies.currentUserId()
         if (serverAddress.isEmpty() || userId.isEmpty()) return
 
         _state.value = _state.value.copy(isSaving = true, saveError = null)
         viewModelScope.launch {
-            when (val result = repository.updateUser(serverAddress, userId, name = name, username = username)) {
+            when (val result = dependencies.updateUser(serverAddress, userId, name, username)) {
                 is ApiResult.Success -> {
                     _state.value = _state.value.copy(
                         isSaving = false,
