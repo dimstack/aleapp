@@ -116,6 +116,40 @@ class JoinRequestsViewModelTest {
         assertEquals(false, viewModel.state.value.isLoading)
     }
 
+    @Test
+    fun loadRequests_networkError() = runTest {
+        val dependencies = FakeJoinRequestsDependencies().apply {
+            joinRequestsResult = ApiResult.Failure(ApiError.NetworkError)
+        }
+
+        val viewModel = createViewModel(dependencies)
+        advanceUntilIdle()
+
+        assertTrue(viewModel.state.value.error != null)
+        assertTrue(viewModel.state.value.requests.isEmpty())
+    }
+
+    @Test
+    fun declineRequest_networkError_keepsRequest() = runTest {
+        val dependencies = FakeJoinRequestsDependencies().apply {
+            joinRequestsResult = ApiResult.Success(
+                listOf(
+                    testRequest(id = "req-1"),
+                    testRequest(id = "req-2"),
+                ),
+            )
+            updateJoinRequestResult = ApiResult.Failure(ApiError.NetworkError)
+        }
+        val viewModel = createViewModel(dependencies)
+        advanceUntilIdle()
+
+        viewModel.decline("req-2")
+        advanceUntilIdle()
+
+        assertEquals(listOf("req-1", "req-2"), viewModel.state.value.requests.map { it.id })
+        assertTrue(viewModel.state.value.error != null)
+    }
+
     private fun createViewModel(
         dependencies: JoinRequestsDependencies,
     ) = JoinRequestsViewModel(

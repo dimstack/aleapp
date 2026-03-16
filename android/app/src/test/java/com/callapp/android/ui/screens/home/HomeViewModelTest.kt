@@ -18,6 +18,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -92,6 +93,57 @@ class HomeViewModelTest {
         advanceUntilIdle()
 
         assertEquals(1, dependencies.processPendingApprovalsCalls)
+    }
+
+    @Test
+    fun init_withoutActiveServer_setsEmptyFavoritesAndZeroNotifications() = runTest {
+        val server = testServer()
+        val dependencies = FakeHomeDependencies(
+            serversFlow = MutableStateFlow(listOf(server)),
+            activeServerAddress = "",
+        )
+
+        val viewModel = HomeViewModel(dependencies)
+        advanceUntilIdle()
+
+        assertEquals(UiState.Success(emptyList<User>()), viewModel.favoritesState.value)
+        assertEquals(0, viewModel.notificationCount.value)
+        assertEquals(0, dependencies.getFavoritesCalls)
+        assertEquals(0, dependencies.getNotificationsCalls)
+    }
+
+    @Test
+    fun init_favoritesError_setsErrorState() = runTest {
+        val server = testServer()
+        val dependencies = FakeHomeDependencies(
+            serversFlow = MutableStateFlow(listOf(server)),
+            activeServerAddress = server.address,
+        ).apply {
+            favoritesResult = ApiResult.Failure(ApiError.NetworkError)
+        }
+
+        val viewModel = HomeViewModel(dependencies)
+        advanceUntilIdle()
+
+        assertTrue(viewModel.favoritesState.value is UiState.Error)
+    }
+
+    @Test
+    fun init_notificationsUnauthorized_setsFavoritesErrorAndResetsCount() = runTest {
+        val server = testServer()
+        val dependencies = FakeHomeDependencies(
+            serversFlow = MutableStateFlow(listOf(server)),
+            activeServerAddress = server.address,
+        ).apply {
+            favoritesResult = ApiResult.Success(listOf(testUser()))
+            notificationsResult = ApiResult.Failure(ApiError.Unauthorized(code = "unauthorized"))
+        }
+
+        val viewModel = HomeViewModel(dependencies)
+        advanceUntilIdle()
+
+        assertTrue(viewModel.favoritesState.value is UiState.Error)
+        assertEquals(0, viewModel.notificationCount.value)
     }
 
     @Test

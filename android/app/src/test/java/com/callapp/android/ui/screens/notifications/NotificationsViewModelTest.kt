@@ -4,12 +4,14 @@ import androidx.lifecycle.SavedStateHandle
 import com.callapp.android.domain.model.Notification
 import com.callapp.android.domain.model.NotificationType
 import com.callapp.android.domain.model.Server
+import com.callapp.android.network.result.ApiError
 import com.callapp.android.network.result.ApiResult
 import com.callapp.android.ui.screens.connect.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -98,6 +100,63 @@ class NotificationsViewModelTest {
         viewModel.markAsRead("n1")
         advanceUntilIdle()
 
+        assertEquals(1, viewModel.unreadCount.value)
+    }
+
+    @Test
+    fun loadNotifications_networkError() = runTest {
+        val dependencies = FakeNotificationsDependencies().apply {
+            notificationsResult = ApiResult.Failure(ApiError.NetworkError)
+        }
+
+        val viewModel = createViewModel(dependencies)
+        advanceUntilIdle()
+
+        assertTrue(viewModel.state.value.error != null)
+        assertTrue(viewModel.state.value.notifications.isEmpty())
+        assertEquals(0, viewModel.unreadCount.value)
+    }
+
+    @Test
+    fun clearAll_networkError_keepsList() = runTest {
+        val notifications = listOf(
+            testNotification(id = "n1", isRead = false),
+            testNotification(id = "n2", isRead = true),
+        )
+        val dependencies = FakeNotificationsDependencies().apply {
+            notificationsResult = ApiResult.Success(notifications)
+            clearNotificationsResult = ApiResult.Failure(ApiError.NetworkError)
+        }
+
+        val viewModel = createViewModel(dependencies)
+        advanceUntilIdle()
+
+        viewModel.clearAll()
+        advanceUntilIdle()
+
+        assertEquals(notifications, viewModel.state.value.notifications)
+        assertTrue(viewModel.state.value.error != null)
+        assertFalse(viewModel.state.value.notifications.isEmpty())
+    }
+
+    @Test
+    fun markAsRead_marksSingleNotification() = runTest {
+        val dependencies = FakeNotificationsDependencies().apply {
+            notificationsResult = ApiResult.Success(
+                listOf(
+                    testNotification(id = "n1", isRead = false),
+                    testNotification(id = "n2", isRead = false),
+                ),
+            )
+        }
+
+        val viewModel = createViewModel(dependencies)
+        advanceUntilIdle()
+
+        viewModel.markAsRead("n2")
+        advanceUntilIdle()
+
+        assertEquals(listOf(false, true), viewModel.state.value.notifications.map { it.isRead })
         assertEquals(1, viewModel.unreadCount.value)
     }
 

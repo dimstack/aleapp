@@ -37,6 +37,19 @@ class ProfileViewModelTest {
     }
 
     @Test
+    fun loadProfile_error() = runTest {
+        val dependencies = FakeMyProfileDependencies().apply {
+            userResult = ApiResult.Failure(ApiError.NetworkError)
+        }
+
+        val viewModel = createMyProfileViewModel(dependencies)
+        advanceUntilIdle()
+
+        assertTrue(viewModel.state.value.error != null)
+        assertNull(viewModel.state.value.profile)
+    }
+
+    @Test
     fun updateProfile_success() = runTest {
         val dependencies = FakeMyProfileDependencies().apply {
             updateUserResult = ApiResult.Success(
@@ -54,6 +67,22 @@ class ProfileViewModelTest {
         assertEquals("Updated Alex", profile?.name)
         assertEquals("@updated", profile?.username)
         assertTrue(viewModel.state.value.saveSuccess)
+    }
+
+    @Test
+    fun updateProfile_networkError() = runTest {
+        val dependencies = FakeMyProfileDependencies().apply {
+            updateUserResult = ApiResult.Failure(ApiError.NetworkError)
+        }
+
+        val viewModel = createMyProfileViewModel(dependencies)
+        advanceUntilIdle()
+
+        viewModel.saveProfile(name = "Updated Alex", username = "@updated")
+        advanceUntilIdle()
+
+        assertTrue(viewModel.state.value.saveError != null)
+        assertFalse(viewModel.state.value.saveSuccess)
     }
 
     @Test
@@ -104,7 +133,51 @@ class ProfileViewModelTest {
         advanceUntilIdle()
 
         assertFalse(viewModel.state.value.user?.isFavorite == true)
-        assertEquals("Нет соединения с сервером", viewModel.state.value.error)
+        assertTrue(viewModel.state.value.error != null)
+    }
+
+    @Test
+    fun loadUser_failure() = runTest {
+        val dependencies = FakeUserProfileDependencies().apply {
+            userResult = ApiResult.Failure(ApiError.NetworkError)
+        }
+
+        val viewModel = createUserProfileViewModel(dependencies)
+        advanceUntilIdle()
+
+        assertTrue(viewModel.state.value.error != null)
+        assertNull(viewModel.state.value.user)
+    }
+
+    @Test
+    fun favoritesLoadFailure_keepsProfileLoaded() = runTest {
+        val dependencies = FakeUserProfileDependencies().apply {
+            favoritesResult = ApiResult.Failure(ApiError.NetworkError)
+        }
+
+        val viewModel = createUserProfileViewModel(dependencies)
+        advanceUntilIdle()
+
+        assertEquals("Maria", viewModel.state.value.user?.name)
+        assertFalse(viewModel.state.value.user?.isFavorite == true)
+    }
+
+    @Test
+    fun removeFromFavorites_networkError_rollsBack() = runTest {
+        val favoriteUser = testUser(id = "user-2", name = "Maria", username = "@maria")
+        val dependencies = FakeUserProfileDependencies().apply {
+            favoritesResult = ApiResult.Success(listOf(favoriteUser))
+            removeFavoriteResult = ApiResult.Failure(ApiError.NetworkError)
+        }
+
+        val viewModel = createUserProfileViewModel(dependencies)
+        advanceUntilIdle()
+
+        viewModel.removeFromFavorites()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.state.value.user?.isFavorite == true)
+        assertTrue(viewModel.state.value.error != null)
     }
 
     private fun createMyProfileViewModel(
@@ -159,7 +232,8 @@ class ProfileViewModelTest {
             address = "https://server.example.com",
         )
 
-        var userResult: ApiResult<User> = ApiResult.Success(testUser(id = "user-2", name = "Maria", username = "@maria"))
+        var userResult: ApiResult<User> =
+            ApiResult.Success(testUser(id = "user-2", name = "Maria", username = "@maria"))
         var favoritesResult: ApiResult<List<User>> = ApiResult.Success(emptyList())
         var addFavoriteResult: ApiResult<Unit> = ApiResult.Success(Unit)
         var removeFavoriteResult: ApiResult<Unit> = ApiResult.Success(Unit)

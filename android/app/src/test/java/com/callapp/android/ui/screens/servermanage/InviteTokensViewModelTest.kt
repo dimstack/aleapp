@@ -5,6 +5,7 @@ import app.cash.turbine.test
 import com.callapp.android.domain.model.InviteToken
 import com.callapp.android.domain.model.Server
 import com.callapp.android.domain.model.UserRole
+import com.callapp.android.network.result.ApiError
 import com.callapp.android.network.result.ApiResult
 import com.callapp.android.ui.screens.connect.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -120,6 +121,73 @@ class InviteTokensViewModelTest {
             )
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    @Test
+    fun loadTokens_error() = runTest {
+        val dependencies = FakeInviteTokensDependencies().apply {
+            tokensResult = ApiResult.Failure(ApiError.NetworkError)
+        }
+
+        val viewModel = createViewModel(dependencies)
+        advanceUntilIdle()
+
+        assertTrue(viewModel.state.value is InviteTokensUiState.Error)
+    }
+
+    @Test
+    fun createToken_failure_setsActionError() = runTest {
+        val dependencies = FakeInviteTokensDependencies().apply {
+            tokensResult = ApiResult.Success(emptyList())
+            createResult = ApiResult.Failure(ApiError.NetworkError)
+        }
+
+        val viewModel = createViewModel(dependencies)
+        advanceUntilIdle()
+
+        viewModel.createToken("Team", 5, "MEMBER", false)
+        advanceUntilIdle()
+
+        val state = viewModel.state.value as InviteTokensUiState.Success
+        assertTrue(state.actionError != null)
+        assertTrue(state.tokens.isEmpty())
+    }
+
+    @Test
+    fun revokeToken_failure_keepsList() = runTest {
+        val initialTokens = listOf(testToken(id = "token-1"), testToken(id = "token-2"))
+        val dependencies = FakeInviteTokensDependencies().apply {
+            tokensResult = ApiResult.Success(initialTokens)
+            revokeResult = ApiResult.Failure(ApiError.NetworkError)
+        }
+
+        val viewModel = createViewModel(dependencies)
+        advanceUntilIdle()
+
+        viewModel.revokeToken("token-1")
+        advanceUntilIdle()
+
+        val state = viewModel.state.value as InviteTokensUiState.Success
+        assertEquals(initialTokens, state.tokens)
+        assertTrue(state.actionError != null)
+    }
+
+    @Test
+    fun clearActionError_resetsField() = runTest {
+        val dependencies = FakeInviteTokensDependencies().apply {
+            tokensResult = ApiResult.Success(emptyList())
+            createResult = ApiResult.Failure(ApiError.NetworkError)
+        }
+
+        val viewModel = createViewModel(dependencies)
+        advanceUntilIdle()
+
+        viewModel.createToken("Team", 5, "MEMBER", false)
+        advanceUntilIdle()
+        viewModel.clearActionError()
+
+        val state = viewModel.state.value as InviteTokensUiState.Success
+        assertEquals(null, state.actionError)
     }
 
     private fun createViewModel(
