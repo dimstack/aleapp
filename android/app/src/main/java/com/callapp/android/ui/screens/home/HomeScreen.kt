@@ -63,7 +63,6 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.callapp.android.domain.model.Server
 import com.callapp.android.domain.model.ServerAvailabilityStatus
-import com.callapp.android.domain.model.User
 import com.callapp.android.domain.model.UserStatus
 import com.callapp.android.ui.common.UiState
 import com.callapp.android.ui.components.AleAppCard
@@ -97,7 +96,7 @@ private fun serverImageColor(name: String): Color =
 @OptIn(ExperimentalMaterialApi::class)
 @Composable
 fun HomeScreen(
-    favoritesState: UiState<List<User>> = UiState.Success(PreviewData.favorites),
+    favoritesState: UiState<List<FavoriteContactItem>> = UiState.Success(PreviewData.favoriteItems),
     serversState: UiState<List<Server>> = UiState.Success(PreviewData.servers),
     isRefreshing: Boolean = false,
     notificationCount: Int = 1,
@@ -164,9 +163,9 @@ fun HomeScreen(
                 ) {
                     favorites.forEachIndexed { index, user ->
                         FavoriteContactRow(
-                            user = user,
-                            onCallClick = { onCallClick(user.serverId, user.id, user.name) },
-                            onContactClick = { onContactClick(user.serverId, user.id) },
+                            favorite = user,
+                            onCallClick = { onCallClick(user.user.serverId, user.user.id, user.user.name) },
+                            onContactClick = { onContactClick(user.user.serverId, user.user.id) },
                         )
                         if (index < favorites.lastIndex) {
                             HorizontalDivider(
@@ -411,12 +410,29 @@ private fun CountBadge(
 
 @Composable
 private fun FavoriteContactRow(
-    user: User,
+    favorite: FavoriteContactItem,
     onCallClick: () -> Unit,
     onContactClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val colors = AleAppTheme.colors
+    val user = favorite.user
+    val availabilityText = favorite.serverAvailabilityMessage ?: "Сервер недоступен"
+    val serverCaption = if (favorite.isUnavailable) {
+        "${favorite.serverName} • $availabilityText"
+    } else {
+        favorite.serverUsername
+    }
+    val serverUsernameCaption = if (favorite.isUnavailable) {
+        buildString {
+            append(favorite.serverUsername)
+            append(" • ")
+            append(availabilityText)
+        }
+    } else {
+        favorite.serverUsername
+    }
+    val serverHandle = favorite.serverUsername.removePrefix("@")
 
     Row(
         modifier = modifier
@@ -444,23 +460,60 @@ private fun FavoriteContactRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Text(
-                text = user.username,
-                style = MaterialTheme.typography.bodySmall,
-                color = colors.mutedForeground,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text(
+                    text = user.username,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.mutedForeground,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = "•",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.mutedForeground,
+                )
+                ServerImage(
+                    name = favorite.serverName,
+                    imageUrl = favorite.serverImageUrl,
+                    size = 18.dp,
+                )
+                Text(
+                    text = serverHandle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (favorite.isUnavailable) colors.destructive else colors.mutedForeground,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (favorite.isUnavailable) {
+                    Text(
+                        text = "•",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.destructive,
+                    )
+                    Text(
+                        text = availabilityText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.destructive,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
         }
 
         IconButton(
             onClick = onCallClick,
+            enabled = !favorite.isUnavailable,
             modifier = Modifier.testTag("favorite_call_${user.id}"),
         ) {
             Icon(
                 imageVector = Icons.Default.Phone,
                 contentDescription = "Позвонить ${user.name}",
-                tint = colors.primary,
+                tint = if (favorite.isUnavailable) colors.muted else colors.primary,
             )
         }
     }
@@ -757,7 +810,7 @@ private fun FavoriteOnlinePreview() {
     AleAppTheme(darkTheme = false) {
         Surface(color = AleAppTheme.colors.card) {
             FavoriteContactRow(
-                user = PreviewData.userAnna,
+                favorite = PreviewData.userAnna.toFavoriteContactItem(PreviewData.serverTech),
                 onCallClick = {},
             )
         }
@@ -770,7 +823,7 @@ private fun FavoriteOfflinePreview() {
     AleAppTheme(darkTheme = false) {
         Surface(color = AleAppTheme.colors.card) {
             FavoriteContactRow(
-                user = PreviewData.userMaria,
+                favorite = PreviewData.userMaria.toFavoriteContactItem(PreviewData.serverCreativeUnavailable),
                 onCallClick = {},
             )
         }
@@ -783,7 +836,7 @@ private fun FavoriteDarkPreview() {
     AleAppTheme(darkTheme = true) {
         Surface(color = AleAppTheme.colors.card) {
             FavoriteContactRow(
-                user = PreviewData.userDmitry,
+                favorite = PreviewData.userDmitry.toFavoriteContactItem(PreviewData.serverCreative),
                 onCallClick = {},
             )
         }
@@ -886,11 +939,11 @@ private fun FavoritesCardPreview() {
     AleAppTheme(darkTheme = false) {
         Surface(color = AleAppTheme.colors.background) {
             Column(modifier = Modifier.padding(16.dp)) {
-                SectionHeader(title = "Избранные", count = PreviewData.favorites.size)
+                SectionHeader(title = "Избранные", count = PreviewData.favoriteItems.size)
                 AleAppCard(modifier = Modifier.fillMaxWidth()) {
-                    PreviewData.favorites.forEachIndexed { index, user ->
-                        FavoriteContactRow(user = user, onCallClick = {})
-                        if (index < PreviewData.favorites.lastIndex) {
+                    PreviewData.favoriteItems.forEachIndexed { index, favorite ->
+                        FavoriteContactRow(favorite = favorite, onCallClick = {})
+                        if (index < PreviewData.favoriteItems.lastIndex) {
                             HorizontalDivider(
                                 color = AleAppTheme.colors.border,
                                 modifier = Modifier.padding(horizontal = 16.dp),

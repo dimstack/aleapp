@@ -10,8 +10,8 @@ import com.callapp.android.network.result.ApiError
 import com.callapp.android.network.result.ApiResult
 import com.callapp.android.ui.common.UiState
 import com.callapp.android.ui.screens.connect.MainDispatcherRule
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,7 +19,6 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -35,9 +34,10 @@ class HomeViewModelTest {
         val server = testServer()
         val dependencies = FakeHomeDependencies(
             serversFlow = MutableStateFlow(listOf(server)),
+            connectedServers = listOf(server),
             activeServerAddress = server.address,
         ).apply {
-            favoritesResult = ApiResult.Success(listOf(testUser()))
+            favoritesResult = ApiResult.Success(listOf(testUser(serverId = server.id)))
         }
 
         val viewModel = HomeViewModel(dependencies)
@@ -49,8 +49,11 @@ class HomeViewModelTest {
             cancelAndIgnoreRemainingEvents()
         }
 
-        assertTrue(viewModel.favoritesState.value is UiState.Success)
-        assertEquals(1, dependencies.getFavoritesCalls)
+        assertEquals(
+            UiState.Success(listOf(testUser(serverId = server.id).toFavoriteContactItem(server))),
+            viewModel.favoritesState.value,
+        )
+        assertEquals(listOf(server.address), dependencies.getFavoritesCalls)
     }
 
     @Test
@@ -61,6 +64,7 @@ class HomeViewModelTest {
         )
         val dependencies = FakeHomeDependencies(
             serversFlow = MutableStateFlow(listOf(unavailableServer)),
+            connectedServers = listOf(unavailableServer),
             activeServerAddress = unavailableServer.address,
         )
 
@@ -98,19 +102,15 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun init_withoutActiveServer_setsEmptyFavoritesAndZeroNotifications() = runTest {
-        val server = testServer()
-        val dependencies = FakeHomeDependencies(
-            serversFlow = MutableStateFlow(listOf(server)),
-            activeServerAddress = "",
-        )
+    fun init_withoutConnectedServers_setsEmptyFavoritesAndZeroNotifications() = runTest {
+        val dependencies = FakeHomeDependencies(activeServerAddress = "")
 
         val viewModel = HomeViewModel(dependencies)
         advanceUntilIdle()
 
-        assertEquals(UiState.Success(emptyList<User>()), viewModel.favoritesState.value)
+        assertEquals(UiState.Success(emptyList<FavoriteContactItem>()), viewModel.favoritesState.value)
         assertEquals(0, viewModel.notificationCount.value)
-        assertEquals(0, dependencies.getFavoritesCalls)
+        assertTrue(dependencies.getFavoritesCalls.isEmpty())
         assertEquals(0, dependencies.getNotificationsCalls)
     }
 
@@ -119,6 +119,7 @@ class HomeViewModelTest {
         val server = testServer()
         val dependencies = FakeHomeDependencies(
             serversFlow = MutableStateFlow(listOf(server)),
+            connectedServers = listOf(server),
             activeServerAddress = server.address,
         ).apply {
             favoritesResult = ApiResult.Failure(ApiError.NetworkError)
@@ -135,9 +136,10 @@ class HomeViewModelTest {
         val server = testServer()
         val dependencies = FakeHomeDependencies(
             serversFlow = MutableStateFlow(listOf(server)),
+            connectedServers = listOf(server),
             activeServerAddress = server.address,
         ).apply {
-            favoritesResult = ApiResult.Success(listOf(testUser()))
+            favoritesResult = ApiResult.Success(listOf(testUser(serverId = server.id)))
             notificationsResult = ApiResult.Failure(ApiError.Unauthorized(code = "unauthorized"))
         }
 
@@ -153,6 +155,7 @@ class HomeViewModelTest {
         val server = testServer()
         val dependencies = FakeHomeDependencies(
             serversFlow = MutableStateFlow(listOf(server)),
+            connectedServers = listOf(server),
             activeServerAddress = server.address,
         ).apply {
             notificationsResult = ApiResult.Success(
@@ -190,6 +193,7 @@ class HomeViewModelTest {
         val server = testServer()
         val dependencies = FakeHomeDependencies(
             serversFlow = MutableStateFlow(listOf(server)),
+            connectedServers = listOf(server),
             activeServerAddress = server.address,
         )
 
@@ -201,7 +205,7 @@ class HomeViewModelTest {
 
         assertEquals(2, dependencies.processPendingApprovalsCalls)
         assertEquals(2, dependencies.refreshConnectedServersAvailabilityCalls)
-        assertEquals(2, dependencies.getFavoritesCalls)
+        assertEquals(2, dependencies.getFavoritesCalls.size)
         assertEquals(2, dependencies.getNotificationsCalls)
     }
 
@@ -211,6 +215,7 @@ class HomeViewModelTest {
         val favoriteUpdates = MutableSharedFlow<String>(extraBufferCapacity = 1)
         val dependencies = FakeHomeDependencies(
             serversFlow = MutableStateFlow(listOf(server)),
+            connectedServers = listOf(server),
             favoriteUpdates = favoriteUpdates,
             activeServerAddress = server.address,
         ).apply {
@@ -220,20 +225,25 @@ class HomeViewModelTest {
         val viewModel = HomeViewModel(dependencies)
         advanceUntilIdle()
 
-        dependencies.favoritesResult = ApiResult.Success(listOf(testUser()))
+        dependencies.favoritesResult = ApiResult.Success(listOf(testUser(serverId = server.id)))
         favoriteUpdates.tryEmit(server.address)
         advanceUntilIdle()
 
-        assertEquals(2, dependencies.getFavoritesCalls)
-        assertEquals(UiState.Success(listOf(testUser())), viewModel.favoritesState.value)
+        assertEquals(2, dependencies.getFavoritesCalls.size)
+        assertEquals(
+            UiState.Success(listOf(testUser(serverId = server.id).toFavoriteContactItem(server))),
+            viewModel.favoritesState.value,
+        )
     }
 
     @Test
     fun userUpdate_refreshesFavoritesImmediately() = runTest {
         val server = testServer()
         val userUpdates = MutableSharedFlow<String>(extraBufferCapacity = 1)
+        val avatarUrl = "https://server.example.com/uploads/profile/new.jpg"
         val dependencies = FakeHomeDependencies(
             serversFlow = MutableStateFlow(listOf(server)),
+            connectedServers = listOf(server),
             userUpdates = userUpdates,
             activeServerAddress = server.address,
         ).apply {
@@ -244,14 +254,14 @@ class HomeViewModelTest {
         advanceUntilIdle()
 
         dependencies.favoritesResult = ApiResult.Success(
-            listOf(testUser(avatarUrl = "https://server.example.com/uploads/profile/new.jpg")),
+            listOf(testUser(serverId = server.id, avatarUrl = avatarUrl)),
         )
         userUpdates.tryEmit(server.address)
         advanceUntilIdle()
 
-        assertEquals(2, dependencies.getFavoritesCalls)
+        assertEquals(2, dependencies.getFavoritesCalls.size)
         val favorites = (viewModel.favoritesState.value as UiState.Success).data
-        assertEquals("https://server.example.com/uploads/profile/new.jpg", favorites.single().avatarUrl)
+        assertEquals(avatarUrl, favorites.single().user.avatarUrl)
     }
 
     @Test
@@ -260,9 +270,10 @@ class HomeViewModelTest {
         val gate = CompletableDeferred<Unit>()
         val dependencies = FakeHomeDependencies(
             serversFlow = MutableStateFlow(listOf(server)),
+            connectedServers = listOf(server),
             activeServerAddress = server.address,
         ).apply {
-            favoritesResult = ApiResult.Success(listOf(testUser()))
+            favoritesResult = ApiResult.Success(listOf(testUser(serverId = server.id)))
         }
 
         val viewModel = HomeViewModel(dependencies)
@@ -272,7 +283,10 @@ class HomeViewModelTest {
         viewModel.refresh()
         advanceUntilIdle()
 
-        assertEquals(UiState.Success(listOf(testUser())), viewModel.favoritesState.value)
+        assertEquals(
+            UiState.Success(listOf(testUser(serverId = server.id).toFavoriteContactItem(server))),
+            viewModel.favoritesState.value,
+        )
         assertTrue(viewModel.isRefreshing.value)
 
         gate.complete(Unit)
@@ -282,22 +296,60 @@ class HomeViewModelTest {
         assertEquals(false, viewModel.isRefreshing.value)
     }
 
+    @Test
+    fun loadData_keepsCachedFavoritesForUnavailableServer() = runTest {
+        val availableServer = testServer(id = "srv-1", address = "https://server-1.example")
+        val unavailableServer = testServer(
+            id = "srv-2",
+            address = "https://server-2.example",
+            availabilityStatus = ServerAvailabilityStatus.UNAVAILABLE,
+            availabilityMessage = "Сервер недоступен",
+        )
+        val dependencies = FakeHomeDependencies(
+            serversFlow = MutableStateFlow(listOf(availableServer, unavailableServer)),
+            connectedServers = listOf(availableServer, unavailableServer),
+            activeServerAddress = availableServer.address,
+        ).apply {
+            favoritesByAddress[availableServer.address] =
+                ApiResult.Success(listOf(testUser(id = "user-1", serverId = availableServer.id, username = "@alex")))
+            favoritesByAddress[unavailableServer.address] =
+                ApiResult.Success(listOf(testUser(id = "user-2", serverId = unavailableServer.id, name = "Maria", username = "@maria")))
+        }
+
+        val viewModel = HomeViewModel(dependencies)
+        advanceUntilIdle()
+
+        dependencies.favoritesByAddress[unavailableServer.address] = ApiResult.Failure(ApiError.NetworkError)
+        viewModel.refresh()
+        advanceUntilIdle()
+
+        val favorites = (viewModel.favoritesState.value as UiState.Success).data
+        assertEquals(2, favorites.size)
+        val unavailableFavorite = favorites.single { it.user.serverId == unavailableServer.id }
+        assertTrue(unavailableFavorite.isUnavailable)
+        assertEquals("Сервер недоступен", unavailableFavorite.serverAvailabilityMessage)
+    }
+
     private class FakeHomeDependencies(
         private val serversFlow: Flow<List<Server>> = MutableStateFlow(emptyList()),
+        private val connectedServers: List<Server> = emptyList(),
         private val favoriteUpdates: Flow<String> = MutableSharedFlow(),
         private val userUpdates: Flow<String> = MutableSharedFlow(),
         private val activeServerAddress: String = "",
     ) : HomeDependencies {
         var favoritesResult: ApiResult<List<User>> = ApiResult.Success(emptyList())
+        val favoritesByAddress = linkedMapOf<String, ApiResult<List<User>>>()
         var notificationsResult: ApiResult<List<Notification>> = ApiResult.Success(emptyList())
 
         var processPendingApprovalsCalls = 0
         var refreshConnectedServersAvailabilityCalls = 0
-        var getFavoritesCalls = 0
+        val getFavoritesCalls = mutableListOf<String>()
         var getNotificationsCalls = 0
         var favoritesGate: CompletableDeferred<Unit>? = null
 
         override fun observeConnectedServers(): Flow<List<Server>> = serversFlow
+
+        override fun connectedServers(): List<Server> = connectedServers
 
         override fun observeFavoriteUpdates(): Flow<String> = favoriteUpdates
 
@@ -312,9 +364,9 @@ class HomeViewModelTest {
         }
 
         override suspend fun getFavorites(serverAddress: String): ApiResult<List<User>> {
-            getFavoritesCalls += 1
+            getFavoritesCalls += serverAddress
             favoritesGate?.await()
-            return favoritesResult
+            return favoritesByAddress[serverAddress] ?: favoritesResult
         }
 
         override suspend fun getNotifications(serverAddress: String): ApiResult<List<Notification>> {
@@ -339,11 +391,18 @@ class HomeViewModelTest {
         availabilityMessage = availabilityMessage,
     )
 
-    private fun testUser(avatarUrl: String? = null) = User(
-        id = "user-1",
-        name = "Alex",
-        username = "@alex",
+    private fun testUser(
+        id: String = "user-1",
+        serverId: String = "srv-1",
+        name: String = "Alex",
+        username: String = "@alex",
+        avatarUrl: String? = null,
+    ) = User(
+        id = id,
+        name = name,
+        username = username,
         avatarUrl = avatarUrl,
+        serverId = serverId,
     )
 
     private fun testNotification(

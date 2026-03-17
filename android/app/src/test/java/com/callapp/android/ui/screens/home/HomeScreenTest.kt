@@ -1,15 +1,14 @@
 package com.callapp.android.ui.screens.home
 
+import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.material3.Text
-import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.onNodeWithContentDescription
-import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -48,6 +47,13 @@ class HomeScreenTest {
         serverId = "server-1",
     )
 
+    private val favoriteItem = FavoriteContactItem(
+        user = favorite,
+        serverName = server.name,
+        serverUsername = server.username,
+        serverImageUrl = server.imageUrl,
+    )
+
     @Test
     fun showsServerList() {
         composeRule.setAleAppContent {
@@ -62,23 +68,25 @@ class HomeScreenTest {
     }
 
     @Test
-    fun showsFavorites() {
+    fun showsFavoritesWithServerUsername() {
         composeRule.setAleAppContent {
             HomeScreen(
-                favoritesState = UiState.Success(listOf(favorite)),
+                favoritesState = UiState.Success(listOf(favoriteItem)),
                 serversState = UiState.Success(emptyList()),
                 notificationCount = 0,
             )
         }
 
         composeRule.onNodeWithText("Анна Смирнова").assertIsDisplayed()
+        composeRule.onNodeWithText("@anna").assertIsDisplayed()
+        composeRule.onNodeWithText("tech").assertIsDisplayed()
     }
 
     @Test
     fun notificationBadge_showsCountWhenUnread() {
         composeRule.setAleAppContent {
             HomeScreen(
-                favoritesState = UiState.Success(listOf(favorite)),
+                favoritesState = UiState.Success(listOf(favoriteItem)),
                 serversState = UiState.Success(listOf(server)),
                 notificationCount = 7,
             )
@@ -116,7 +124,7 @@ class HomeScreenTest {
 
             when (route) {
                 "home" -> HomeScreen(
-                    favoritesState = UiState.Success(listOf(favorite)),
+                    favoritesState = UiState.Success(listOf(favoriteItem)),
                     serversState = UiState.Success(emptyList()),
                     notificationCount = 0,
                     onCallClick = { _, _, _ -> route = "call" },
@@ -128,5 +136,27 @@ class HomeScreenTest {
         composeRule.onNodeWithTag("favorite_call_user-1").performClick()
 
         composeRule.onNodeWithText("Call screen").assertIsDisplayed()
+    }
+
+    @Test
+    fun showsUnavailableStateOnlyForAffectedFavorite() {
+        composeRule.setAleAppContent {
+            HomeScreen(
+                favoritesState = UiState.Success(
+                    listOf(
+                        favoriteItem.copy(
+                            serverAvailabilityStatus = ServerAvailabilityStatus.UNAVAILABLE,
+                            serverAvailabilityMessage = "Сервер временно недоступен",
+                        ),
+                    ),
+                ),
+                serversState = UiState.Success(listOf(server)),
+                notificationCount = 0,
+            )
+        }
+
+        composeRule.onNodeWithText("@anna").assertIsDisplayed()
+        composeRule.onNodeWithText("tech").assertIsDisplayed()
+        composeRule.onNodeWithText("Сервер временно недоступен").assertIsDisplayed()
     }
 }
