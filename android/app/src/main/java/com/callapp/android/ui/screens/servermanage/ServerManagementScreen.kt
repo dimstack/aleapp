@@ -57,6 +57,8 @@ import com.callapp.android.ui.components.AleAppButtonSize
 import com.callapp.android.ui.components.AleAppButtonVariant
 import com.callapp.android.ui.components.AleAppCard
 import com.callapp.android.ui.components.FormField
+import com.callapp.android.ui.common.displayUsername
+import com.callapp.android.ui.common.editableUsername
 import com.callapp.android.ui.common.readPickedImage
 import com.callapp.android.ui.theme.AleAppTheme
 import kotlin.math.absoluteValue
@@ -103,7 +105,7 @@ fun ServerManagementScreen(
     val context = LocalContext.current
 
     var name by remember { mutableStateOf(initial.name) }
-    var username by remember { mutableStateOf(initial.username) }
+    var username by remember { mutableStateOf(editableUsername(initial.username)) }
     var description by remember { mutableStateOf(initial.description) }
     var imageUrl by remember { mutableStateOf(initial.imageUrl) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -116,6 +118,10 @@ fun ServerManagementScreen(
 
     LaunchedEffect(initial.imageUrl) {
         imageUrl = initial.imageUrl
+    }
+
+    LaunchedEffect(initial.username) {
+        username = editableUsername(initial.username)
     }
 
     fun requestPhotoPicker() {
@@ -163,7 +169,7 @@ fun ServerManagementScreen(
                         label = "Username",
                         required = true,
                         value = username,
-                        onValueChange = { username = it; error = null },
+                        onValueChange = { username = editableUsername(it); error = null },
                         placeholder = "server_username",
                         singleLine = true,
                         prefix = "@ ",
@@ -204,7 +210,7 @@ fun ServerManagementScreen(
                                         error = null
                                         onSave(
                                             name.trim(),
-                                            username.trim(),
+                                            displayUsername(username),
                                             description.trim().takeIf { it.isNotEmpty() },
                                             imageUrl.trim(),
                                         )

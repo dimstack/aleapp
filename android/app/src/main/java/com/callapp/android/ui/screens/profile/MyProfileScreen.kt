@@ -58,6 +58,8 @@ import com.callapp.android.ui.components.AleAppButton
 import com.callapp.android.ui.components.AleAppButtonSize
 import com.callapp.android.ui.components.AleAppButtonVariant
 import com.callapp.android.ui.components.AleAppCard
+import com.callapp.android.ui.common.displayUsername
+import com.callapp.android.ui.common.editableUsername
 import com.callapp.android.ui.common.readPickedImage
 import com.callapp.android.ui.theme.AleAppTheme
 import kotlin.math.absoluteValue
@@ -114,7 +116,7 @@ fun MyProfileScreen(
 
     var isEditing by remember { mutableStateOf(false) }
     var editName by remember { mutableStateOf(profile.name) }
-    var editUsername by remember { mutableStateOf(profile.username) }
+    var editUsername by remember { mutableStateOf(editableUsername(profile.username)) }
     var editAvatarUrl by remember { mutableStateOf(profile.avatarUrl) }
     var savedName by remember { mutableStateOf(profile.name) }
     var savedUsername by remember { mutableStateOf(profile.username) }
@@ -190,7 +192,7 @@ fun MyProfileScreen(
             Spacer(Modifier.height(4.dp))
 
             Text(
-                text = "@$savedUsername",
+                text = displayUsername(savedUsername),
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.mutedForeground,
             )
@@ -201,7 +203,7 @@ fun MyProfileScreen(
                 AleAppButton(
                     onClick = {
                         editName = savedName
-                        editUsername = savedUsername
+                        editUsername = editableUsername(savedUsername)
                         editAvatarUrl = savedAvatarUrl
                         isEditing = true
                     },
@@ -238,9 +240,9 @@ fun MyProfileScreen(
 
                     InfoField(
                         label = "Username",
-                        value = if (isEditing) editUsername else savedUsername,
+                        value = if (isEditing) editUsername else editableUsername(savedUsername),
                         isEditing = isEditing,
-                        onValueChange = { editUsername = it },
+                        onValueChange = { editUsername = editableUsername(it) },
                         prefix = "@",
                     )
 
@@ -320,7 +322,7 @@ fun MyProfileScreen(
                     AleAppButton(
                         onClick = {
                             savedName = editName.trim()
-                            savedUsername = editUsername.trim()
+                            savedUsername = displayUsername(editUsername)
                             savedAvatarUrl = editAvatarUrl.trim()
                             onSaveProfile(savedName, savedUsername, savedAvatarUrl)
                             isEditing = false
@@ -335,7 +337,7 @@ fun MyProfileScreen(
                     AleAppButton(
                         onClick = {
                             editName = savedName
-                            editUsername = savedUsername
+                            editUsername = editableUsername(savedUsername)
                             editAvatarUrl = savedAvatarUrl
                             isEditing = false
                         },

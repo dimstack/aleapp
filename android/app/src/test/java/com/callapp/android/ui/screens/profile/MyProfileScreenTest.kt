@@ -1,5 +1,6 @@
 package com.callapp.android.ui.screens.profile
 
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -51,6 +52,23 @@ class MyProfileScreenTest {
         }
 
         composeRule.waitForIdle()
+    }
+
+    @Test
+    fun rendersSingleAtSignWhenUsernameAlreadyContainsPrefix() {
+        composeRule.setAleAppContent {
+            MyProfileScreen(
+                profile = MyProfileData(
+                    name = "Alex Admin",
+                    username = "@alex_admin",
+                    avatarUrl = "",
+                    serverName = "Tech Community",
+                    isAdmin = true,
+                ),
+            )
+        }
+
+        composeRule.onNodeWithText("@alex_admin").assertIsDisplayed()
     }
 
     @Test

@@ -36,6 +36,7 @@ import com.callapp.android.ui.components.AleAppButton
 import com.callapp.android.ui.components.AleAppButtonSize
 import com.callapp.android.ui.components.AleAppButtonVariant
 import com.callapp.android.ui.components.AleAppCard
+import com.callapp.android.ui.common.displayUsername
 import com.callapp.android.ui.theme.AleAppTheme
 
 data class UserProfileData(
@@ -109,7 +110,7 @@ fun UserProfileScreen(
             Spacer(Modifier.height(4.dp))
 
             Text(
-                text = "@${user.username}",
+                text = displayUsername(user.username),
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.mutedForeground,
             )

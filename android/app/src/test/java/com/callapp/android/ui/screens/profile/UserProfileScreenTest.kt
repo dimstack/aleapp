@@ -44,6 +44,25 @@ class UserProfileScreenTest {
     }
 
     @Test
+    fun rendersSingleAtSignWhenUsernameAlreadyContainsPrefix() {
+        composeRule.setAleAppContent {
+            UserProfileScreen(
+                user = UserProfileData(
+                    userId = "user-1",
+                    name = "Maria",
+                    username = "@maria",
+                    avatarUrl = "",
+                    serverName = "Creative Studio",
+                    isAdmin = false,
+                    isFavorite = false,
+                ),
+            )
+        }
+
+        composeRule.onNodeWithText("@maria").assertIsDisplayed()
+    }
+
+    @Test
     fun toggleFavorite_updatesButtonTextAndCallsCallback() {
         var toggledUserId = ""
         var isFavorite by mutableStateOf(false)
