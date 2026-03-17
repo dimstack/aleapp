@@ -35,6 +35,7 @@ sealed interface ServerDetailEvent {
 interface ServerDetailDependencies {
     fun getServerById(serverId: String): Server?
     fun observeServerById(serverId: String): Flow<Server?>
+    suspend fun refreshServer(serverAddress: String)
     suspend fun getUsers(serverAddress: String): ApiResult<List<User>>
     suspend fun getJoinRequests(serverAddress: String): ApiResult<List<JoinRequest>>
     suspend fun removeUser(serverAddress: String, userId: String): ApiResult<Unit>
@@ -48,6 +49,10 @@ object DefaultServerDetailDependencies : ServerDetailDependencies {
     override fun getServerById(serverId: String): Server? = repo.getServerById(serverId)
 
     override fun observeServerById(serverId: String): Flow<Server?> = repo.observeServerById(serverId)
+
+    override suspend fun refreshServer(serverAddress: String) {
+        repo.refreshServerAvailability(serverAddress)
+    }
 
     override suspend fun getUsers(serverAddress: String): ApiResult<List<User>> = repo.getUsers(serverAddress)
 
@@ -134,7 +139,10 @@ class ServerDetailViewModel(
         }
     }
 
-    fun loadUsers(showLoadingIndicator: Boolean = true) {
+    fun loadUsers(
+        showLoadingIndicator: Boolean = true,
+        refreshServerInfo: Boolean = false,
+    ) {
         viewModelScope.launch {
             if (showLoadingIndicator) {
                 _membersState.value = UiState.Loading
@@ -149,6 +157,9 @@ class ServerDetailViewModel(
                 return@launch
             }
             try {
+                if (refreshServerInfo) {
+                    dependencies.refreshServer(address)
+                }
                 when (val result = dependencies.getUsers(address)) {
                     is ApiResult.Success -> {
                         _membersState.value = UiState.Success(result.data)
@@ -188,7 +199,7 @@ class ServerDetailViewModel(
     }
 
     fun refresh() {
-        loadUsers(showLoadingIndicator = false)
+        loadUsers(showLoadingIndicator = false, refreshServerInfo = true)
     }
 
     fun updateSearchQuery(query: String) {

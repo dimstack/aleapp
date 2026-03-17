@@ -27,7 +27,7 @@ interface ServerManagementDependencies {
         serverAddress: String,
         name: String,
         username: String,
-        description: String,
+        description: String?,
         imageUrl: String,
     ): ApiResult<Server>
 
@@ -36,6 +36,8 @@ interface ServerManagementDependencies {
         serverId: String,
         serverName: String,
         serverUsername: String,
+        serverDescription: String,
+        serverImageUrl: String?,
     )
 }
 
@@ -48,7 +50,7 @@ object DefaultServerManagementDependencies : ServerManagementDependencies {
         serverAddress: String,
         name: String,
         username: String,
-        description: String,
+        description: String?,
         imageUrl: String,
     ): ApiResult<Server> = repository.updateServer(serverAddress, name, username, description, imageUrl)
 
@@ -57,6 +59,8 @@ object DefaultServerManagementDependencies : ServerManagementDependencies {
         serverId: String,
         serverName: String,
         serverUsername: String,
+        serverDescription: String,
+        serverImageUrl: String?,
     ) {
         try {
             ServiceLocator.sessionStore.updateServerMetadata(
@@ -64,6 +68,8 @@ object DefaultServerManagementDependencies : ServerManagementDependencies {
                 serverId = serverId,
                 serverName = serverName,
                 serverUsername = serverUsername,
+                serverDescription = serverDescription,
+                serverImageUrl = serverImageUrl,
             )
         } catch (_: UninitializedPropertyAccessException) {
             // Ignore in previews/tests.
@@ -111,7 +117,7 @@ class ServerManagementViewModel(
         }
     }
 
-    fun save(name: String, username: String, description: String, imageUrl: String) {
+    fun save(name: String, username: String, description: String?, imageUrl: String) {
         if (serverAddress.isEmpty()) return
         _state.value = _state.value.copy(isSaving = true, actionError = null)
         viewModelScope.launch {
@@ -122,8 +128,19 @@ class ServerManagementViewModel(
                         serverId = result.data.id,
                         serverName = result.data.name,
                         serverUsername = result.data.username,
+                        serverDescription = result.data.description,
+                        serverImageUrl = result.data.imageUrl,
                     )
-                    _state.value = _state.value.copy(isSaving = false, saveSuccess = true)
+                    _state.value = _state.value.copy(
+                        isSaving = false,
+                        saveSuccess = true,
+                        data = _state.value.data?.copy(
+                            name = result.data.name,
+                            username = result.data.username,
+                            description = result.data.description,
+                            imageUrl = result.data.imageUrl.orEmpty(),
+                        ),
+                    )
                 }
 
                 is ApiResult.Failure -> {

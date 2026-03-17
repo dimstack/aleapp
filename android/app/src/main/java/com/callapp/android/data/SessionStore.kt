@@ -29,6 +29,8 @@ data class ServerSession(
     val serverName: String = "",
     val serverUsername: String = "",
     val serverId: String = "",
+    val serverDescription: String = "",
+    val serverImageUrl: String? = null,
 )
 
 @Serializable
@@ -69,6 +71,8 @@ class SessionStore private constructor(
         serverName: String = "",
         serverUsername: String = "",
         serverId: String = "",
+        serverDescription: String = "",
+        serverImageUrl: String? = null,
         setActive: Boolean = true,
     ) {
         val sessions = readSessions().toMutableMap()
@@ -79,6 +83,8 @@ class SessionStore private constructor(
             serverName = serverName,
             serverUsername = serverUsername,
             serverId = serverId,
+            serverDescription = serverDescription,
+            serverImageUrl = serverImageUrl,
         )
         prefs.edit().apply {
             putString(KEY_SESSIONS, json.encodeToString(sessions))
@@ -163,6 +169,8 @@ class SessionStore private constructor(
         serverId: String,
         serverName: String,
         serverUsername: String,
+        serverDescription: String = "",
+        serverImageUrl: String? = null,
     ) {
         val existing = getSession(serverAddress) ?: return
         saveSession(
@@ -172,6 +180,8 @@ class SessionStore private constructor(
             serverName = serverName,
             serverUsername = serverUsername,
             serverId = serverId,
+            serverDescription = serverDescription,
+            serverImageUrl = serverImageUrl,
         )
     }
 
@@ -181,6 +191,8 @@ class SessionStore private constructor(
                 id = session.serverId.ifEmpty { session.serverAddress },
                 name = session.serverName.ifEmpty { session.serverAddress },
                 username = session.serverUsername,
+                description = session.serverDescription,
+                imageUrl = session.serverImageUrl,
                 address = session.serverAddress,
             )
         }

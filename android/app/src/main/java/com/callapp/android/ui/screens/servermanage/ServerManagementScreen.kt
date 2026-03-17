@@ -57,7 +57,7 @@ data class ServerManageData(
     val id: String,
     val name: String,
     val username: String,
-    val description: String,
+    val description: String = "",
     val imageUrl: String,
 )
 
@@ -83,7 +83,7 @@ private fun serverImageColor(name: String): Color =
 fun ServerManagementScreen(
     initial: ServerManageData = sampleManageData,
     onBack: () -> Unit = {},
-    onSave: (name: String, username: String, description: String, imageUrl: String) -> Unit = { _, _, _, _ -> },
+    onSave: (name: String, username: String, description: String?, imageUrl: String) -> Unit = { _, _, _, _ -> },
     onInviteTokens: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -139,7 +139,7 @@ fun ServerManagementScreen(
 
                     FormField(
                         label = "Описание",
-                        required = true,
+                        required = false,
                         value = description,
                         onValueChange = { description = it; error = null },
                         placeholder = "Введите описание сервера",
@@ -177,13 +177,12 @@ fun ServerManagementScreen(
                                 when {
                                     name.isBlank() -> error = "Название обязательно"
                                     username.isBlank() -> error = "Username обязателен"
-                                    description.isBlank() -> error = "Описание обязательно"
                                     else -> {
                                         error = null
                                         onSave(
                                             name.trim(),
                                             username.trim(),
-                                            description.trim(),
+                                            description.trim().takeIf { it.isNotEmpty() },
                                             imageUrl.trim(),
                                         )
                                     }

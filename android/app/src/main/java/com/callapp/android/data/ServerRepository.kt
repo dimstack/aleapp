@@ -66,6 +66,8 @@ class ServerRepository(private val connectionManager: ServerConnectionManager) {
                         id = session.serverId.ifEmpty { session.serverAddress },
                         name = session.serverName.ifEmpty { session.serverAddress },
                         username = session.serverUsername,
+                        description = session.serverDescription,
+                        imageUrl = session.serverImageUrl,
                         address = session.serverAddress,
                     ),
                     availabilityByAddress = availability,
@@ -312,6 +314,8 @@ class ServerRepository(private val connectionManager: ServerConnectionManager) {
                 serverId = server.id,
                 serverName = server.name,
                 serverUsername = server.username,
+                serverDescription = server.description,
+                serverImageUrl = server.imageUrl,
             )
         }
     }
@@ -340,6 +344,8 @@ class ServerRepository(private val connectionManager: ServerConnectionManager) {
             serverName = response.server?.name.orEmpty(),
             serverUsername = response.server?.username.orEmpty(),
             serverId = response.server?.id.orEmpty(),
+            serverDescription = response.server?.description.orEmpty(),
+            serverImageUrl = response.server?.imageUrl,
         )
     }
 
@@ -363,6 +369,8 @@ class ServerRepository(private val connectionManager: ServerConnectionManager) {
             serverName = response.server?.name ?: fallbackServerName,
             serverUsername = response.server?.username.orEmpty(),
             serverId = response.server?.id.orEmpty(),
+            serverDescription = response.server?.description.orEmpty(),
+            serverImageUrl = response.server?.imageUrl,
             setActive = setActive,
         )
         store.removePendingApproval(serverAddress)

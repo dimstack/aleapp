@@ -35,7 +35,11 @@ class ServerManagementViewModelTest {
     fun save_success_marksSaveSuccessAndUpdatesMetadata() = runTest {
         val dependencies = FakeServerManagementDependencies().apply {
             updateServerResult = ApiResult.Success(
-                testServer(name = "Updated Server", username = "@updated"),
+                testServer(
+                    name = "Updated Server",
+                    username = "@updated",
+                    description = "Updated description",
+                ),
             )
         }
         val viewModel = createViewModel(dependencies)
@@ -55,9 +59,12 @@ class ServerManagementViewModelTest {
                 serverId = "srv-1",
                 serverName = "Updated Server",
                 serverUsername = "@updated",
+                serverDescription = "Updated description",
+                serverImageUrl = "https://image.example.com",
             ),
             dependencies.metadataUpdates.single(),
         )
+        assertEquals("Updated description", viewModel.state.value.data?.description)
     }
 
     @Test
@@ -98,6 +105,28 @@ class ServerManagementViewModelTest {
         assertNull(viewModel.state.value.actionError)
     }
 
+    @Test
+    fun save_allowsEmptyDescription() = runTest {
+        val dependencies = FakeServerManagementDependencies().apply {
+            updateServerResult = ApiResult.Success(
+                testServer(name = "Updated Server", username = "@updated", description = ""),
+            )
+        }
+        val viewModel = createViewModel(dependencies)
+
+        viewModel.save(
+            name = "Updated Server",
+            username = "@updated",
+            description = null,
+            imageUrl = "",
+        )
+        advanceUntilIdle()
+
+        assertTrue(viewModel.state.value.saveSuccess)
+        assertEquals(null, dependencies.lastDescription)
+        assertEquals("", viewModel.state.value.data?.description)
+    }
+
     private fun createViewModel(
         dependencies: ServerManagementDependencies,
     ) = ServerManagementViewModel(
@@ -113,6 +142,7 @@ class ServerManagementViewModelTest {
         private val server = testServer()
         var updateServerResult: ApiResult<Server> = ApiResult.Success(server)
         val metadataUpdates = mutableListOf<ServerMetadataUpdate>()
+        var lastDescription: String? = null
 
         override fun getServerById(serverId: String): Server = server
 
@@ -120,17 +150,29 @@ class ServerManagementViewModelTest {
             serverAddress: String,
             name: String,
             username: String,
-            description: String,
+            description: String?,
             imageUrl: String,
-        ): ApiResult<Server> = updateServerResult
+        ): ApiResult<Server> {
+            lastDescription = description
+            return updateServerResult
+        }
 
         override fun updateServerMetadata(
             serverAddress: String,
             serverId: String,
             serverName: String,
             serverUsername: String,
+            serverDescription: String,
+            serverImageUrl: String?,
         ) {
-            metadataUpdates += ServerMetadataUpdate(serverAddress, serverId, serverName, serverUsername)
+            metadataUpdates += ServerMetadataUpdate(
+                serverAddress,
+                serverId,
+                serverName,
+                serverUsername,
+                serverDescription,
+                serverImageUrl,
+            )
         }
     }
 
@@ -139,17 +181,20 @@ class ServerManagementViewModelTest {
         val serverId: String,
         val serverName: String,
         val serverUsername: String,
+        val serverDescription: String,
+        val serverImageUrl: String?,
     )
 
     private companion object {
         fun testServer(
             name: String = "Test Server",
             username: String = "@test",
+            description: String = "Description",
         ) = Server(
             id = "srv-1",
             name = name,
             username = username,
-            description = "Description",
+            description = description,
             imageUrl = "https://image.example.com",
             address = "https://server.example.com",
         )

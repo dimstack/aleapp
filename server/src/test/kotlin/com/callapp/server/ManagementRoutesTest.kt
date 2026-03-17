@@ -47,7 +47,18 @@ class ManagementRoutesTest {
             setBody("""{"name":"Updated Server","description":"Updated description"}""")
         }
         assertEquals(HttpStatusCode.OK, updateResponse.status)
-        assertEquals("Updated Server", json.parseToJsonElement(updateResponse.bodyAsText()).jsonObject["name"]!!.jsonPrimitive.content)
+        val updatedServer = json.parseToJsonElement(updateResponse.bodyAsText()).jsonObject
+        assertEquals("Updated Server", updatedServer["name"]!!.jsonPrimitive.content)
+        assertEquals("Updated description", updatedServer["description"]!!.jsonPrimitive.content)
+
+        val clearDescriptionResponse = client.put("/api/server") {
+            bearerAuth(adminToken)
+            header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+            setBody("""{"description":""}""")
+        }
+        assertEquals(HttpStatusCode.OK, clearDescriptionResponse.status)
+        val clearedServer = json.parseToJsonElement(clearDescriptionResponse.bodyAsText()).jsonObject
+        assertEquals("", clearedServer["description"]!!.jsonPrimitive.content)
 
         val deleteServerResponse = client.delete("/api/server") {
             bearerAuth(adminToken)

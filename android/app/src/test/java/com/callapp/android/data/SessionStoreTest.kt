@@ -32,6 +32,8 @@ class SessionStoreTest {
         assertEquals("Server 1", session.serverName)
         assertEquals("@server1", session.serverUsername)
         assertEquals("srv-1", session.serverId)
+        assertEquals("", session.serverDescription)
+        assertNull(session.serverImageUrl)
     }
 
     @Test
@@ -190,6 +192,8 @@ class SessionStoreTest {
             serverId = "srv-1",
             serverName = "Server 1",
             serverUsername = "@server1",
+            serverDescription = "Updated description",
+            serverImageUrl = "https://image.example.com/server.png",
         )
 
         val session = store.getSession("http://server-1:3000")
@@ -199,6 +203,29 @@ class SessionStoreTest {
         assertEquals("srv-1", session.serverId)
         assertEquals("Server 1", session.serverName)
         assertEquals("@server1", session.serverUsername)
+        assertEquals("Updated description", session.serverDescription)
+        assertEquals("https://image.example.com/server.png", session.serverImageUrl)
+    }
+
+    @Test
+    fun getConnectedServers_returnsDescriptionAndImageUrl() {
+        val store = createStore()
+
+        store.saveSession(
+            serverAddress = "http://server-1:3000",
+            sessionToken = "token-1",
+            userId = "user-1",
+            serverName = "Server 1",
+            serverUsername = "@server1",
+            serverId = "srv-1",
+            serverDescription = "Server description",
+            serverImageUrl = "https://image.example.com/server.png",
+        )
+
+        val server = store.getConnectedServers().single()
+
+        assertEquals("Server description", server.description)
+        assertEquals("https://image.example.com/server.png", server.imageUrl)
     }
 
     @Test

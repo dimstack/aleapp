@@ -165,12 +165,32 @@ class ServerDetailViewModelTest {
 
         assertEquals(UiState.Success(users), viewModel.membersState.value)
         assertTrue(viewModel.isRefreshing.value)
+        assertEquals(1, dependencies.refreshServerCalls)
 
         gate.complete(Unit)
         advanceUntilIdle()
 
         assertEquals(UiState.Success(users), viewModel.membersState.value)
         assertTrue(!viewModel.isRefreshing.value)
+    }
+
+    @Test
+    fun refresh_updatesServerInfoFromRemote() = runTest {
+        val server = testServer(name = "Old name", description = "Old description")
+        val updatedServer = testServer(name = "New name", description = "New description")
+        val dependencies = FakeServerDetailDependencies(server = server).apply {
+            usersResult = ApiResult.Success(listOf(testUser(id = "admin-1", name = "Admin", role = UserRole.ADMIN)))
+            refreshedServer = updatedServer
+        }
+
+        val viewModel = createViewModel(dependencies, server.id)
+        advanceUntilIdle()
+
+        viewModel.refresh()
+        advanceUntilIdle()
+
+        assertEquals("New name", viewModel.server.value.name)
+        assertEquals("New description", viewModel.server.value.description)
     }
 
     private fun createViewModel(
@@ -192,10 +212,17 @@ class ServerDetailViewModelTest {
         var removeUserResult: ApiResult<Unit> = ApiResult.Success(Unit)
         val removeUserCalls = mutableListOf<String>()
         var usersGate: CompletableDeferred<Unit>? = null
+        var refreshServerCalls = 0
+        var refreshedServer: Server? = null
 
         override fun getServerById(serverId: String): Server = serverFlow.value
 
-        override fun observeServerById(serverId: String): Flow<Server?> = flowOf(serverFlow.value)
+        override fun observeServerById(serverId: String): Flow<Server?> = serverFlow
+
+        override suspend fun refreshServer(serverAddress: String) {
+            refreshServerCalls += 1
+            refreshedServer?.let { serverFlow.value = it }
+        }
 
         override suspend fun getUsers(serverAddress: String): ApiResult<List<User>> {
             usersGate?.await()
@@ -219,10 +246,13 @@ class ServerDetailViewModelTest {
         fun testServer(
             id: String = "srv-1",
             address: String = "https://server.example.com",
+            name: String = "Test Server",
+            description: String = "",
         ) = Server(
             id = id,
-            name = "Test Server",
+            name = name,
             username = "@test",
+            description = description,
             address = address,
         )
 
