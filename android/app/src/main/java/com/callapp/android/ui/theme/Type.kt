@@ -7,7 +7,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
 /**
- * РўРёРїРѕРіСЂР°С„РёРєР° CallApp РЅР° РѕСЃРЅРѕРІРµ design-reference.
+ * Типографика CallApp для текущей Compose-реализации.
  *
  * Tailwind в†’ Material 3 РјР°РїРїРёРЅРі:
  *

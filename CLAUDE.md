@@ -20,35 +20,7 @@ CallApp is a decentralized voice and video calling application for Android built
 
 ### Design Reference
 
-The repository includes a web-based design prototype in the `design-reference/` folder, built with React + TypeScript + Tailwind CSS. **All UI screens must closely follow these mockups** — layout, spacing, colors, typography. When implementing any screen, always reference the prototype first.
-
-**Screen components** (`design-reference/src/app/components/`):
-- `AddServerScreen.tsx` — connect to server form
-- `CallScreen.tsx` — outgoing/active call
-- `IncomingCallScreen.tsx` — incoming call with accept/decline
-- `ContactCard.tsx` — favorite contact card
-- `AuthChoiceScreen.tsx` — choose create account or login
-- `CreateProfileScreen.tsx` — profile creation on server (with password)
-- `LoginScreen.tsx` — login to existing account (username + password)
-- `Header.tsx` — top app bar
-- `JoinRequestsScreen.tsx` — admin join request management
-- `NotificationsScreen.tsx` — notifications list
-- `PendingRequestScreen.tsx` — application submitted confirmation
-- `ProfileScreen.tsx` — my profile
-- `ServerCard.tsx` — server list item
-- `ServerManagementScreen.tsx` — server settings (admin)
-- `ServerScreen.tsx` — server detail with members
-- `SettingsScreen.tsx` — app settings (theme, status, about)
-- `UserProfileScreen.tsx` — other user's profile
-
-**Theme** (`design-reference/src/styles/`):
-- `theme.css` — complete color scheme as CSS variables for both Light ("Old Money") and Dark ("Evening") themes
-
-**UI components** (`design-reference/src/app/components/ui/`):
-- Full set of reusable shadcn/ui components (button, card, input, avatar, badge, switch, etc.)
-
-**Guidelines** (`design-reference/guidelines/`):
-- `Guidelines.md` — design guidelines document
+The old `design-reference/` prototype has been removed from the repository. Use the existing Android Compose implementation, current theme tokens, and shipped UI behavior as the source of truth for future screen changes.
 
 ---
 
@@ -485,7 +457,6 @@ aleapp/
 ├── android/          ← Android клиент (Jetpack Compose)
 ├── server/           ← Ktor signaling + REST API
 ├── docker/           ← Dockerfile, docker-compose, coturn конфиги
-├── design-reference/ ← TSX из Figma
 ├── CLAUDE.md
 └── README.md
 
@@ -797,7 +768,6 @@ aleapp/
 ├── android/                 # Android Studio project
 │   └── app/                 # Main Android application module
 ├── server/                  # Ktor backend + Docker deployment assets
-├── design-reference/        # React/Tailwind design prototype
 ├── AGENTS.md
 ├── CLAUDE.md
 └── README.md
