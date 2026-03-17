@@ -102,11 +102,13 @@ fun AppNavGraph(
             val viewModel: HomeViewModel = viewModel()
             val favoritesState by viewModel.favoritesState.collectAsState()
             val serversState by viewModel.serversState.collectAsState()
+            val isRefreshing by viewModel.isRefreshing.collectAsState()
             val notificationCount by viewModel.notificationCount.collectAsState()
 
             HomeScreen(
                 favoritesState = favoritesState,
                 serversState = serversState,
+                isRefreshing = isRefreshing,
                 notificationCount = notificationCount,
                 onServerClick = { server ->
                     val route = if (server.availabilityStatus == ServerAvailabilityStatus.AVAILABLE) {
@@ -141,7 +143,8 @@ fun AppNavGraph(
                 onContactClick = { serverId, userId ->
                     navController.navigate(Route.UserProfile.createRoute(serverId, userId))
                 },
-                onRetry = viewModel::loadData,
+                onRefresh = viewModel::refresh,
+                onRetry = { viewModel.loadData() },
             )
         }
 
@@ -152,6 +155,7 @@ fun AppNavGraph(
             val viewModel: ServerDetailViewModel = viewModel()
             val server by viewModel.server.collectAsState()
             val membersState by viewModel.membersState.collectAsState()
+            val isRefreshing by viewModel.isRefreshing.collectAsState()
             val isAdmin by viewModel.isAdmin.collectAsState()
             val pendingRequests by viewModel.pendingRequests.collectAsState()
 
@@ -180,6 +184,7 @@ fun AppNavGraph(
             ServerDetailScreen(
                 server = server,
                 membersState = membersState,
+                isRefreshing = isRefreshing,
                 isAdmin = isAdmin,
                 currentUserId = viewModel.currentUserId,
                 pendingRequests = pendingRequests,
@@ -203,6 +208,7 @@ fun AppNavGraph(
                 },
                 onDisconnectServer = viewModel::disconnectServer,
                 onRemoveMember = viewModel::removeUser,
+                onRefresh = viewModel::refresh,
                 onRetry = viewModel::loadMembers,
             )
         }

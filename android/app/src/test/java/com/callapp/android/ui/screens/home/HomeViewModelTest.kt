@@ -11,6 +11,7 @@ import com.callapp.android.network.result.ApiResult
 import com.callapp.android.ui.common.UiState
 import com.callapp.android.ui.screens.connect.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -227,6 +228,34 @@ class HomeViewModelTest {
         assertEquals(UiState.Success(listOf(testUser())), viewModel.favoritesState.value)
     }
 
+    @Test
+    fun refresh_keepsContentVisibleWhileReloading() = runTest {
+        val server = testServer()
+        val gate = CompletableDeferred<Unit>()
+        val dependencies = FakeHomeDependencies(
+            serversFlow = MutableStateFlow(listOf(server)),
+            activeServerAddress = server.address,
+        ).apply {
+            favoritesResult = ApiResult.Success(listOf(testUser()))
+        }
+
+        val viewModel = HomeViewModel(dependencies)
+        advanceUntilIdle()
+
+        dependencies.favoritesGate = gate
+        viewModel.refresh()
+        advanceUntilIdle()
+
+        assertEquals(UiState.Success(listOf(testUser())), viewModel.favoritesState.value)
+        assertTrue(viewModel.isRefreshing.value)
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertTrue(viewModel.favoritesState.value is UiState.Success)
+        assertEquals(false, viewModel.isRefreshing.value)
+    }
+
     private class FakeHomeDependencies(
         private val serversFlow: Flow<List<Server>> = MutableStateFlow(emptyList()),
         private val favoriteUpdates: Flow<String> = MutableSharedFlow(),
@@ -239,6 +268,7 @@ class HomeViewModelTest {
         var refreshConnectedServersAvailabilityCalls = 0
         var getFavoritesCalls = 0
         var getNotificationsCalls = 0
+        var favoritesGate: CompletableDeferred<Unit>? = null
 
         override fun observeConnectedServers(): Flow<List<Server>> = serversFlow
 
@@ -254,6 +284,7 @@ class HomeViewModelTest {
 
         override suspend fun getFavorites(serverAddress: String): ApiResult<List<User>> {
             getFavoritesCalls += 1
+            favoritesGate?.await()
             return favoritesResult
         }
 

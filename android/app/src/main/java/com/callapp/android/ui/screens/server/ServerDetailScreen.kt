@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Logout
@@ -34,6 +35,9 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.pullrefresh.PullRefreshIndicator
+import androidx.compose.material.pullrefresh.pullRefresh
+import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.CircularProgressIndicator
@@ -103,10 +107,12 @@ private fun serverImageColor(name: String): Color =
 /*  ServerDetailScreen                                                        */
 /* ═══════════════════════════════════════════════════════════════════════════ */
 
+@OptIn(ExperimentalMaterialApi::class)
 @Composable
 fun ServerDetailScreen(
     server: Server = PreviewData.serverTech,
     membersState: UiState<List<User>> = UiState.Success(PreviewData.techMembers),
+    isRefreshing: Boolean = false,
     isAdmin: Boolean = true,
     currentUserId: String = "",
     pendingRequests: List<JoinRequest> = PreviewData.joinRequests,
@@ -119,6 +125,7 @@ fun ServerDetailScreen(
     onRemoveMember: (String) -> Unit = {},
     onApproveRequest: (String) -> Unit = {},
     onDeclineRequest: (String) -> Unit = {},
+    onRefresh: () -> Unit = {},
     onRetry: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -151,12 +158,21 @@ fun ServerDetailScreen(
             )
         },
     ) { padding ->
-        Column(
+        val pullRefreshState = rememberPullRefreshState(
+            refreshing = isRefreshing,
+            onRefresh = onRefresh,
+        )
+        Box(
             modifier = modifier
                 .fillMaxSize()
                 .padding(padding)
-                .verticalScroll(rememberScrollState()),
+                .pullRefresh(pullRefreshState),
         ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState()),
+            ) {
             // ── Server info section ───────────────────────────────────────
             ServerInfoSection(server = server, isAdmin = isAdmin)
 
@@ -227,7 +243,15 @@ fun ServerDetailScreen(
                 }
             }
 
-            Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(24.dp))
+            }
+            PullRefreshIndicator(
+                refreshing = isRefreshing,
+                state = pullRefreshState,
+                modifier = Modifier.align(Alignment.TopCenter),
+                backgroundColor = colors.card,
+                contentColor = colors.primary,
+            )
         }
     }
 }

@@ -11,6 +11,7 @@ import com.callapp.android.network.result.ApiError
 import com.callapp.android.network.result.ApiResult
 import com.callapp.android.ui.common.UiState
 import com.callapp.android.ui.common.apiErrorMessage
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,8 +21,8 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 
 interface HomeDependencies {
-    fun observeConnectedServers(): kotlinx.coroutines.flow.Flow<List<Server>>
-    fun observeFavoriteUpdates(): kotlinx.coroutines.flow.Flow<String>
+    fun observeConnectedServers(): Flow<List<Server>>
+    fun observeFavoriteUpdates(): Flow<String>
     suspend fun processPendingApprovals()
     suspend fun refreshConnectedServersAvailability()
     suspend fun getFavorites(serverAddress: String): ApiResult<List<User>>
@@ -32,8 +33,9 @@ interface HomeDependencies {
 object DefaultHomeDependencies : HomeDependencies {
     private val repo get() = ServiceLocator.serverRepository
 
-    override fun observeConnectedServers() = repo.observeConnectedServers()
-    override fun observeFavoriteUpdates() = repo.favoriteUpdates
+    override fun observeConnectedServers(): Flow<List<Server>> = repo.observeConnectedServers()
+
+    override fun observeFavoriteUpdates(): Flow<String> = repo.favoriteUpdates
 
     override suspend fun processPendingApprovals() = repo.processPendingApprovals()
 
@@ -59,6 +61,9 @@ class HomeViewModel(
 
     private val _favoritesState = MutableStateFlow<UiState<List<User>>>(UiState.Loading)
     val favoritesState: StateFlow<UiState<List<User>>> = _favoritesState.asStateFlow()
+
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
     private val _notificationCount = MutableStateFlow(0)
     val notificationCount: StateFlow<Int> = _notificationCount.asStateFlow()
@@ -93,17 +98,22 @@ class HomeViewModel(
                     updatedServerAddress == dependencies.activeServerAddress()
                 }
                 .collectLatest {
-                    loadData()
+                    refresh()
                 }
         }
     }
 
-    fun loadData() {
+    fun loadData(showLoadingIndicator: Boolean = true) {
         viewModelScope.launch {
-            _favoritesState.value = UiState.Loading
-            dependencies.processPendingApprovals()
-            dependencies.refreshConnectedServersAvailability()
+            if (showLoadingIndicator) {
+                _favoritesState.value = UiState.Loading
+            } else {
+                _isRefreshing.value = true
+            }
             try {
+                dependencies.processPendingApprovals()
+                dependencies.refreshConnectedServersAvailability()
+
                 val activeAddress = dependencies.activeServerAddress()
                 if (activeAddress.isNotEmpty()) {
                     when (val result = dependencies.getFavorites(activeAddress)) {
@@ -141,11 +151,13 @@ class HomeViewModel(
             } catch (_: Exception) {
                 _favoritesState.value = UiState.Error("Не удалось загрузить данные")
                 _notificationCount.value = 0
+            } finally {
+                _isRefreshing.value = false
             }
         }
     }
 
     fun refresh() {
-        loadData()
+        loadData(showLoadingIndicator = false)
     }
 }

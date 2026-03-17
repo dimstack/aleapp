@@ -18,6 +18,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
@@ -26,6 +27,9 @@ import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.pullrefresh.PullRefreshIndicator
+import androidx.compose.material.pullrefresh.pullRefresh
+import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.CircularProgressIndicator
@@ -88,10 +92,12 @@ private fun serverImageColor(name: String): Color =
 /*  HomeScreen                                                                */
 /* ═══════════════════════════════════════════════════════════════════════════ */
 
+@OptIn(ExperimentalMaterialApi::class)
 @Composable
 fun HomeScreen(
     favoritesState: UiState<List<User>> = UiState.Success(PreviewData.favorites),
     serversState: UiState<List<Server>> = UiState.Success(PreviewData.servers),
+    isRefreshing: Boolean = false,
     notificationCount: Int = 1,
     onServerClick: (Server) -> Unit = {},
     onSettingsClick: () -> Unit = {},
@@ -99,6 +105,7 @@ fun HomeScreen(
     onCallClick: (serverId: String, userId: String, contactName: String) -> Unit = { _, _, _ -> },
     onAddServerClick: () -> Unit = {},
     onContactClick: (serverId: String, userId: String) -> Unit = { _, _ -> },
+    onRefresh: () -> Unit = {},
     onRetry: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -124,14 +131,23 @@ fun HomeScreen(
             }
         },
     ) { padding ->
-        Column(
+        val pullRefreshState = rememberPullRefreshState(
+            refreshing = isRefreshing,
+            onRefresh = onRefresh,
+        )
+        Box(
             modifier = modifier
                 .fillMaxSize()
                 .padding(padding)
                 .testTag("home_screen")
-                .verticalScroll(rememberScrollState()),
+                .pullRefresh(pullRefreshState),
         ) {
-            Spacer(Modifier.height(8.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                Spacer(Modifier.height(8.dp))
 
             // ── Избранные ────────────────────────────────────────────────
             DataSection(
@@ -186,9 +202,17 @@ fun HomeScreen(
                         }
                     }
                 }
-            }
+                }
 
-            Spacer(Modifier.height(88.dp))
+                Spacer(Modifier.height(88.dp))
+            }
+            PullRefreshIndicator(
+                refreshing = isRefreshing,
+                state = pullRefreshState,
+                modifier = Modifier.align(Alignment.TopCenter),
+                backgroundColor = colors.card,
+                contentColor = colors.primary,
+            )
         }
     }
 }

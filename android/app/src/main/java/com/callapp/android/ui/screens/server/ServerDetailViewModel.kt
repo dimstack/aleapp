@@ -97,6 +97,9 @@ class ServerDetailViewModel(
     private val _isAdmin = MutableStateFlow(false)
     val isAdmin: StateFlow<Boolean> = _isAdmin.asStateFlow()
 
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
     val currentUserId: String get() = dependencies.currentUserId()
 
     private val _pendingRequests = MutableStateFlow<List<JoinRequest>>(emptyList())
@@ -131,48 +134,61 @@ class ServerDetailViewModel(
         }
     }
 
-    fun loadUsers() {
+    fun loadUsers(showLoadingIndicator: Boolean = true) {
         viewModelScope.launch {
-            _membersState.value = UiState.Loading
+            if (showLoadingIndicator) {
+                _membersState.value = UiState.Loading
+            } else {
+                _isRefreshing.value = true
+            }
             _actionError.value = null
             val address = _server.value.address
             if (address.isBlank()) {
                 _membersState.value = UiState.Error("Адрес сервера не указан")
+                _isRefreshing.value = false
                 return@launch
             }
-            when (val result = dependencies.getUsers(address)) {
-                is ApiResult.Success -> {
-                    _membersState.value = UiState.Success(result.data)
+            try {
+                when (val result = dependencies.getUsers(address)) {
+                    is ApiResult.Success -> {
+                        _membersState.value = UiState.Success(result.data)
 
-                    val currentUserId = dependencies.currentUserId()
-                    _isAdmin.value = if (currentUserId.isNotEmpty()) {
-                        result.data.any { it.id == currentUserId && it.role == UserRole.ADMIN }
-                    } else {
-                        false
+                        val currentUserId = dependencies.currentUserId()
+                        _isAdmin.value = if (currentUserId.isNotEmpty()) {
+                            result.data.any { it.id == currentUserId && it.role == UserRole.ADMIN }
+                        } else {
+                            false
+                        }
+
+                        if (_isAdmin.value) {
+                            loadPendingRequests(address)
+                        } else {
+                            _pendingRequests.value = emptyList()
+                        }
                     }
 
-                    if (_isAdmin.value) {
-                        loadPendingRequests(address)
-                    } else {
-                        _pendingRequests.value = emptyList()
+                    is ApiResult.Failure -> {
+                        _membersState.value = UiState.Error(
+                            apiErrorMessage(
+                                error = result.error,
+                                fallback = "Ошибка сервера",
+                                notFound = "Сервер не найден",
+                            ),
+                        )
                     }
                 }
-
-                is ApiResult.Failure -> {
-                    _membersState.value = UiState.Error(
-                        apiErrorMessage(
-                            error = result.error,
-                            fallback = "Ошибка сервера",
-                            notFound = "Сервер не найден",
-                        ),
-                    )
-                }
+            } finally {
+                _isRefreshing.value = false
             }
         }
     }
 
     fun loadMembers() {
         loadUsers()
+    }
+
+    fun refresh() {
+        loadUsers(showLoadingIndicator = false)
     }
 
     fun updateSearchQuery(query: String) {

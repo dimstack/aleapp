@@ -10,6 +10,7 @@ import com.callapp.android.network.result.ApiError
 import com.callapp.android.network.result.ApiResult
 import com.callapp.android.ui.common.UiState
 import com.callapp.android.ui.screens.connect.MainDispatcherRule
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -143,6 +144,35 @@ class ServerDetailViewModelTest {
         }
     }
 
+    @Test
+    fun refresh_keepsMembersVisibleWhileReloading() = runTest {
+        val server = testServer()
+        val gate = CompletableDeferred<Unit>()
+        val users = listOf(
+            testUser(id = "admin-1", name = "Admin", role = UserRole.ADMIN),
+            testUser(id = "user-1", name = "Alex"),
+        )
+        val dependencies = FakeServerDetailDependencies(server = server).apply {
+            usersResult = ApiResult.Success(users)
+        }
+
+        val viewModel = createViewModel(dependencies, server.id)
+        advanceUntilIdle()
+
+        dependencies.usersGate = gate
+        viewModel.refresh()
+        advanceUntilIdle()
+
+        assertEquals(UiState.Success(users), viewModel.membersState.value)
+        assertTrue(viewModel.isRefreshing.value)
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(UiState.Success(users), viewModel.membersState.value)
+        assertTrue(!viewModel.isRefreshing.value)
+    }
+
     private fun createViewModel(
         dependencies: ServerDetailDependencies,
         serverId: String = "srv-1",
@@ -161,12 +191,16 @@ class ServerDetailViewModelTest {
         var joinRequestsResult: ApiResult<List<JoinRequest>> = ApiResult.Success(emptyList())
         var removeUserResult: ApiResult<Unit> = ApiResult.Success(Unit)
         val removeUserCalls = mutableListOf<String>()
+        var usersGate: CompletableDeferred<Unit>? = null
 
         override fun getServerById(serverId: String): Server = serverFlow.value
 
         override fun observeServerById(serverId: String): Flow<Server?> = flowOf(serverFlow.value)
 
-        override suspend fun getUsers(serverAddress: String): ApiResult<List<User>> = usersResult
+        override suspend fun getUsers(serverAddress: String): ApiResult<List<User>> {
+            usersGate?.await()
+            return usersResult
+        }
 
         override suspend fun getJoinRequests(serverAddress: String): ApiResult<List<JoinRequest>> =
             joinRequestsResult
