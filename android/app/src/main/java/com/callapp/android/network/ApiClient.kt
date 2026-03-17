@@ -346,6 +346,11 @@ internal fun parseErrorResponse(body: String, json: Json = Json { ignoreUnknownK
 }
 
 internal fun shouldInvalidateSession(error: ApiError): Boolean =
-    error is ApiError.Unauthorized &&
-        error.code == "unauthorized" &&
-        error.message == "Authentication is required"
+    when (error) {
+        is ApiError.Unauthorized -> error.code == "unauthorized" &&
+            (error.message == "Authentication is required" || error.message == "User session is invalid")
+
+        ApiError.NotFound -> true
+        is ApiError.Forbidden -> true
+        else -> false
+    }

@@ -118,13 +118,13 @@ fun Application.configureRouting() {
 
             get("/api/server") {
                 val principal = call.requireSessionPrincipal()
-                requireUser(principal)
+                requireUser(this@configureRouting, principal)
                 call.respond(HttpStatusCode.OK, this@configureRouting.dependencies.managementService.getServer().toDto())
             }
 
             put("/api/server") {
                 val principal = call.requireSessionPrincipal()
-                requireAdmin(principal)
+                requireAdmin(this@configureRouting, principal)
                 val request = call.receive<UpdateServerRequestDto>()
                 val server = this@configureRouting.dependencies.managementService.updateServer(
                     name = request.name,
@@ -138,7 +138,7 @@ fun Application.configureRouting() {
 
             post("/api/uploads/server-image") {
                 val principal = call.requireSessionPrincipal()
-                requireAdmin(principal)
+                requireAdmin(this@configureRouting, principal)
                 val image = storeUploadedImage(
                     application = this@configureRouting,
                     category = MediaCategory.SERVER,
@@ -151,7 +151,7 @@ fun Application.configureRouting() {
 
             delete("/api/server") {
                 val principal = call.requireSessionPrincipal()
-                requireAdmin(principal)
+                requireAdmin(this@configureRouting, principal)
                 call.respond(
                     HttpStatusCode.Gone,
                     com.callapp.server.routes.ErrorResponse(
@@ -163,7 +163,7 @@ fun Application.configureRouting() {
 
             get("/api/users") {
                 val principal = call.requireSessionPrincipal()
-                requireUser(principal)
+                requireUser(this@configureRouting, principal)
                 val users = this@configureRouting.dependencies.managementService
                     .listUsers(principal.serverId)
                     .map { it.toDto() }
@@ -172,14 +172,14 @@ fun Application.configureRouting() {
 
             get("/api/users/{id}") {
                 val principal = call.requireSessionPrincipal()
-                requireUser(principal)
+                requireUser(this@configureRouting, principal)
                 val userId = call.parameters["id"] ?: throw ApiException(HttpStatusCode.BadRequest, "validation_error", "User id is required")
                 call.respond(HttpStatusCode.OK, this@configureRouting.dependencies.managementService.getUser(userId).toDto())
             }
 
             put("/api/users/{id}") {
                 val principal = call.requireSessionPrincipal()
-                requireUser(principal)
+                requireUser(this@configureRouting, principal)
                 val userId = call.parameters["id"] ?: throw ApiException(HttpStatusCode.BadRequest, "validation_error", "User id is required")
                 val request = call.receive<UpdateUserRequestDto>()
                 val user = this@configureRouting.dependencies.managementService.updateUser(
@@ -197,7 +197,7 @@ fun Application.configureRouting() {
             post("/api/uploads/profile-image") {
                 val principal = call.requireSessionPrincipal()
                 if (!principal.isGuest) {
-                    requireUser(principal)
+                    requireUser(this@configureRouting, principal)
                 }
                 val image = storeUploadedImage(
                     application = this@configureRouting,
@@ -211,7 +211,7 @@ fun Application.configureRouting() {
 
             delete("/api/users/{id}") {
                 val principal = call.requireSessionPrincipal()
-                requireUser(principal)
+                requireUser(this@configureRouting, principal)
                 val userId = call.parameters["id"] ?: throw ApiException(HttpStatusCode.BadRequest, "validation_error", "User id is required")
                 this@configureRouting.dependencies.managementService.deleteUser(
                     actorUserId = principal.userId.orEmpty(),
@@ -223,7 +223,7 @@ fun Application.configureRouting() {
 
             get("/api/invite-tokens") {
                 val principal = call.requireSessionPrincipal()
-                requireAdmin(principal)
+                requireAdmin(this@configureRouting, principal)
                 val tokens = this@configureRouting.dependencies.managementService
                     .listInviteTokens(principal.serverId)
                     .map { it.toDto() }
@@ -232,7 +232,7 @@ fun Application.configureRouting() {
 
             post("/api/invite-tokens") {
                 val principal = call.requireSessionPrincipal()
-                requireAdmin(principal)
+                requireAdmin(this@configureRouting, principal)
                 val request = call.receive<CreateInviteTokenRequestDto>()
                 val token = this@configureRouting.dependencies.managementService.createInviteToken(
                     createdBy = principal.userId.orEmpty(),
@@ -248,7 +248,7 @@ fun Application.configureRouting() {
 
             delete("/api/invite-tokens/{id}") {
                 val principal = call.requireSessionPrincipal()
-                requireAdmin(principal)
+                requireAdmin(this@configureRouting, principal)
                 val inviteTokenId = call.parameters["id"] ?: throw ApiException(HttpStatusCode.BadRequest, "validation_error", "Invite token id is required")
                 this@configureRouting.dependencies.managementService.revokeInviteToken(inviteTokenId)
                 audit(this@configureRouting, principal, "invite_token.revoke", inviteTokenId)
@@ -257,7 +257,7 @@ fun Application.configureRouting() {
 
             get("/api/join-requests") {
                 val principal = call.requireSessionPrincipal()
-                requireAdmin(principal)
+                requireAdmin(this@configureRouting, principal)
                 val requests = this@configureRouting.dependencies.managementService
                     .listJoinRequests(principal.serverId)
                     .map { it.toDto() }
@@ -266,7 +266,7 @@ fun Application.configureRouting() {
 
             post("/api/join-requests") {
                 val principal = call.requireSessionPrincipal()
-                requireUser(principal)
+                requireUser(this@configureRouting, principal)
                 call.respond(
                     HttpStatusCode.Gone,
                     com.callapp.server.routes.ErrorResponse(
@@ -278,7 +278,7 @@ fun Application.configureRouting() {
 
             put("/api/join-requests/{id}") {
                 val principal = call.requireSessionPrincipal()
-                requireAdmin(principal)
+                requireAdmin(this@configureRouting, principal)
                 val requestId = call.parameters["id"] ?: throw ApiException(HttpStatusCode.BadRequest, "validation_error", "Join request id is required")
                 val request = call.receive<JoinRequestActionDto>()
                 val joinRequest = this@configureRouting.dependencies.managementService.updateJoinRequest(
@@ -292,7 +292,7 @@ fun Application.configureRouting() {
 
             get("/api/favorites") {
                 val principal = call.requireSessionPrincipal()
-                requireUser(principal)
+                requireUser(this@configureRouting, principal)
                 val favorites = this@configureRouting.dependencies.managementService
                     .listFavorites(
                         userId = principal.userId.orEmpty(),
@@ -304,7 +304,7 @@ fun Application.configureRouting() {
 
             post("/api/favorites/{userId}") {
                 val principal = call.requireSessionPrincipal()
-                requireUser(principal)
+                requireUser(this@configureRouting, principal)
                 val favoriteUserId = call.parameters["userId"] ?: throw ApiException(HttpStatusCode.BadRequest, "validation_error", "Favorite user id is required")
                 this@configureRouting.dependencies.managementService.addFavorite(principal.userId.orEmpty(), favoriteUserId)
                 call.respond(HttpStatusCode.OK)
@@ -312,7 +312,7 @@ fun Application.configureRouting() {
 
             delete("/api/favorites/{userId}") {
                 val principal = call.requireSessionPrincipal()
-                requireUser(principal)
+                requireUser(this@configureRouting, principal)
                 val favoriteUserId = call.parameters["userId"] ?: throw ApiException(HttpStatusCode.BadRequest, "validation_error", "Favorite user id is required")
                 this@configureRouting.dependencies.managementService.removeFavorite(principal.userId.orEmpty(), favoriteUserId)
                 call.respond(HttpStatusCode.NoContent)
@@ -320,7 +320,7 @@ fun Application.configureRouting() {
 
             get("/api/notifications") {
                 val principal = call.requireSessionPrincipal()
-                requireUser(principal)
+                requireUser(this@configureRouting, principal)
                 val notifications = this@configureRouting.dependencies.managementService
                     .listNotifications(principal.userId.orEmpty())
                     .map { it.toDto() }
@@ -329,21 +329,21 @@ fun Application.configureRouting() {
 
             put("/api/notifications/read") {
                 val principal = call.requireSessionPrincipal()
-                requireUser(principal)
+                requireUser(this@configureRouting, principal)
                 this@configureRouting.dependencies.managementService.markNotificationsRead(principal.userId.orEmpty())
                 call.respond(HttpStatusCode.OK)
             }
 
             delete("/api/notifications") {
                 val principal = call.requireSessionPrincipal()
-                requireUser(principal)
+                requireUser(this@configureRouting, principal)
                 this@configureRouting.dependencies.managementService.clearNotifications(principal.userId.orEmpty())
                 call.respond(HttpStatusCode.NoContent)
             }
 
             get("/api/turn-credentials") {
                 val principal = call.requireSessionPrincipal()
-                requireUser(principal)
+                requireUser(this@configureRouting, principal)
                 val credentials = this@configureRouting.dependencies.turnCredentialsService.create(principal.userId.orEmpty())
                 call.respond(HttpStatusCode.OK, credentials)
             }
@@ -361,7 +361,7 @@ fun Application.configureRouting() {
                 decoded.toSessionPrincipal()
             }.getOrNull()
 
-            if (principal == null || !principal.isUser || principal.userId.isNullOrBlank()) {
+            if (principal == null || !hasActiveUser(this@configureRouting, principal)) {
                 this@configureRouting.dependencies.signalingManager.reject(this, "Invalid token")
                 return@webSocket
             }
@@ -394,15 +394,27 @@ private fun storeUploadedImage(
 )
 
 
-private fun requireUser(principal: com.callapp.server.auth.SessionPrincipal) {
-    if (!principal.isUser || principal.userId.isNullOrBlank()) {
-        throw ApiException(HttpStatusCode.Forbidden, "forbidden", "User session is required")
+private fun requireUser(application: Application, principal: com.callapp.server.auth.SessionPrincipal) {
+    if (!hasActiveUser(application, principal)) {
+        throw ApiException(HttpStatusCode.Unauthorized, "unauthorized", "User session is invalid")
     }
 }
 
-private fun requireAdmin(principal: com.callapp.server.auth.SessionPrincipal) {
-    requireUser(principal)
+private fun hasActiveUser(application: Application, principal: com.callapp.server.auth.SessionPrincipal): Boolean {
+    if (!principal.isUser || principal.userId.isNullOrBlank()) {
+        return false
+    }
+    val user = application.dependencies.userRepository.findById(principal.userId) ?: return false
+    return user.serverId == principal.serverId && user.isApproved
+}
+
+private fun requireAdmin(application: Application, principal: com.callapp.server.auth.SessionPrincipal) {
+    requireUser(application, principal)
     if (!principal.isAdmin) {
+        throw ApiException(HttpStatusCode.Forbidden, "forbidden", "Admin session is required")
+    }
+    val user = application.dependencies.userRepository.findById(principal.userId.orEmpty())
+    if (user?.role?.name != "ADMIN") {
         throw ApiException(HttpStatusCode.Forbidden, "forbidden", "Admin session is required")
     }
 }

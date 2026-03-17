@@ -8,6 +8,7 @@ import com.callapp.android.domain.model.JoinRequest
 import com.callapp.android.domain.model.Server
 import com.callapp.android.domain.model.User
 import com.callapp.android.domain.model.UserRole
+import com.callapp.android.network.result.ApiError
 import com.callapp.android.network.result.ApiResult
 import com.callapp.android.ui.common.UiState
 import com.callapp.android.ui.common.apiErrorMessage
@@ -195,6 +196,11 @@ class ServerDetailViewModel(
                     }
 
                     is ApiResult.Failure -> {
+                        if (result.error.invalidatesSession()) {
+                            dependencies.disconnectServer(address)
+                            _events.emit(ServerDetailEvent.ServerDisconnected)
+                            return@launch
+                        }
                         _membersState.value = UiState.Error(
                             apiErrorMessage(
                                 error = result.error,
@@ -298,5 +304,12 @@ class ServerDetailViewModel(
             user.name.lowercase().contains(normalizedQuery) ||
                 user.username.lowercase().contains(normalizedQuery)
         }
+    }
+
+    private fun ApiError.invalidatesSession(): Boolean = when (this) {
+        ApiError.NotFound -> true
+        is ApiError.Unauthorized -> true
+        is ApiError.Forbidden -> true
+        else -> false
     }
 }

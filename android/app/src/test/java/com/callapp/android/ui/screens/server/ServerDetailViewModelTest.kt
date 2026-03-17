@@ -195,6 +195,27 @@ class ServerDetailViewModelTest {
     }
 
     @Test
+    fun invalidSessionDisconnectsServerAndEmitsEvent() = runTest {
+        val server = testServer()
+        val gate = CompletableDeferred<Unit>()
+        val dependencies = FakeServerDetailDependencies(server = server).apply {
+            usersGate = gate
+            usersResult = ApiResult.Failure(ApiError.Unauthorized(message = "User session is invalid"))
+        }
+
+        val viewModel = createViewModel(dependencies, server.id)
+
+        viewModel.events.test {
+            gate.complete(Unit)
+            advanceUntilIdle()
+
+            assertEquals(listOf(server.address), dependencies.disconnectedAddresses)
+            assertEquals(ServerDetailEvent.ServerDisconnected, awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun userUpdate_refreshesMembers() = runTest {
         val server = testServer()
         val updatedUsers = listOf(
@@ -244,6 +265,7 @@ class ServerDetailViewModelTest {
         var usersGate: CompletableDeferred<Unit>? = null
         var refreshServerCalls = 0
         var refreshedServer: Server? = null
+        val disconnectedAddresses = mutableListOf<String>()
 
         override fun getServerById(serverId: String): Server = serverFlow.value
 
@@ -269,7 +291,9 @@ class ServerDetailViewModelTest {
             return removeUserResult
         }
 
-        override fun disconnectServer(serverAddress: String) = Unit
+        override fun disconnectServer(serverAddress: String) {
+            disconnectedAddresses += serverAddress
+        }
 
         override fun currentUserId(): String = currentUserId
     }

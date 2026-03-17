@@ -3,6 +3,7 @@ package com.callapp.android.data
 import androidx.test.core.app.ApplicationProvider
 import app.cash.turbine.test
 import com.callapp.android.network.ServerConnectionManager
+import com.callapp.android.network.result.ApiError
 import com.callapp.android.network.result.ApiResult
 import com.callapp.android.testutil.InMemorySharedPreferences
 import kotlin.system.measureTimeMillis
@@ -220,6 +221,33 @@ class ServerRepositoryTest {
             com.callapp.android.domain.model.ServerAvailabilityStatus.UNAVAILABLE,
             repository.availabilityByAddress.value[address]?.status,
         )
+    }
+
+    @Test
+    fun refreshAvailability_invalidSessionClearsSavedServerSession() = runTest {
+        val server = createServer()
+        sessionStore.saveSession(
+            serverAddress = server.baseUrl(),
+            sessionToken = "token-1",
+            userId = "user-1",
+        )
+        ServiceLocator.activeServerAddress = server.baseUrl()
+        ServiceLocator.currentUserId = "user-1"
+        connectionManager.restoreSession(server.baseUrl(), "token-1")
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(401)
+                .setHeader("Content-Type", "application/json")
+                .setBody("""{"code":"unauthorized","message":"User session is invalid"}"""),
+        )
+
+        val availability = repository.refreshServerAvailability(server.baseUrl())
+
+        assertEquals(com.callapp.android.domain.model.ServerAvailabilityStatus.UNAVAILABLE, availability.status)
+        assertEquals(null, sessionStore.getSession(server.baseUrl()))
+        assertEquals("", ServiceLocator.activeServerAddress)
+        assertEquals("", ServiceLocator.currentUserId)
+        assertEquals(null, repository.availabilityByAddress.value[server.baseUrl()])
     }
 
     @Test

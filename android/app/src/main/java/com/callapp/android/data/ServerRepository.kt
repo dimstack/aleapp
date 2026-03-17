@@ -37,6 +37,13 @@ sealed interface PendingApprovalEvent {
     ) : PendingApprovalEvent
 }
 
+private fun ApiError.invalidatesSession(): Boolean = when (this) {
+    ApiError.NotFound -> true
+    is ApiError.Unauthorized -> true
+    is ApiError.Forbidden -> true
+    else -> false
+}
+
 class ServerRepository(private val connectionManager: ServerConnectionManager) {
 
     private val availabilityMutex = Mutex()
@@ -163,6 +170,13 @@ class ServerRepository(private val connectionManager: ServerConnectionManager) {
             }
 
             is ApiResult.Failure -> {
+                if (shouldInvalidateStoredSession(serverAddress, result.error)) {
+                    invalidateServerSession(serverAddress)
+                    return ServerAvailabilityInfo(
+                        status = ServerAvailabilityStatus.UNAVAILABLE,
+                        message = availabilityMessage(result.error),
+                    )
+                }
                 ServerAvailabilityInfo(
                     status = ServerAvailabilityStatus.UNAVAILABLE,
                     message = availabilityMessage(result.error),
@@ -349,6 +363,35 @@ class ServerRepository(private val connectionManager: ServerConnectionManager) {
 
     private fun trimAvailability(currentAddresses: Set<String>) {
         _availabilityByAddress.value = _availabilityByAddress.value.filterKeys { it in currentAddresses }
+    }
+
+    private fun invalidateServerSession(serverAddress: String) {
+        connectionManager.removeClient(serverAddress)
+        clearAvailability(serverAddress)
+
+        val store = getSessionStoreOrNull()
+        store?.removeSession(serverAddress)
+        store?.removePendingApproval(serverAddress)
+
+        if (ServiceLocator.activeServerAddress == serverAddress) {
+            ServiceLocator.activeServerAddress = ""
+            ServiceLocator.currentUserId = ""
+            store?.activeServerAddress = ""
+            store?.activeUserId = ""
+        }
+    }
+
+    private fun shouldInvalidateStoredSession(serverAddress: String, error: ApiError): Boolean {
+        if (error.invalidatesSession()) {
+            return true
+        }
+        if (error is ApiError.NetworkError) {
+            return false
+        }
+        val store = getSessionStoreOrNull() ?: return false
+        val hasStoredSession = store.getSession(serverAddress) != null
+        val clientHasToken = connectionManager.getClient(serverAddress).sessionToken != null
+        return hasStoredSession && clientHasToken
     }
 
     private fun persistConnectSession(

@@ -23,6 +23,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class ManagementRoutesTest {
@@ -187,6 +188,37 @@ class ManagementRoutesTest {
         assertEquals(HttpStatusCode.Gone, response.status)
         val body = json.parseToJsonElement(response.bodyAsText()).jsonObject
         assertEquals("deprecated_endpoint", body["code"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun deletedUserSessionIsRejectedByProtectedEndpoints() = testWithDatabase { dbPath ->
+        application { module() }
+        client.get("/health")
+        seedInviteToken(dbPath, "USER4444")
+        val userId = seedUser(dbPath, "@member4", "verysecure", role = "MEMBER", displayName = "Member Four")
+
+        val userToken = login("USER4444", "member4", "verysecure")
+
+        DriverManager.getConnection("jdbc:sqlite:$dbPath").use { connection ->
+            connection.prepareStatement("DELETE FROM users WHERE id = ?").use { statement ->
+                statement.setString(1, userId)
+                statement.executeUpdate()
+            }
+        }
+
+        val serverResponse = client.get("/api/server") {
+            bearerAuth(userToken)
+        }
+        assertEquals(HttpStatusCode.Unauthorized, serverResponse.status)
+
+        val usersResponse = client.get("/api/users") {
+            bearerAuth(userToken)
+        }
+        assertEquals(HttpStatusCode.Unauthorized, usersResponse.status)
+
+        val body = json.parseToJsonElement(usersResponse.bodyAsText()).jsonObject
+        assertEquals("unauthorized", body["code"]!!.jsonPrimitive.content)
+        assertFalse(body["message"]!!.jsonPrimitive.content.isBlank())
     }
 
     @Test

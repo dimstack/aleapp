@@ -135,4 +135,16 @@ class ApiClientErrorMappingTest {
             ),
         )
     }
+
+    @Test
+    fun `invalidates session for deleted user unauthorized`() {
+        assertTrue(
+            shouldInvalidateSession(
+                ApiError.Unauthorized(
+                    code = "unauthorized",
+                    message = "User session is invalid",
+                ),
+            ),
+        )
+    }
 }
