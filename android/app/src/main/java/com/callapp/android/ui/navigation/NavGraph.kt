@@ -575,6 +575,7 @@ fun AppNavGraph(
                 val isCameraOn by viewModel.isCameraOn.collectAsState()
                 val localVideoTrack by viewModel.localVideoTrack.collectAsState()
                 val remoteVideoTrack by viewModel.remoteVideoTrack.collectAsState()
+                val contactAvatarUrl by viewModel.contactAvatarUrl.collectAsState()
 
                 if (callPhase == CallPhase.ENDED) {
                     LaunchedEffect(Unit) { navController.popBackStack() }
@@ -587,6 +588,7 @@ fun AppNavGraph(
 
                     CallScreen(
                         contactName = viewModel.contactName,
+                        contactAvatarUrl = contactAvatarUrl,
                         callStatus = callStatus,
                         elapsedSeconds = elapsedSeconds,
                         isMicOn = isMicOn,
@@ -628,6 +630,7 @@ fun AppNavGraph(
                 val isCameraOn by viewModel.isCameraOn.collectAsState()
                 val localVideoTrack by viewModel.localVideoTrack.collectAsState()
                 val remoteVideoTrack by viewModel.remoteVideoTrack.collectAsState()
+                val contactAvatarUrl by viewModel.contactAvatarUrl.collectAsState()
 
                 when (callPhase) {
                     CallPhase.ENDED -> {
@@ -636,6 +639,7 @@ fun AppNavGraph(
                     CallPhase.CONNECTED -> {
                         CallScreen(
                             contactName = viewModel.contactName,
+                            contactAvatarUrl = contactAvatarUrl,
                             callStatus = CallStatus.CONNECTED,
                             elapsedSeconds = elapsedSeconds,
                             isMicOn = isMicOn,
@@ -652,6 +656,7 @@ fun AppNavGraph(
                     else -> {
                         IncomingCallScreen(
                             contactName = viewModel.contactName,
+                            contactAvatarUrl = contactAvatarUrl,
                             serverName = viewModel.serverName ?: "",
                             onAccept = viewModel::acceptCall,
                             onDecline = viewModel::declineCall,

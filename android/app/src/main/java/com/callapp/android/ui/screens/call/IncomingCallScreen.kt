@@ -57,6 +57,7 @@ enum class CallType(val label: String) {
 fun IncomingCallScreen(
     contactName: String,
     contactInitials: String = contactName.take(2).uppercase(),
+    contactAvatarUrl: String? = null,
     serverName: String = "",
     callType: CallType = CallType.VOICE,
     onAccept: () -> Unit = {},
@@ -94,6 +95,7 @@ fun IncomingCallScreen(
                 accentColor = colors.accent,
                 backgroundColor = colors.secondary,
                 textColor = colors.foreground,
+                avatarUrl = contactAvatarUrl,
             )
 
             Spacer(Modifier.height(16.dp))

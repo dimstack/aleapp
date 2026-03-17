@@ -4,6 +4,8 @@ import android.app.Application
 import androidx.lifecycle.SavedStateHandle
 import com.callapp.android.data.CallConnectionState
 import com.callapp.android.data.CallRepositoryEvent
+import com.callapp.android.domain.model.User
+import com.callapp.android.network.result.ApiResult
 import com.callapp.android.network.signaling.ConnectionState
 import com.callapp.android.network.signaling.SignalMessage
 import com.callapp.android.ui.screens.connect.MainDispatcherRule
@@ -152,6 +154,28 @@ class CallViewModelTest {
     }
 
     @Test
+    fun loadsContactAvatarUrl() = runTest {
+        val fakeSession = FakeCallSession()
+        val viewModel = createViewModel(
+            dependencies = FakeCallViewModelDependencies(
+                fakeSession = fakeSession,
+                user = User(
+                    id = "user-42",
+                    name = "Maria",
+                    username = "maria",
+                    avatarUrl = "https://example.com/avatar.jpg",
+                ),
+            ),
+        )
+
+        advanceUntilIdle()
+
+        assertEquals("https://example.com/avatar.jpg", viewModel.contactAvatarUrl.value)
+        viewModel.endCall()
+        runCurrent()
+    }
+
+    @Test
     fun iceCandidateExchange() = runTest {
         val fakeSignaling = FakeCallSignalingGateway()
         val fakeSession = FakeCallSession(signaling = fakeSignaling)
@@ -197,11 +221,19 @@ class CallViewModelTest {
     private class FakeCallViewModelDependencies(
         private val fakeSession: FakeCallSession,
         private val fakeSignaling: FakeCallSignalingGateway = FakeCallSignalingGateway(),
+        private val user: User = User(
+            id = "user-42",
+            name = "Maria",
+            username = "maria",
+        ),
         override val callTimeoutMillis: Long = 60_000_000L,
     ) : CallViewModelDependencies {
         override fun createCallSession(application: Application, serverAddress: String): CallSession = fakeSession
 
         override fun getSignaling(serverAddress: String): CallSignalingGateway = fakeSignaling
+
+        override suspend fun getUser(serverAddress: String, userId: String): ApiResult<User> =
+            ApiResult.Success(user)
     }
 
     private class FakeCallSignalingGateway : CallSignalingGateway {

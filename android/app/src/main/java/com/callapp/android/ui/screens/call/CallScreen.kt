@@ -117,6 +117,7 @@ private fun WebRtcVideoRenderer(
 fun CallScreen(
     contactName: String,
     contactInitials: String = contactName.take(2).uppercase(),
+    contactAvatarUrl: String? = null,
     callStatus: CallStatus = CallStatus.CALLING,
     elapsedSeconds: Int = 0,
     isMicOn: Boolean = true,
@@ -179,6 +180,7 @@ fun CallScreen(
                         accentColor = colors.accent,
                         backgroundColor = colors.secondary,
                         textColor = colors.foreground,
+                        avatarUrl = contactAvatarUrl,
                     )
 
                     Spacer(Modifier.height(24.dp))

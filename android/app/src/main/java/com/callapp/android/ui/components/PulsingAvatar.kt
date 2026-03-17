@@ -21,9 +21,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
 import com.callapp.android.ui.theme.AleAppTheme
 
 @Composable
@@ -35,6 +37,7 @@ fun PulsingAvatar(
     textColor: Color,
     modifier: Modifier = Modifier,
     avatarSize: Dp = 128.dp,
+    avatarUrl: String? = null,
 ) {
     Box(
         modifier = modifier.size(avatarSize * 1.6f),
@@ -121,12 +124,23 @@ fun PulsingAvatar(
             shape = CircleShape,
             color = backgroundColor,
         ) {
-            Box(contentAlignment = Alignment.Center) {
-                Text(
-                    text = initials,
-                    style = MaterialTheme.typography.headlineLarge,
-                    color = textColor,
+            if (!avatarUrl.isNullOrBlank()) {
+                AsyncImage(
+                    model = avatarUrl,
+                    contentDescription = "Аватар пользователя",
+                    modifier = Modifier
+                        .size(avatarSize)
+                        .clip(CircleShape),
+                    contentScale = ContentScale.Crop,
                 )
+            } else {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        text = initials,
+                        style = MaterialTheme.typography.headlineLarge,
+                        color = textColor,
+                    )
+                }
             }
         }
     }

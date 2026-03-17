@@ -42,6 +42,7 @@ data class UserProfileData(
     val userId: String,
     val name: String,
     val username: String,
+    val avatarUrl: String = "",
     val serverName: String,
     val isAdmin: Boolean,
     val isFavorite: Boolean,
@@ -91,6 +92,7 @@ fun UserProfileScreen(
 
             ProfileAvatar(
                 name = user.name,
+                avatarUrl = user.avatarUrl,
                 size = 128.dp,
             )
 

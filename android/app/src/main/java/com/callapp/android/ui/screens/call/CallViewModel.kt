@@ -8,9 +8,11 @@ import com.callapp.android.data.CallConnectionState
 import com.callapp.android.data.CallRepository
 import com.callapp.android.data.CallRepositoryEvent
 import com.callapp.android.data.ServiceLocator
+import com.callapp.android.domain.model.User
 import com.callapp.android.network.signaling.ConnectionState
 import com.callapp.android.network.signaling.SignalMessage
 import com.callapp.android.network.signaling.SignalingClient
+import com.callapp.android.network.result.ApiResult
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -56,6 +58,7 @@ interface CallSignalingGateway {
 interface CallViewModelDependencies {
     fun createCallSession(application: Application, serverAddress: String): CallSession
     fun getSignaling(serverAddress: String): CallSignalingGateway
+    suspend fun getUser(serverAddress: String, userId: String): ApiResult<User>
     val callTimeoutMillis: Long
         get() = 30_000L
 }
@@ -135,6 +138,9 @@ object DefaultCallViewModelDependencies : CallViewModelDependencies {
 
     override fun getSignaling(serverAddress: String): CallSignalingGateway =
         SignalingGatewayAdapter(ServiceLocator.connectionManager.getSignaling(serverAddress))
+
+    override suspend fun getUser(serverAddress: String, userId: String): ApiResult<User> =
+        ServiceLocator.serverRepository.getUser(serverAddress, userId)
 }
 
 class CallViewModel(
@@ -158,6 +164,8 @@ class CallViewModel(
         ?.let { java.net.URLDecoder.decode(it, "UTF-8") }
 
     private val userId: String = savedStateHandle.get<String>("userId") ?: ""
+    private val _contactAvatarUrl = MutableStateFlow<String?>(null)
+    val contactAvatarUrl: StateFlow<String?> = _contactAvatarUrl.asStateFlow()
 
     val isIncoming: Boolean = serverName != null
 
@@ -189,10 +197,22 @@ class CallViewModel(
     private var callSession: CallSession? = null
 
     init {
+        loadContactAvatar()
         if (isIncoming) {
             getOrCreateCallSession()
         } else {
             startOutgoingCall()
+        }
+    }
+
+    private fun loadContactAvatar() {
+        if (serverAddress.isBlank() || userId.isBlank()) return
+
+        viewModelScope.launch {
+            when (val result = dependencies.getUser(serverAddress, userId)) {
+                is ApiResult.Success -> _contactAvatarUrl.value = result.data.avatarUrl
+                is ApiResult.Failure -> Unit
+            }
         }
     }
 

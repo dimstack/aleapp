@@ -86,6 +86,7 @@ class UserProfileViewModel(
                             userId = user.id,
                             name = user.name,
                             username = user.username,
+                            avatarUrl = user.avatarUrl.orEmpty(),
                             serverName = server.name,
                             isAdmin = user.role == UserRole.ADMIN,
                             isFavorite = false,
