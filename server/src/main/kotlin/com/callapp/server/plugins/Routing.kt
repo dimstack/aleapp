@@ -12,13 +12,16 @@ import com.callapp.server.routes.CreateUserRequestDto
 import com.callapp.server.routes.HealthResponse
 import com.callapp.server.routes.JoinRequestActionDto
 import com.callapp.server.routes.LoginRequestDto
+import com.callapp.server.routes.UploadImageResponseDto
 import com.callapp.server.routes.UpdateServerRequestDto
 import com.callapp.server.routes.UpdateUserRequestDto
 import com.callapp.server.routes.toDto
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.HttpHeaders
 import io.ktor.server.application.Application
 import io.ktor.server.auth.authenticate
 import io.ktor.server.request.receive
+import io.ktor.server.response.respondBytes
 import io.ktor.server.response.respond
 import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
@@ -28,6 +31,7 @@ import io.ktor.server.routing.routing
 import io.ktor.server.websocket.webSocket
 import io.ktor.websocket.Frame
 import io.ktor.websocket.readText
+import com.callapp.server.service.MediaCategory
 
 fun Application.configureRouting() {
     routing {
@@ -51,6 +55,25 @@ fun Application.configureRouting() {
                     status = if (databaseState.connected) "ok" else "degraded",
                     database = databaseState,
                 ),
+            )
+        }
+
+        get("/uploads/{category}/{fileName}") {
+            val category = when (call.parameters["category"]) {
+                MediaCategory.PROFILE.folderName -> MediaCategory.PROFILE
+                MediaCategory.SERVER.folderName -> MediaCategory.SERVER
+                else -> null
+            } ?: throw ApiException(HttpStatusCode.NotFound, "not_found", "File not found")
+
+            val fileName = call.parameters["fileName"]
+                ?: throw ApiException(HttpStatusCode.NotFound, "not_found", "File not found")
+
+            val path = this@configureRouting.dependencies.mediaStorageService.resolve(category, fileName)
+                ?: throw ApiException(HttpStatusCode.NotFound, "not_found", "File not found")
+
+            call.respondBytes(
+                bytes = java.nio.file.Files.readAllBytes(path),
+                contentType = this@configureRouting.dependencies.mediaStorageService.contentType(fileName),
             )
         }
 
@@ -113,6 +136,19 @@ fun Application.configureRouting() {
                 call.respond(HttpStatusCode.OK, server.toDto())
             }
 
+            post("/api/uploads/server-image") {
+                val principal = call.requireSessionPrincipal()
+                requireAdmin(principal)
+                val image = storeUploadedImage(
+                    application = this@configureRouting,
+                    category = MediaCategory.SERVER,
+                    bytes = call.receive(),
+                    originalFileName = call.request.headers["X-File-Name"],
+                    mimeType = call.request.headers[HttpHeaders.ContentType],
+                )
+                call.respond(HttpStatusCode.OK, UploadImageResponseDto(url = image.relativePath))
+            }
+
             delete("/api/server") {
                 val principal = call.requireSessionPrincipal()
                 requireAdmin(principal)
@@ -156,6 +192,21 @@ fun Application.configureRouting() {
                     status = request.status,
                 )
                 call.respond(HttpStatusCode.OK, user.toDto())
+            }
+
+            post("/api/uploads/profile-image") {
+                val principal = call.requireSessionPrincipal()
+                if (!principal.isGuest) {
+                    requireUser(principal)
+                }
+                val image = storeUploadedImage(
+                    application = this@configureRouting,
+                    category = MediaCategory.PROFILE,
+                    bytes = call.receive(),
+                    originalFileName = call.request.headers["X-File-Name"],
+                    mimeType = call.request.headers[HttpHeaders.ContentType],
+                )
+                call.respond(HttpStatusCode.OK, UploadImageResponseDto(url = image.relativePath))
             }
 
             delete("/api/users/{id}") {
@@ -328,6 +379,20 @@ fun Application.configureRouting() {
         }
     }
 }
+
+private fun storeUploadedImage(
+    application: Application,
+    category: MediaCategory,
+    bytes: ByteArray,
+    originalFileName: String?,
+    mimeType: String?,
+) = application.dependencies.mediaStorageService.storeImage(
+    bytes = bytes,
+    originalFileName = originalFileName,
+    mimeType = mimeType,
+    category = category,
+)
+
 
 private fun requireUser(principal: com.callapp.server.auth.SessionPrincipal) {
     if (!principal.isUser || principal.userId.isNullOrBlank()) {

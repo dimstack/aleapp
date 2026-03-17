@@ -13,6 +13,7 @@ import com.callapp.server.signaling.SignalingManager
 import com.callapp.server.service.InviteTokenParser
 import com.callapp.server.service.InviteTokenService
 import com.callapp.server.service.ManagementService
+import com.callapp.server.service.MediaStorageService
 import com.callapp.server.service.OnboardingService
 import com.callapp.server.service.PasswordService
 import com.callapp.server.service.TurnCredentialsService
@@ -30,6 +31,7 @@ data class AppDependencies(
     val inviteTokenService: InviteTokenService,
     val onboardingService: OnboardingService,
     val managementService: ManagementService,
+    val mediaStorageService: MediaStorageService,
     val serverRepository: ServerRepository,
     val userRepository: UserRepository,
     val inviteTokenRepository: InviteTokenRepository,
@@ -50,6 +52,7 @@ class AppDependenciesPluginConfig {
     lateinit var inviteTokenService: InviteTokenService
     lateinit var onboardingService: OnboardingService
     lateinit var managementService: ManagementService
+    lateinit var mediaStorageService: MediaStorageService
     lateinit var serverRepository: ServerRepository
     lateinit var userRepository: UserRepository
     lateinit var inviteTokenRepository: InviteTokenRepository
@@ -78,6 +81,7 @@ val AppDependenciesPlugin = createApplicationPlugin(
             inviteTokenService = pluginConfig.inviteTokenService,
             onboardingService = pluginConfig.onboardingService,
             managementService = pluginConfig.managementService,
+            mediaStorageService = pluginConfig.mediaStorageService,
             serverRepository = pluginConfig.serverRepository,
             userRepository = pluginConfig.userRepository,
             inviteTokenRepository = pluginConfig.inviteTokenRepository,

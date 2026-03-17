@@ -83,4 +83,21 @@ class CreateProfileScreenTest {
 
         assertTrue(submitted.get())
     }
+
+    @Test
+    fun photoButton_requestsPhotoPicker() {
+        val pickerRequested = AtomicBoolean(false)
+
+        composeRule.setAleAppContent {
+            CreateProfileScreen(
+                serverName = "Tech Community",
+                onPhotoPickerRequest = { pickerRequested.set(true) },
+            )
+        }
+
+        composeRule.onNodeWithTag("create_profile_photo_button").performClick()
+        composeRule.waitForIdle()
+
+        assertTrue(pickerRequested.get())
+    }
 }

@@ -63,7 +63,15 @@ interface ConnectDependencies {
         name: String,
         username: String,
         password: String,
+        avatarUrl: String? = null,
     ): ApiResult<CreateUserResult>
+
+    suspend fun uploadProfileImage(
+        serverAddress: String,
+        bytes: ByteArray,
+        fileName: String,
+        mimeType: String,
+    ): ApiResult<String>
 
     suspend fun login(
         serverAddress: String,
@@ -106,12 +114,22 @@ object DefaultConnectDependencies : ConnectDependencies {
         name: String,
         username: String,
         password: String,
+        avatarUrl: String?,
     ): ApiResult<CreateUserResult> =
         ServiceLocator.connectionManager.getClient(serverAddress).createUser(
             name = name,
             username = username,
             password = password,
+            avatarUrl = avatarUrl,
         )
+
+    override suspend fun uploadProfileImage(
+        serverAddress: String,
+        bytes: ByteArray,
+        fileName: String,
+        mimeType: String,
+    ): ApiResult<String> = ServiceLocator.connectionManager.getClient(serverAddress)
+        .uploadProfileImage(bytes, fileName, mimeType)
 
     override suspend fun login(
         serverAddress: String,
@@ -176,6 +194,10 @@ class ConnectViewModel(
 
     private val _state = MutableStateFlow<ConnectUiState>(ConnectUiState.Idle)
     val state: StateFlow<ConnectUiState> = _state.asStateFlow()
+    private val _isUploadingImage = MutableStateFlow(false)
+    val isUploadingImage: StateFlow<Boolean> = _isUploadingImage.asStateFlow()
+    private val _uploadError = MutableStateFlow<String?>(null)
+    val uploadError: StateFlow<String?> = _uploadError.asStateFlow()
 
     var currentServerAddress: String = ""
         private set
@@ -246,7 +268,7 @@ class ConnectViewModel(
         }
     }
 
-    fun createProfile(username: String, name: String, password: String) {
+    fun createProfile(username: String, name: String, password: String, avatarUrl: String? = null) {
         if (currentServerAddress.isEmpty()) {
             _state.value = ConnectUiState.Error(SERVER_NOT_DEFINED)
             return
@@ -265,6 +287,7 @@ class ConnectViewModel(
                     name = name,
                     username = username,
                     password = password,
+                    avatarUrl = avatarUrl,
                 )
             ) {
                 is ApiResult.Success -> {
@@ -337,6 +360,38 @@ class ConnectViewModel(
                 }
             }
         }
+    }
+
+    fun uploadProfileImage(
+        bytes: ByteArray,
+        fileName: String,
+        mimeType: String,
+        onUploaded: (String) -> Unit,
+    ) {
+        if (currentServerAddress.isEmpty()) {
+            _uploadError.value = SERVER_NOT_DEFINED
+            return
+        }
+
+        _isUploadingImage.value = true
+        _uploadError.value = null
+        viewModelScope.launch {
+            when (val result = dependencies.uploadProfileImage(currentServerAddress, bytes, fileName, mimeType)) {
+                is ApiResult.Success -> {
+                    _isUploadingImage.value = false
+                    onUploaded(result.data)
+                }
+
+                is ApiResult.Failure -> {
+                    _isUploadingImage.value = false
+                    _uploadError.value = createProfileErrorMessage(result.error)
+                }
+            }
+        }
+    }
+
+    fun clearUploadError() {
+        _uploadError.value = null
     }
 
     fun login(username: String, password: String) {

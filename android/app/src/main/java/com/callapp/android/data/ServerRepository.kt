@@ -46,6 +46,8 @@ class ServerRepository(private val connectionManager: ServerConnectionManager) {
     val pendingApprovalEvents: SharedFlow<PendingApprovalEvent> = _pendingApprovalEvents.asSharedFlow()
     private val _favoriteUpdates = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val favoriteUpdates: SharedFlow<String> = _favoriteUpdates.asSharedFlow()
+    private val _userUpdates = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val userUpdates: SharedFlow<String> = _userUpdates.asSharedFlow()
 
     fun getConnectedServers(): List<Server> {
         val store = getSessionStoreOrNull() ?: return emptyList()
@@ -252,7 +254,28 @@ class ServerRepository(private val connectionManager: ServerConnectionManager) {
     ): ApiResult<User> {
         return connectionManager.getClient(serverAddress)
             .updateUser(userId, name, username, avatarUrl)
+            .also { result ->
+                if (result is ApiResult.Success) {
+                    _userUpdates.tryEmit(serverAddress)
+                }
+            }
     }
+
+    suspend fun uploadProfileImage(
+        serverAddress: String,
+        bytes: ByteArray,
+        fileName: String,
+        mimeType: String,
+    ): ApiResult<String> = connectionManager.getClient(serverAddress)
+        .uploadProfileImage(bytes, fileName, mimeType)
+
+    suspend fun uploadServerImage(
+        serverAddress: String,
+        bytes: ByteArray,
+        fileName: String,
+        mimeType: String,
+    ): ApiResult<String> = connectionManager.getClient(serverAddress)
+        .uploadServerImage(bytes, fileName, mimeType)
 
     suspend fun getFavoritesRemote(serverAddress: String): ApiResult<List<User>> {
         return connectionManager.getClient(serverAddress).getFavorites()

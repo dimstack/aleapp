@@ -1,7 +1,10 @@
 package com.callapp.android.ui.screens.servermanage
 
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.performClick
 import com.callapp.android.ui.testutil.setAleAppContent
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -47,5 +50,26 @@ class ServerManagementScreenTest {
         }
 
         composeRule.waitForIdle()
+    }
+
+    @Test
+    fun changePhotoButton_opensPhotoDialog() {
+        var pickerRequested = false
+
+        composeRule.setAleAppContent {
+            ServerManagementScreen(
+                initial = ServerManageData(
+                    id = "srv-1",
+                    name = "Tech Community",
+                    username = "tech_community",
+                    description = "Description",
+                    imageUrl = "",
+                ),
+                onPhotoPickerRequest = { pickerRequested = true },
+            )
+        }
+
+        composeRule.onNodeWithContentDescription("Изменить фото").performClick()
+        assertTrue(pickerRequested)
     }
 }

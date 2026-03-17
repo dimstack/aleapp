@@ -106,6 +106,26 @@ class ServerManagementViewModelTest {
     }
 
     @Test
+    fun uploadServerImage_success_invokesCallback() = runTest {
+        val dependencies = FakeServerManagementDependencies().apply {
+            uploadServerImageResult = ApiResult.Success("https://server.example.com/uploads/server/test.jpg")
+        }
+        val viewModel = createViewModel(dependencies)
+
+        var uploadedUrl: String? = null
+        viewModel.uploadServerImage(
+            bytes = byteArrayOf(1, 2, 3),
+            fileName = "server.jpg",
+            mimeType = "image/jpeg",
+        ) { uploadedUrl = it }
+        advanceUntilIdle()
+
+        assertEquals("https://server.example.com/uploads/server/test.jpg", uploadedUrl)
+        assertNull(viewModel.state.value.uploadError)
+        assertEquals(false, viewModel.state.value.isUploadingImage)
+    }
+
+    @Test
     fun save_allowsEmptyDescription() = runTest {
         val dependencies = FakeServerManagementDependencies().apply {
             updateServerResult = ApiResult.Success(
@@ -141,6 +161,8 @@ class ServerManagementViewModelTest {
     private class FakeServerManagementDependencies : ServerManagementDependencies {
         private val server = testServer()
         var updateServerResult: ApiResult<Server> = ApiResult.Success(server)
+        var uploadServerImageResult: ApiResult<String> =
+            ApiResult.Success("https://server.example.com/uploads/server/default.jpg")
         val metadataUpdates = mutableListOf<ServerMetadataUpdate>()
         var lastDescription: String? = null
 
@@ -156,6 +178,13 @@ class ServerManagementViewModelTest {
             lastDescription = description
             return updateServerResult
         }
+
+        override suspend fun uploadServerImage(
+            serverAddress: String,
+            bytes: ByteArray,
+            fileName: String,
+            mimeType: String,
+        ): ApiResult<String> = uploadServerImageResult
 
         override fun updateServerMetadata(
             serverAddress: String,

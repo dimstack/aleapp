@@ -13,6 +13,7 @@ import com.callapp.android.ui.screens.connect.MainDispatcherRule
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -193,6 +194,34 @@ class ServerDetailViewModelTest {
         assertEquals("New description", viewModel.server.value.description)
     }
 
+    @Test
+    fun userUpdate_refreshesMembers() = runTest {
+        val server = testServer()
+        val updatedUsers = listOf(
+            testUser(
+                id = "admin-1",
+                name = "Admin",
+                role = UserRole.ADMIN,
+                avatarUrl = "https://server.example.com/uploads/profile/admin.jpg",
+            ),
+        )
+        val dependencies = FakeServerDetailDependencies(server = server).apply {
+            usersResult = ApiResult.Success(
+                listOf(testUser(id = "admin-1", name = "Admin", role = UserRole.ADMIN)),
+            )
+        }
+
+        val viewModel = createViewModel(dependencies, server.id)
+        advanceUntilIdle()
+
+        dependencies.usersResult = ApiResult.Success(updatedUsers)
+        dependencies.userUpdates.tryEmit(server.address)
+        advanceUntilIdle()
+
+        val members = (viewModel.membersState.value as UiState.Success).data
+        assertEquals("https://server.example.com/uploads/profile/admin.jpg", members.single().avatarUrl)
+    }
+
     private fun createViewModel(
         dependencies: ServerDetailDependencies,
         serverId: String = "srv-1",
@@ -206,6 +235,7 @@ class ServerDetailViewModelTest {
         private val currentUserId: String = "admin-1",
     ) : ServerDetailDependencies {
         private val serverFlow = MutableStateFlow(server)
+        val userUpdates = MutableSharedFlow<String>(extraBufferCapacity = 1)
 
         var usersResult: ApiResult<List<User>> = ApiResult.Success(emptyList())
         var joinRequestsResult: ApiResult<List<JoinRequest>> = ApiResult.Success(emptyList())
@@ -218,6 +248,8 @@ class ServerDetailViewModelTest {
         override fun getServerById(serverId: String): Server = serverFlow.value
 
         override fun observeServerById(serverId: String): Flow<Server?> = serverFlow
+
+        override fun observeUserUpdates(): Flow<String> = userUpdates
 
         override suspend fun refreshServer(serverAddress: String) {
             refreshServerCalls += 1
@@ -260,10 +292,12 @@ class ServerDetailViewModelTest {
             id: String,
             name: String,
             role: UserRole = UserRole.MEMBER,
+            avatarUrl: String? = null,
         ) = User(
             id = id,
             name = name,
             username = "@${name.lowercase()}",
+            avatarUrl = avatarUrl,
             role = role,
             serverId = "srv-1",
         )

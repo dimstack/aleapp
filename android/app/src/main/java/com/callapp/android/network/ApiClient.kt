@@ -20,6 +20,7 @@ import com.callapp.android.network.dto.ServerDto
 import com.callapp.android.network.dto.TurnCredentialsDto
 import com.callapp.android.network.dto.UpdateServerRequest
 import com.callapp.android.network.dto.UpdateUserRequest
+import com.callapp.android.network.dto.UploadImageResponseDto
 import com.callapp.android.network.dto.UserDto
 import com.callapp.android.network.dto.toDomain
 import com.callapp.android.network.result.ApiError
@@ -163,6 +164,32 @@ class ApiClient(private val baseUrl: String) {
         dto.toDomain(address = baseUrl)
     }
 
+    suspend fun uploadProfileImage(
+        bytes: ByteArray,
+        fileName: String,
+        mimeType: String,
+    ): ApiResult<String> = request {
+        val dto: UploadImageResponseDto = httpClient.post("api/uploads/profile-image") {
+            contentType(ContentType.parse(mimeType))
+            header("X-File-Name", fileName)
+            setBody(bytes)
+        }.body()
+        normalizeMediaUrl(dto.url)
+    }
+
+    suspend fun uploadServerImage(
+        bytes: ByteArray,
+        fileName: String,
+        mimeType: String,
+    ): ApiResult<String> = request {
+        val dto: UploadImageResponseDto = httpClient.post("api/uploads/server-image") {
+            contentType(ContentType.parse(mimeType))
+            header("X-File-Name", fileName)
+            setBody(bytes)
+        }.body()
+        normalizeMediaUrl(dto.url)
+    }
+
     suspend fun getJoinRequests(): ApiResult<List<JoinRequest>> = request {
         val dtos: List<JoinRequestDto> = httpClient.get("api/join-requests").body()
         dtos.map { it.toDomain() }
@@ -261,6 +288,14 @@ class ApiClient(private val baseUrl: String) {
 
     fun close() {
         httpClient.close()
+    }
+
+    private fun normalizeMediaUrl(url: String): String {
+        return if (url.startsWith("/")) {
+            baseUrl.trimEnd('/') + url
+        } else {
+            url
+        }
     }
 }
 

@@ -288,6 +288,11 @@ fun AppNavGraph(
                     onSave = { name, username, description, imageUrl ->
                         viewModel.save(name, username, description, imageUrl)
                     },
+                    onUploadImage = { bytes, fileName, mimeType, onUploaded ->
+                        viewModel.uploadServerImage(bytes, fileName, mimeType, onUploaded)
+                    },
+                    isUploadingImage = state.isUploadingImage,
+                    uploadError = state.uploadError,
                     onInviteTokens = {
                         navController.navigate(Route.InviteTokens.createRoute(manageData.id))
                     },
@@ -334,9 +339,14 @@ fun AppNavGraph(
                 MyProfileScreen(
                     profile = profile,
                     onBack = { navController.popBackStack() },
-                    onSaveProfile = { name, username ->
-                        viewModel.saveProfile(name, username)
+                    onSaveProfile = { name, username, avatarUrl ->
+                        viewModel.saveProfile(name, username, avatarUrl)
                     },
+                    onUploadAvatar = { bytes, fileName, mimeType, onUploaded ->
+                        viewModel.uploadProfileImage(bytes, fileName, mimeType, onUploaded)
+                    },
+                    isUploadingImage = state.isUploadingImage,
+                    uploadError = state.uploadError,
                 )
             }
         }
@@ -450,9 +460,14 @@ fun AppNavGraph(
 
             CreateProfileScreen(
                 serverName = serverName,
-                onCreateProfile = { username, name, password, _ ->
-                    connectViewModel.createProfile(username, name, password)
+                onCreateProfile = { username, name, password, avatarUrl ->
+                    connectViewModel.createProfile(username, name, password, avatarUrl)
                 },
+                onUploadAvatar = { bytes, fileName, mimeType, onUploaded ->
+                    connectViewModel.uploadProfileImage(bytes, fileName, mimeType, onUploaded)
+                },
+                isUploadingImage = connectViewModel.isUploadingImage.collectAsState().value,
+                uploadError = connectViewModel.uploadError.collectAsState().value,
             )
         }
 

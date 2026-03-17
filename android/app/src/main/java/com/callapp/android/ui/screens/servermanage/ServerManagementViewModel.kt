@@ -19,6 +19,8 @@ data class ServerManagementUiState(
     val isSaving: Boolean = false,
     val saveSuccess: Boolean = false,
     val actionError: String? = null,
+    val isUploadingImage: Boolean = false,
+    val uploadError: String? = null,
 )
 
 interface ServerManagementDependencies {
@@ -30,6 +32,12 @@ interface ServerManagementDependencies {
         description: String?,
         imageUrl: String,
     ): ApiResult<Server>
+    suspend fun uploadServerImage(
+        serverAddress: String,
+        bytes: ByteArray,
+        fileName: String,
+        mimeType: String,
+    ): ApiResult<String>
 
     fun updateServerMetadata(
         serverAddress: String,
@@ -53,6 +61,18 @@ object DefaultServerManagementDependencies : ServerManagementDependencies {
         description: String?,
         imageUrl: String,
     ): ApiResult<Server> = repository.updateServer(serverAddress, name, username, description, imageUrl)
+
+    override suspend fun uploadServerImage(
+        serverAddress: String,
+        bytes: ByteArray,
+        fileName: String,
+        mimeType: String,
+    ): ApiResult<String> = repository.uploadServerImage(
+        serverAddress = serverAddress,
+        bytes = bytes,
+        fileName = fileName,
+        mimeType = mimeType,
+    )
 
     override fun updateServerMetadata(
         serverAddress: String,
@@ -159,5 +179,39 @@ class ServerManagementViewModel(
 
     fun clearActionError() {
         _state.value = _state.value.copy(actionError = null)
+    }
+
+    fun uploadServerImage(
+        bytes: ByteArray,
+        fileName: String,
+        mimeType: String,
+        onUploaded: (String) -> Unit,
+    ) {
+        if (serverAddress.isEmpty()) return
+
+        _state.value = _state.value.copy(isUploadingImage = true, uploadError = null)
+        viewModelScope.launch {
+            when (val result = dependencies.uploadServerImage(serverAddress, bytes, fileName, mimeType)) {
+                is ApiResult.Success -> {
+                    _state.value = _state.value.copy(isUploadingImage = false, uploadError = null)
+                    onUploaded(result.data)
+                }
+
+                is ApiResult.Failure -> {
+                    _state.value = _state.value.copy(
+                        isUploadingImage = false,
+                        uploadError = apiErrorMessage(
+                            error = result.error,
+                            fallback = "Не удалось загрузить изображение",
+                            notFound = "Сервер не найден",
+                        ),
+                    )
+                }
+            }
+        }
+    }
+
+    fun clearUploadError() {
+        _state.value = _state.value.copy(uploadError = null)
     }
 }

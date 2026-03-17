@@ -21,6 +21,8 @@ data class MyProfileUiState(
     val isSaving: Boolean = false,
     val saveError: String? = null,
     val saveSuccess: Boolean = false,
+    val isUploadingImage: Boolean = false,
+    val uploadError: String? = null,
 )
 
 interface MyProfileDependencies {
@@ -32,7 +34,14 @@ interface MyProfileDependencies {
         userId: String,
         name: String,
         username: String,
+        avatarUrl: String,
     ): ApiResult<User>
+    suspend fun uploadProfileImage(
+        serverAddress: String,
+        bytes: ByteArray,
+        fileName: String,
+        mimeType: String,
+    ): ApiResult<String>
 }
 
 object DefaultMyProfileDependencies : MyProfileDependencies {
@@ -50,7 +59,26 @@ object DefaultMyProfileDependencies : MyProfileDependencies {
         userId: String,
         name: String,
         username: String,
-    ): ApiResult<User> = repository.updateUser(serverAddress, userId, name = name, username = username)
+        avatarUrl: String,
+    ): ApiResult<User> = repository.updateUser(
+        serverAddress = serverAddress,
+        userId = userId,
+        name = name,
+        username = username,
+        avatarUrl = avatarUrl,
+    )
+
+    override suspend fun uploadProfileImage(
+        serverAddress: String,
+        bytes: ByteArray,
+        fileName: String,
+        mimeType: String,
+    ): ApiResult<String> = repository.uploadProfileImage(
+        serverAddress = serverAddress,
+        bytes = bytes,
+        fileName = fileName,
+        mimeType = mimeType,
+    )
 }
 
 class MyProfileViewModel(
@@ -94,6 +122,7 @@ class MyProfileViewModel(
                         profile = MyProfileData(
                             name = user.name,
                             username = user.username,
+                            avatarUrl = user.avatarUrl.orEmpty(),
                             serverName = server.name,
                             isAdmin = user.role == UserRole.ADMIN,
                         ),
@@ -114,18 +143,22 @@ class MyProfileViewModel(
         }
     }
 
-    fun saveProfile(name: String, username: String) {
+    fun saveProfile(name: String, username: String, avatarUrl: String) {
         val userId = dependencies.currentUserId()
         if (serverAddress.isEmpty() || userId.isEmpty()) return
 
         _state.value = _state.value.copy(isSaving = true, saveError = null)
         viewModelScope.launch {
-            when (val result = dependencies.updateUser(serverAddress, userId, name, username)) {
+            when (val result = dependencies.updateUser(serverAddress, userId, name, username, avatarUrl)) {
                 is ApiResult.Success -> {
                     _state.value = _state.value.copy(
                         isSaving = false,
                         saveSuccess = true,
-                        profile = _state.value.profile?.copy(name = name, username = username),
+                        profile = _state.value.profile?.copy(
+                            name = name,
+                            username = username,
+                            avatarUrl = result.data.avatarUrl.orEmpty(),
+                        ),
                     )
                 }
 
@@ -141,5 +174,38 @@ class MyProfileViewModel(
                 }
             }
         }
+    }
+
+    fun uploadProfileImage(
+        bytes: ByteArray,
+        fileName: String,
+        mimeType: String,
+        onUploaded: (String) -> Unit,
+    ) {
+        if (serverAddress.isEmpty()) return
+
+        _state.value = _state.value.copy(isUploadingImage = true, uploadError = null)
+        viewModelScope.launch {
+            when (val result = dependencies.uploadProfileImage(serverAddress, bytes, fileName, mimeType)) {
+                is ApiResult.Success -> {
+                    _state.value = _state.value.copy(isUploadingImage = false, uploadError = null)
+                    onUploaded(result.data)
+                }
+
+                is ApiResult.Failure -> {
+                    _state.value = _state.value.copy(
+                        isUploadingImage = false,
+                        uploadError = apiErrorMessage(
+                            error = result.error,
+                            fallback = "Не удалось загрузить изображение",
+                        ),
+                    )
+                }
+            }
+        }
+    }
+
+    fun clearUploadError() {
+        _state.value = _state.value.copy(uploadError = null)
     }
 }

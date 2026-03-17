@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 
@@ -35,6 +36,7 @@ sealed interface ServerDetailEvent {
 interface ServerDetailDependencies {
     fun getServerById(serverId: String): Server?
     fun observeServerById(serverId: String): Flow<Server?>
+    fun observeUserUpdates(): Flow<String>
     suspend fun refreshServer(serverAddress: String)
     suspend fun getUsers(serverAddress: String): ApiResult<List<User>>
     suspend fun getJoinRequests(serverAddress: String): ApiResult<List<JoinRequest>>
@@ -49,6 +51,8 @@ object DefaultServerDetailDependencies : ServerDetailDependencies {
     override fun getServerById(serverId: String): Server? = repo.getServerById(serverId)
 
     override fun observeServerById(serverId: String): Flow<Server?> = repo.observeServerById(serverId)
+
+    override fun observeUserUpdates(): Flow<String> = repo.userUpdates
 
     override suspend fun refreshServer(serverAddress: String) {
         repo.refreshServerAvailability(serverAddress)
@@ -115,6 +119,7 @@ class ServerDetailViewModel(
 
     init {
         observeServer()
+        observeUserUpdates()
         observeFilteredMembers()
         loadUsers()
     }
@@ -136,6 +141,17 @@ class ServerDetailViewModel(
             }.collect { filtered ->
                 _filteredMembers.value = filtered
             }
+        }
+    }
+
+    private fun observeUserUpdates() {
+        viewModelScope.launch {
+            dependencies.observeUserUpdates()
+                .collectLatest { updatedServerAddress ->
+                    if (updatedServerAddress == _server.value.address) {
+                        loadUsers(showLoadingIndicator = false)
+                    }
+                }
         }
     }
 

@@ -77,6 +77,11 @@ data class UpdateUserRequestDto(
 )
 
 @Serializable
+data class UploadImageResponseDto(
+    val url: String,
+)
+
+@Serializable
 data class CreateInviteTokenRequestDto(
     val label: String,
     @SerialName("max_uses") val maxUses: Int = 0,

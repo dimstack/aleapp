@@ -1,7 +1,11 @@
 package com.callapp.android.ui.screens.connect
 
 import android.content.res.Configuration
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -30,7 +35,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -39,16 +47,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
+import com.callapp.android.ui.common.readPickedImage
 import com.callapp.android.ui.components.AleAppButton
 import com.callapp.android.ui.components.AleAppButtonSize
 import com.callapp.android.ui.components.AleAppButtonVariant
 import com.callapp.android.ui.components.AleAppCard
 import com.callapp.android.ui.components.FormField
 import com.callapp.android.ui.theme.AleAppTheme
-
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/*  CreateProfileScreen                                                       */
-/* ═══════════════════════════════════════════════════════════════════════════ */
 
 @Composable
 fun CreateProfileScreen(
@@ -59,11 +65,17 @@ fun CreateProfileScreen(
     initialConfirmPassword: String = "",
     initialAvatarUrl: String = "",
     triggerSubmitOnLaunch: Boolean = false,
+    onUploadAvatar: (bytes: ByteArray, fileName: String, mimeType: String, onUploaded: (String) -> Unit) -> Unit =
+        { _, _, _, _ -> },
+    isUploadingImage: Boolean = false,
+    uploadError: String? = null,
+    onPhotoPickerRequest: (() -> Unit)? = null,
     onCreateProfile: (username: String, name: String, password: String, avatarUrl: String?) -> Unit =
         { _, _, _, _ -> },
     modifier: Modifier = Modifier,
 ) {
     val colors = AleAppTheme.colors
+    val context = LocalContext.current
 
     var username by remember { mutableStateOf(initialUsername) }
     var name by remember { mutableStateOf(initialName) }
@@ -72,16 +84,35 @@ fun CreateProfileScreen(
     var avatarUrl by remember { mutableStateOf(initialAvatarUrl) }
     var error by remember { mutableStateOf<String?>(null) }
 
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia(),
+    ) { uri ->
+        val pickedImage = uri?.let { context.readPickedImage(it) } ?: return@rememberLauncherForActivityResult
+        onUploadAvatar(
+            pickedImage.bytes,
+            pickedImage.fileName,
+            pickedImage.mimeType,
+        ) { uploadedUrl ->
+            avatarUrl = uploadedUrl
+        }
+    }
+
+    val requestPhotoPicker = {
+        onPhotoPickerRequest?.invoke() ?: photoPickerLauncher.launch(
+            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+        )
+    }
+
     val submitProfile = {
         when {
-            username.isBlank() -> error = "Username РѕР±СЏР·Р°С‚РµР»РµРЅ"
+            username.isBlank() -> error = "Username обязателен"
             !isValidUsername(username.trim()) ->
-                error = "Username РјРѕР¶РµС‚ СЃРѕРґРµСЂР¶Р°С‚СЊ С‚РѕР»СЊРєРѕ Р±СѓРєРІС‹, С†РёС„СЂС‹ Рё РїРѕРґС‡С‘СЂРєРёРІР°РЅРёРµ"
-            name.isBlank() -> error = "РРјСЏ РѕР±СЏР·Р°С‚РµР»СЊРЅРѕ"
+                error = "Username может содержать только буквы, цифры и подчёркивание"
+            name.isBlank() -> error = "Имя обязательно"
             password.length < MIN_PASSWORD_LENGTH ->
-                error = "РџР°СЂРѕР»СЊ РґРѕР»Р¶РµРЅ СЃРѕРґРµСЂР¶Р°С‚СЊ РјРёРЅРёРјСѓРј $MIN_PASSWORD_LENGTH СЃРёРјРІРѕР»РѕРІ"
+                error = "Пароль должен содержать минимум $MIN_PASSWORD_LENGTH символов"
             password != confirmPassword ->
-                error = "РџР°СЂРѕР»Рё РЅРµ СЃРѕРІРїР°РґР°СЋС‚"
+                error = "Пароли не совпадают"
             else -> {
                 error = null
                 onCreateProfile(
@@ -111,19 +142,20 @@ fun CreateProfileScreen(
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp, vertical = 32.dp),
         ) {
-            // ── Main card ───────────────────────────────────────────────────
             AleAppCard(modifier = Modifier.fillMaxWidth()) {
                 Column(
                     modifier = Modifier.padding(32.dp),
                     verticalArrangement = Arrangement.spacedBy(20.dp),
                 ) {
-                    // Title
                     ProfileHeader(serverName = serverName)
 
-                    // Avatar
-                    ProfileAvatar(name = name)
+                    ProfileAvatar(
+                        name = name,
+                        avatarUrl = avatarUrl,
+                        isUploadingImage = isUploadingImage,
+                        onPickPhoto = requestPhotoPicker,
+                    )
 
-                    // Username field
                     FormField(
                         label = "Username",
                         required = true,
@@ -136,7 +168,6 @@ fun CreateProfileScreen(
                         helperText = "Только буквы, цифры и подчёркивание",
                     )
 
-                    // Name field
                     FormField(
                         label = "Имя",
                         required = true,
@@ -147,7 +178,6 @@ fun CreateProfileScreen(
                         testTag = "create_profile_name_input",
                     )
 
-                    // Password field
                     FormField(
                         label = "Пароль",
                         required = true,
@@ -160,7 +190,6 @@ fun CreateProfileScreen(
                         helperText = "Пароль понадобится для входа с другого устройства",
                     )
 
-                    // Confirm password field
                     FormField(
                         label = "Подтвердите пароль",
                         required = true,
@@ -172,62 +201,24 @@ fun CreateProfileScreen(
                         testTag = "create_profile_confirm_password_input",
                     )
 
-                    // Avatar URL field
-                    FormField(
-                        label = "URL аватара",
-                        required = false,
-                        value = avatarUrl,
-                        onValueChange = { avatarUrl = it },
-                        placeholder = "https://example.com/avatar.jpg",
-                        singleLine = true,
-                        testTag = "create_profile_avatar_input",
-                    )
-
-                    // Error message
-                    if (error != null) {
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = colors.destructive.copy(alpha = 0.1f),
-                            border = BorderStroke(
-                                1.dp,
-                                colors.destructive.copy(alpha = 0.2f),
-                            ),
-                        ) {
-                            Text(
-                                text = error!!,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = colors.destructive,
-                                modifier = Modifier
-                                    .padding(12.dp)
-                                    .testTag("create_profile_error"),
-                            )
-                        }
+                    if (uploadError != null) {
+                        ErrorCard(
+                            message = uploadError,
+                            testTag = "create_profile_upload_error",
+                        )
                     }
 
-                    // Create profile button
+                    if (error != null) {
+                        ErrorCard(
+                            message = error.orEmpty(),
+                            testTag = "create_profile_error",
+                        )
+                    }
+
                     Spacer(Modifier.height(4.dp))
+
                     AleAppButton(
-                        onClick = {
-                            when {
-                                username.isBlank() -> error = "Username обязателен"
-                                !isValidUsername(username.trim()) ->
-                                    error = "Username может содержать только буквы, цифры и подчёркивание"
-                                name.isBlank() -> error = "Имя обязательно"
-                                password.length < MIN_PASSWORD_LENGTH ->
-                                    error = "Пароль должен содержать минимум $MIN_PASSWORD_LENGTH символов"
-                                password != confirmPassword ->
-                                    error = "Пароли не совпадают"
-                                else -> {
-                                    error = null
-                                    onCreateProfile(
-                                        username.trim(),
-                                        name.trim(),
-                                        password,
-                                        avatarUrl.trim().ifEmpty { null },
-                                    )
-                                }
-                            }
-                        },
+                        onClick = submitProfile,
                         variant = AleAppButtonVariant.Primary,
                         size = AleAppButtonSize.Large,
                         modifier = Modifier
@@ -240,27 +231,16 @@ fun CreateProfileScreen(
             }
 
             Spacer(Modifier.height(16.dp))
-
-            // ── Hint block ──────────────────────────────────────────────────
             ProfileHint(modifier = Modifier.fillMaxWidth())
         }
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/*  Validation                                                                */
-/* ═══════════════════════════════════════════════════════════════════════════ */
-
 private const val MIN_PASSWORD_LENGTH = 8
 
 private val usernamePattern = Regex("^[a-zA-Z0-9_]+$")
 
-private fun isValidUsername(username: String): Boolean =
-    usernamePattern.matches(username)
-
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/*  Profile header                                                            */
-/* ═══════════════════════════════════════════════════════════════════════════ */
+private fun isValidUsername(username: String): Boolean = usernamePattern.matches(username)
 
 @Composable
 private fun ProfileHeader(
@@ -298,13 +278,12 @@ private fun ProfileHeader(
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/*  Profile avatar                                                            */
-/* ═══════════════════════════════════════════════════════════════════════════ */
-
 @Composable
 private fun ProfileAvatar(
     name: String,
+    avatarUrl: String,
+    isUploadingImage: Boolean,
+    onPickPhoto: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = AleAppTheme.colors
@@ -319,42 +298,66 @@ private fun ProfileAvatar(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box {
-            // Avatar circle with ring
-            Surface(
-                modifier = Modifier.size(96.dp),
-                shape = CircleShape,
-                color = colors.primary,
-                contentColor = colors.primaryForeground,
-                border = BorderStroke(4.dp, colors.secondary),
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text(
-                        text = initials,
-                        style = MaterialTheme.typography.headlineMedium.copy(
-                            fontWeight = FontWeight.SemiBold,
-                        ),
-                        color = Color.White,
-                    )
+            if (avatarUrl.isNotBlank()) {
+                AsyncImage(
+                    model = avatarUrl,
+                    contentDescription = "Аватар профиля",
+                    modifier = Modifier
+                        .size(96.dp)
+                        .clip(CircleShape)
+                        .testTag("create_profile_avatar")
+                        .clickable(onClick = onPickPhoto),
+                    contentScale = ContentScale.Crop,
+                )
+            } else {
+                Surface(
+                    modifier = Modifier
+                        .size(96.dp)
+                        .testTag("create_profile_avatar")
+                        .clickable(onClick = onPickPhoto),
+                    shape = CircleShape,
+                    color = colors.primary,
+                    contentColor = colors.primaryForeground,
+                    border = BorderStroke(4.dp, colors.secondary),
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = initials,
+                            style = MaterialTheme.typography.headlineMedium.copy(
+                                fontWeight = FontWeight.SemiBold,
+                            ),
+                            color = Color.White,
+                        )
+                    }
                 }
             }
 
-            // Camera button overlay
             Surface(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .offset(x = 2.dp, y = 2.dp)
-                    .size(32.dp),
+                    .size(32.dp)
+                    .clickable(onClick = onPickPhoto)
+                    .testTag("create_profile_photo_button"),
                 shape = CircleShape,
                 color = colors.primary,
                 contentColor = colors.primaryForeground,
                 shadowElevation = 4.dp,
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.Default.CameraAlt,
-                        contentDescription = "Изменить фото",
-                        modifier = Modifier.size(16.dp),
-                    )
+                    if (isUploadingImage) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            color = colors.primaryForeground,
+                            strokeWidth = 2.dp,
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.CameraAlt,
+                            contentDescription = "Изменить фото",
+                            modifier = Modifier.size(16.dp),
+                        )
+                    }
                 }
             }
         }
@@ -369,9 +372,30 @@ private fun ProfileAvatar(
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/*  Hint block                                                                */
-/* ═══════════════════════════════════════════════════════════════════════════ */
+@Composable
+private fun ErrorCard(
+    message: String,
+    testTag: String,
+    modifier: Modifier = Modifier,
+) {
+    val colors = AleAppTheme.colors
+
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(8.dp),
+        color = colors.destructive.copy(alpha = 0.1f),
+        border = BorderStroke(1.dp, colors.destructive.copy(alpha = 0.2f)),
+    ) {
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodySmall,
+            color = colors.destructive,
+            modifier = Modifier
+                .padding(12.dp)
+                .testTag(testTag),
+        )
+    }
+}
 
 @Composable
 private fun ProfileHint(modifier: Modifier = Modifier) {
@@ -392,11 +416,7 @@ private fun ProfileHint(modifier: Modifier = Modifier) {
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/*  Previews                                                                  */
-/* ═══════════════════════════════════════════════════════════════════════════ */
-
-@Preview(name = "CreateProfile — Light", showBackground = true, showSystemUi = true)
+@Preview(name = "CreateProfile - Light", showBackground = true, showSystemUi = true)
 @Composable
 private fun CreateProfileLightPreview() {
     AleAppTheme(darkTheme = false) {
@@ -407,7 +427,7 @@ private fun CreateProfileLightPreview() {
 }
 
 @Preview(
-    name = "CreateProfile — Dark",
+    name = "CreateProfile - Dark",
     showBackground = true,
     showSystemUi = true,
     uiMode = Configuration.UI_MODE_NIGHT_YES,
@@ -421,33 +441,39 @@ private fun CreateProfileDarkPreview() {
     }
 }
 
-@Preview(name = "ProfileAvatar — with name", showBackground = true)
+@Preview(name = "ProfileAvatar - With Name", showBackground = true)
 @Composable
 private fun ProfileAvatarWithNamePreview() {
     AleAppTheme(darkTheme = false) {
         Surface(color = AleAppTheme.colors.card) {
             ProfileAvatar(
                 name = "Александр",
+                avatarUrl = "",
+                isUploadingImage = false,
+                onPickPhoto = {},
                 modifier = Modifier.padding(24.dp),
             )
         }
     }
 }
 
-@Preview(name = "ProfileAvatar — empty", showBackground = true)
+@Preview(name = "ProfileAvatar - Empty", showBackground = true)
 @Composable
 private fun ProfileAvatarEmptyPreview() {
     AleAppTheme(darkTheme = false) {
         Surface(color = AleAppTheme.colors.card) {
             ProfileAvatar(
                 name = "",
+                avatarUrl = "",
+                isUploadingImage = false,
+                onPickPhoto = {},
                 modifier = Modifier.padding(24.dp),
             )
         }
     }
 }
 
-@Preview(name = "ProfileHeader — Light", showBackground = true)
+@Preview(name = "ProfileHeader - Light", showBackground = true)
 @Composable
 private fun ProfileHeaderPreview() {
     AleAppTheme(darkTheme = false) {
@@ -460,7 +486,7 @@ private fun ProfileHeaderPreview() {
     }
 }
 
-@Preview(name = "ProfileHint — Light", showBackground = true)
+@Preview(name = "ProfileHint - Light", showBackground = true)
 @Composable
 private fun ProfileHintLightPreview() {
     AleAppTheme(darkTheme = false) {

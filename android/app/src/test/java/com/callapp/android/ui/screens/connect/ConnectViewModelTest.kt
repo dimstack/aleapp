@@ -201,7 +201,12 @@ class ConnectViewModelTest {
         viewModel.connectWithToken("server.example.com:3000/ABCD1234")
         advanceUntilIdle()
 
-        viewModel.createProfile(username = "alex", name = "Alex", password = "password123")
+        viewModel.createProfile(
+            username = "alex",
+            name = "Alex",
+            password = "password123",
+            avatarUrl = "https://server.example.com/uploads/profile/avatar.jpg",
+        )
         advanceUntilIdle()
 
         val state = viewModel.state.value as ConnectUiState.Joined
@@ -210,6 +215,39 @@ class ConnectViewModelTest {
         assertEquals(1, deps.savedSessions.size)
         assertEquals("session-joined", deps.restoredSessions.single().second)
         assertEquals(listOf("http://server.example.com:3000"), deps.removedPendingApprovals)
+        assertEquals(
+            "https://server.example.com/uploads/profile/avatar.jpg",
+            deps.createUserCalls.single().avatarUrl,
+        )
+    }
+
+    @Test
+    fun uploadProfileImage_success_invokesCallback() = runTest {
+        val deps = FakeConnectDependencies().apply {
+            connectResult = ApiResult.Success(
+                ConnectResponse(
+                    sessionToken = "session-1",
+                    server = serverDto(),
+                    status = "needs_profile",
+                ),
+            )
+            uploadProfileImageResult = ApiResult.Success("https://server.example.com/uploads/profile/picked.jpg")
+        }
+        val viewModel = ConnectViewModel(deps)
+        viewModel.connectWithToken("server.example.com:3000/ABCD1234")
+        advanceUntilIdle()
+
+        var uploadedUrl: String? = null
+        viewModel.uploadProfileImage(
+            bytes = byteArrayOf(1, 2, 3),
+            fileName = "picked.jpg",
+            mimeType = "image/jpeg",
+        ) { uploadedUrl = it }
+        advanceUntilIdle()
+
+        assertEquals("https://server.example.com/uploads/profile/picked.jpg", uploadedUrl)
+        assertEquals(null, viewModel.uploadError.value)
+        assertEquals(false, viewModel.isUploadingImage.value)
     }
 
     @Test
@@ -471,6 +509,7 @@ class ConnectViewModelTest {
         var connectResult: ApiResult<ConnectResponse> = ApiResult.Failure(ApiError.NetworkError)
         var createUserResult: ApiResult<CreateUserResult> = ApiResult.Failure(ApiError.NetworkError)
         var loginResult: ApiResult<AuthResponse> = ApiResult.Failure(ApiError.NetworkError)
+        var uploadProfileImageResult: ApiResult<String> = ApiResult.Failure(ApiError.NetworkError)
 
         val createUserCalls = mutableListOf<CreateUserCall>()
         val savedPendingApprovals = mutableListOf<SavedPendingApproval>()
@@ -490,10 +529,18 @@ class ConnectViewModelTest {
             name: String,
             username: String,
             password: String,
+            avatarUrl: String?,
         ): ApiResult<CreateUserResult> {
-            createUserCalls += CreateUserCall(serverAddress, name, username, password)
+            createUserCalls += CreateUserCall(serverAddress, name, username, password, avatarUrl)
             return createUserResult
         }
+
+        override suspend fun uploadProfileImage(
+            serverAddress: String,
+            bytes: ByteArray,
+            fileName: String,
+            mimeType: String,
+        ): ApiResult<String> = uploadProfileImageResult
 
         override suspend fun login(
             serverAddress: String,
@@ -536,6 +583,7 @@ class ConnectViewModelTest {
         val name: String,
         val username: String,
         val password: String,
+        val avatarUrl: String?,
     )
 
     private data class SavedPendingApproval(

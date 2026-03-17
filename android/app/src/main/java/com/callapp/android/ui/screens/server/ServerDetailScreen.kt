@@ -62,6 +62,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -70,6 +71,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
+import coil3.compose.AsyncImage
 import com.callapp.android.domain.model.JoinRequest
 import com.callapp.android.domain.model.Server
 import com.callapp.android.domain.model.User
@@ -506,6 +508,7 @@ private fun ServerInfoSection(
             // Server image (96dp rounded-2xl)
             ServerImage(
                 name = server.name,
+                imageUrl = server.imageUrl,
                 size = 96.dp,
             )
 
@@ -550,6 +553,7 @@ private fun ServerInfoSection(
 @Composable
 private fun ServerImage(
     name: String,
+    imageUrl: String?,
     modifier: Modifier = Modifier,
     size: Dp = 96.dp,
 ) {
@@ -559,19 +563,30 @@ private fun ServerImage(
         .mapNotNull { it.firstOrNull()?.uppercaseChar() }
         .joinToString("")
 
-    Surface(
-        modifier = modifier.size(size),
-        shape = RoundedCornerShape(16.dp),
-        color = bgColor,
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Text(
-                text = initials,
-                color = Color.White,
-                style = MaterialTheme.typography.headlineMedium.copy(
-                    fontWeight = FontWeight.SemiBold,
-                ),
-            )
+    if (!imageUrl.isNullOrBlank()) {
+        AsyncImage(
+            model = imageUrl,
+            contentDescription = "Изображение сервера $name",
+            modifier = modifier
+                .size(size)
+                .clip(RoundedCornerShape(16.dp)),
+            contentScale = ContentScale.Crop,
+        )
+    } else {
+        Surface(
+            modifier = modifier.size(size),
+            shape = RoundedCornerShape(16.dp),
+            color = bgColor,
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Text(
+                    text = initials,
+                    color = Color.White,
+                    style = MaterialTheme.typography.headlineMedium.copy(
+                        fontWeight = FontWeight.SemiBold,
+                    ),
+                )
+            }
         }
     }
 }
@@ -807,6 +822,7 @@ private fun MemberRow(
     ) {
         MemberAvatar(
             name = member.name,
+            avatarUrl = member.avatarUrl,
             status = member.status,
             size = 56.dp,
         )
@@ -867,6 +883,7 @@ private fun MemberRow(
 @Composable
 private fun MemberAvatar(
     name: String,
+    avatarUrl: String?,
     status: UserStatus,
     modifier: Modifier = Modifier,
     size: Dp = 56.dp,
@@ -878,20 +895,31 @@ private fun MemberAvatar(
         .joinToString("")
 
     Box(modifier = modifier.size(size)) {
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            shape = CircleShape,
-            color = bgColor,
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Text(
-                    text = initials,
-                    color = Color.White,
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = (size.value * 0.3f).sp,
-                    ),
-                )
+        if (!avatarUrl.isNullOrBlank()) {
+            AsyncImage(
+                model = avatarUrl,
+                contentDescription = "Аватар $name",
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(CircleShape),
+                contentScale = ContentScale.Crop,
+            )
+        } else {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                shape = CircleShape,
+                color = bgColor,
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        text = initials,
+                        color = Color.White,
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = (size.value * 0.3f).sp,
+                        ),
+                    )
+                }
             }
         }
 
@@ -1464,9 +1492,9 @@ private fun MemberAvatarStatusesPreview() {
                 modifier = Modifier.padding(16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                MemberAvatar(name = "Анна С", status = UserStatus.ONLINE)
-                MemberAvatar(name = "Алексей К", status = UserStatus.DO_NOT_DISTURB)
-                MemberAvatar(name = "Мария В", status = UserStatus.INVISIBLE)
+                MemberAvatar(name = "Анна С", avatarUrl = null, status = UserStatus.ONLINE)
+                MemberAvatar(name = "Алексей К", avatarUrl = null, status = UserStatus.DO_NOT_DISTURB)
+                MemberAvatar(name = "Мария В", avatarUrl = null, status = UserStatus.INVISIBLE)
             }
         }
     }
@@ -1595,8 +1623,8 @@ private fun ServerImagePreview() {
                 modifier = Modifier.padding(16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                ServerImage(name = "Tech Community", size = 64.dp)
-                ServerImage(name = "Creative Studio", size = 96.dp)
+                ServerImage(name = "Tech Community", imageUrl = null, size = 64.dp)
+                ServerImage(name = "Creative Studio", imageUrl = null, size = 96.dp)
             }
         }
     }

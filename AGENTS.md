@@ -778,6 +778,9 @@ curl -sSL https://callapp.example/install.sh | bash
 - When the user asks to build and push the backend image, always build and push `dmitri1000/aleapp:latest`.
 - In addition to `latest`, also tag and push the exact version tag explicitly requested by the user, for example `dmitri1000/aleapp:0.1.1`.
 - Unless the user asks otherwise, the image should be built from `server/Dockerfile`.
+- When backend code changes are made, rebuild and push the backend container image even if the user did not explicitly remind about `latest`.
+- For backend changes, always publish `dmitri1000/aleapp:latest` and also publish one additional version tag.
+- If the user did not specify the version tag, choose it yourself based on the scope of the backend change: patch for small fixes, minor for noticeable backend functionality updates.
 
 ---
 

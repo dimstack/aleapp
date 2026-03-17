@@ -1,6 +1,9 @@
 package com.callapp.android.ui.screens.servermanage
 
 import android.content.res.Configuration
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -34,6 +37,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -41,15 +45,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
 import com.callapp.android.ui.components.AleAppButton
 import com.callapp.android.ui.components.AleAppButtonSize
 import com.callapp.android.ui.components.AleAppButtonVariant
 import com.callapp.android.ui.components.AleAppCard
 import com.callapp.android.ui.components.FormField
+import com.callapp.android.ui.common.readPickedImage
 import com.callapp.android.ui.theme.AleAppTheme
 import kotlin.math.absoluteValue
 
@@ -84,16 +92,36 @@ fun ServerManagementScreen(
     initial: ServerManageData = sampleManageData,
     onBack: () -> Unit = {},
     onSave: (name: String, username: String, description: String?, imageUrl: String) -> Unit = { _, _, _, _ -> },
+    onUploadImage: (bytes: ByteArray, fileName: String, mimeType: String, onUploaded: (String) -> Unit) -> Unit = { _, _, _, _ -> },
+    isUploadingImage: Boolean = false,
+    uploadError: String? = null,
     onInviteTokens: () -> Unit = {},
+    onPhotoPickerRequest: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val colors = AleAppTheme.colors
+    val context = LocalContext.current
 
     var name by remember { mutableStateOf(initial.name) }
     var username by remember { mutableStateOf(initial.username) }
     var description by remember { mutableStateOf(initial.description) }
     var imageUrl by remember { mutableStateOf(initial.imageUrl) }
     var error by remember { mutableStateOf<String?>(null) }
+    val photoPickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        val pickedImage = uri?.let { context.readPickedImage(it) } ?: return@rememberLauncherForActivityResult
+        onUploadImage(pickedImage.bytes, pickedImage.fileName, pickedImage.mimeType) { uploadedUrl ->
+            imageUrl = uploadedUrl
+        }
+    }
+
+    LaunchedEffect(initial.imageUrl) {
+        imageUrl = initial.imageUrl
+    }
+
+    fun requestPhotoPicker() {
+        onPhotoPickerRequest?.invoke()
+            ?: photoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+    }
 
     Scaffold(
         containerColor = colors.background,
@@ -116,7 +144,11 @@ fun ServerManagementScreen(
                     modifier = Modifier.padding(24.dp),
                     verticalArrangement = Arrangement.spacedBy(20.dp),
                 ) {
-                    ServerImagePreview(name = name)
+                    ServerImagePreview(
+                        name = name,
+                        imageUrl = imageUrl,
+                        onChangeImageClick = ::requestPhotoPicker,
+                    )
 
                     FormField(
                         label = "Название сервера",
@@ -145,15 +177,6 @@ fun ServerManagementScreen(
                         placeholder = "Введите описание сервера",
                         singleLine = false,
                         minHeight = 96,
-                    )
-
-                    FormField(
-                        label = "URL изображения",
-                        required = false,
-                        value = imageUrl,
-                        onValueChange = { imageUrl = it },
-                        placeholder = "https://example.com/image.jpg",
-                        singleLine = true,
                     )
 
                     error?.let {
@@ -205,6 +228,17 @@ fun ServerManagementScreen(
                         }
                     }
                 }
+            }
+
+            if (isUploadingImage || !uploadError.isNullOrBlank()) {
+                Spacer(Modifier.height(12.dp))
+                UploadStatus(
+                    error = uploadError,
+                    isUploading = isUploadingImage,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                )
             }
 
             Spacer(Modifier.height(16.dp))
@@ -268,6 +302,8 @@ private fun ManageTopBar(
 @Composable
 private fun ServerImagePreview(
     name: String,
+    imageUrl: String,
+    onChangeImageClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = AleAppTheme.colors
@@ -287,12 +323,21 @@ private fun ServerImagePreview(
                 shape = RoundedCornerShape(16.dp),
                 color = bgColor,
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text(
-                        text = initials,
-                        color = Color.White,
-                        style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.SemiBold),
+                if (imageUrl.isNotBlank()) {
+                    AsyncImage(
+                        model = imageUrl,
+                        contentDescription = "Изображение сервера",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
                     )
+                } else {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = initials,
+                            color = Color.White,
+                            style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.SemiBold),
+                        )
+                    }
                 }
             }
 
@@ -305,6 +350,7 @@ private fun ServerImagePreview(
                 color = colors.primary,
                 contentColor = colors.primaryForeground,
                 shadowElevation = 4.dp,
+                onClick = onChangeImageClick,
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
@@ -368,6 +414,36 @@ private fun InviteTokensCard(
 }
 
 @Composable
+private fun UploadStatus(
+    error: String?,
+    isUploading: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val colors = AleAppTheme.colors
+
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        color = if (error.isNullOrBlank()) colors.secondary else colors.destructive.copy(alpha = 0.1f),
+        border = BorderStroke(
+            1.dp,
+            if (error.isNullOrBlank()) colors.border else colors.destructive.copy(alpha = 0.2f),
+        ),
+    ) {
+        Text(
+            text = when {
+                isUploading -> "Загружаем изображение..."
+                !error.isNullOrBlank() -> error
+                else -> ""
+            },
+            color = if (error.isNullOrBlank()) colors.foreground else colors.destructive,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+        )
+    }
+}
+
+@Composable
 private fun DangerZone(
     modifier: Modifier = Modifier,
 ) {
@@ -410,7 +486,7 @@ private fun DangerZone(
     }
 }
 
-@Preview(name = "ServerManagement - Light", showBackground = true, showSystemUi = true)
+@Preview(name = "ServerManagement Light", showBackground = true, showSystemUi = true)
 @Composable
 private fun ServerManagementLightPreview() {
     AleAppTheme(darkTheme = false) {
@@ -419,7 +495,7 @@ private fun ServerManagementLightPreview() {
 }
 
 @Preview(
-    name = "ServerManagement - Dark",
+    name = "ServerManagement Dark",
     showBackground = true,
     showSystemUi = true,
     uiMode = Configuration.UI_MODE_NIGHT_YES,
@@ -431,7 +507,7 @@ private fun ServerManagementDarkPreview() {
     }
 }
 
-@Preview(name = "ServerManagement - Empty", showBackground = true, showSystemUi = true)
+@Preview(name = "ServerManagement Empty", showBackground = true, showSystemUi = true)
 @Composable
 private fun ServerManagementEmptyPreview() {
     AleAppTheme(darkTheme = false) {
@@ -447,7 +523,7 @@ private fun ServerManagementEmptyPreview() {
     }
 }
 
-@Preview(name = "DangerZone - Light", showBackground = true)
+@Preview(name = "DangerZone Light", showBackground = true)
 @Composable
 private fun DangerZoneLightPreview() {
     AleAppTheme(darkTheme = false) {
@@ -461,7 +537,7 @@ private fun DangerZoneLightPreview() {
     }
 }
 
-@Preview(name = "DangerZone - Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Preview(name = "DangerZone Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 private fun DangerZoneDarkPreview() {
     AleAppTheme(darkTheme = true) {

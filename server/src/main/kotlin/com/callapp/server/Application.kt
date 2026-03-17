@@ -24,12 +24,14 @@ import com.callapp.server.signaling.SignalingManager
 import com.callapp.server.service.InviteTokenParser
 import com.callapp.server.service.InviteTokenService
 import com.callapp.server.service.ManagementService
+import com.callapp.server.service.MediaStorageService
 import com.callapp.server.service.OnboardingService
 import com.callapp.server.service.PasswordService
 import com.callapp.server.service.TurnCredentialsService
 import io.ktor.server.application.Application
 import io.ktor.server.application.install
 import io.ktor.server.netty.EngineMain
+import java.io.File
 import javax.sql.DataSource
 
 fun main(args: Array<String>) {
@@ -54,6 +56,9 @@ fun Application.module() {
     val signalingManager = SignalingManager(serverRepository, userRepository, notificationRepository)
     val turnCredentialsService = TurnCredentialsService(appConfig.turn)
     val inviteTokenService = InviteTokenService(inviteTokenRepository, inviteTokenParser)
+    val mediaStorageService = MediaStorageService(
+        uploadRoot = File(appConfig.database.path).absoluteFile.parentFile.resolve("uploads").toPath(),
+    )
     val onboardingService = OnboardingService(
         dataSource = dataSource,
         serverRepository = serverRepository,
@@ -92,6 +97,7 @@ fun Application.module() {
         this.inviteTokenService = inviteTokenService
         this.onboardingService = onboardingService
         this.managementService = managementService
+        this.mediaStorageService = mediaStorageService
         this.serverRepository = serverRepository
         this.userRepository = userRepository
         this.inviteTokenRepository = inviteTokenRepository

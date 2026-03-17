@@ -33,6 +33,7 @@ class ProfileViewModelTest {
         val profile = viewModel.state.value.profile
         assertEquals("Alex", profile?.name)
         assertEquals("@alex", profile?.username)
+        assertEquals("", profile?.avatarUrl)
         assertNull(viewModel.state.value.error)
     }
 
@@ -53,20 +54,30 @@ class ProfileViewModelTest {
     fun updateProfile_success() = runTest {
         val dependencies = FakeMyProfileDependencies().apply {
             updateUserResult = ApiResult.Success(
-                testUser(name = "Updated Alex", username = "@updated"),
+                testUser(
+                    name = "Updated Alex",
+                    username = "@updated",
+                    avatarUrl = "https://example.com/avatar.jpg",
+                ),
             )
         }
 
         val viewModel = createMyProfileViewModel(dependencies)
         advanceUntilIdle()
 
-        viewModel.saveProfile(name = "Updated Alex", username = "@updated")
+        viewModel.saveProfile(
+            name = "Updated Alex",
+            username = "@updated",
+            avatarUrl = "https://example.com/avatar.jpg",
+        )
         advanceUntilIdle()
 
         val profile = viewModel.state.value.profile
         assertEquals("Updated Alex", profile?.name)
         assertEquals("@updated", profile?.username)
+        assertEquals("https://example.com/avatar.jpg", profile?.avatarUrl)
         assertTrue(viewModel.state.value.saveSuccess)
+        assertEquals("https://example.com/avatar.jpg", dependencies.lastAvatarUrl)
     }
 
     @Test
@@ -78,11 +89,36 @@ class ProfileViewModelTest {
         val viewModel = createMyProfileViewModel(dependencies)
         advanceUntilIdle()
 
-        viewModel.saveProfile(name = "Updated Alex", username = "@updated")
+        viewModel.saveProfile(
+            name = "Updated Alex",
+            username = "@updated",
+            avatarUrl = "https://example.com/avatar.jpg",
+        )
         advanceUntilIdle()
 
         assertTrue(viewModel.state.value.saveError != null)
         assertFalse(viewModel.state.value.saveSuccess)
+    }
+
+    @Test
+    fun uploadProfileImage_success_invokesCallback() = runTest {
+        val dependencies = FakeMyProfileDependencies().apply {
+            uploadImageResult = ApiResult.Success("https://server.example.com/uploads/profile/test.jpg")
+        }
+        val viewModel = createMyProfileViewModel(dependencies)
+        advanceUntilIdle()
+
+        var uploadedUrl: String? = null
+        viewModel.uploadProfileImage(
+            bytes = byteArrayOf(1, 2, 3),
+            fileName = "avatar.jpg",
+            mimeType = "image/jpeg",
+        ) { uploadedUrl = it }
+        advanceUntilIdle()
+
+        assertEquals("https://server.example.com/uploads/profile/test.jpg", uploadedUrl)
+        assertFalse(viewModel.state.value.isUploadingImage)
+        assertNull(viewModel.state.value.uploadError)
     }
 
     @Test
@@ -235,6 +271,8 @@ class ProfileViewModelTest {
 
         var userResult: ApiResult<User> = ApiResult.Success(testUser())
         var updateUserResult: ApiResult<User> = ApiResult.Success(testUser())
+        var uploadImageResult: ApiResult<String> = ApiResult.Success("https://server.example.com/uploads/profile/default.jpg")
+        var lastAvatarUrl: String? = null
 
         override fun getServerById(serverId: String): Server? = server
 
@@ -247,7 +285,18 @@ class ProfileViewModelTest {
             userId: String,
             name: String,
             username: String,
-        ): ApiResult<User> = updateUserResult
+            avatarUrl: String,
+        ): ApiResult<User> {
+            lastAvatarUrl = avatarUrl
+            return updateUserResult
+        }
+
+        override suspend fun uploadProfileImage(
+            serverAddress: String,
+            bytes: ByteArray,
+            fileName: String,
+            mimeType: String,
+        ): ApiResult<String> = uploadImageResult
     }
 
     private class FakeUserProfileDependencies : UserProfileDependencies {
@@ -289,10 +338,12 @@ class ProfileViewModelTest {
             name: String = "Alex",
             username: String = "@alex",
             role: UserRole = UserRole.MEMBER,
+            avatarUrl: String? = null,
         ) = User(
             id = id,
             name = name,
             username = username,
+            avatarUrl = avatarUrl,
             role = role,
             serverId = "srv-1",
         )

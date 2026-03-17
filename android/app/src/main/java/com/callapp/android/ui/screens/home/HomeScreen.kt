@@ -50,6 +50,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -59,6 +60,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil3.compose.AsyncImage
 import com.callapp.android.domain.model.Server
 import com.callapp.android.domain.model.ServerAvailabilityStatus
 import com.callapp.android.domain.model.User
@@ -190,9 +192,9 @@ fun HomeScreen(
                         .padding(horizontal = 16.dp),
                 ) {
                     servers.forEachIndexed { index, server ->
-                        ServerRow(
-                            server = server,
-                            onClick = { onServerClick(server) },
+        ServerRow(
+            server = server,
+            onClick = { onServerClick(server) },
                         )
                         if (index < servers.lastIndex) {
                             HorizontalDivider(
@@ -425,6 +427,7 @@ private fun FavoriteContactRow(
     ) {
         ContactAvatar(
             name = user.name,
+            avatarUrl = user.avatarUrl,
             status = user.status,
             size = 56.dp,
         )
@@ -470,6 +473,7 @@ private fun FavoriteContactRow(
 @Composable
 private fun ContactAvatar(
     name: String,
+    avatarUrl: String?,
     status: UserStatus,
     modifier: Modifier = Modifier,
     size: Dp = 56.dp,
@@ -481,20 +485,31 @@ private fun ContactAvatar(
         .joinToString("")
 
     Box(modifier = modifier.size(size)) {
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            shape = CircleShape,
-            color = bgColor,
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Text(
-                    text = initials,
-                    color = Color.White,
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = (size.value * 0.3f).sp,
-                    ),
-                )
+        if (!avatarUrl.isNullOrBlank()) {
+            AsyncImage(
+                model = avatarUrl,
+                contentDescription = "Аватар $name",
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(CircleShape),
+                contentScale = ContentScale.Crop,
+            )
+        } else {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                shape = CircleShape,
+                color = bgColor,
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        text = initials,
+                        color = Color.White,
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = (size.value * 0.3f).sp,
+                        ),
+                    )
+                }
             }
         }
 
@@ -547,7 +562,11 @@ private fun ServerRow(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ServerImage(name = server.name, size = 56.dp)
+        ServerImage(
+            name = server.name,
+            imageUrl = server.imageUrl,
+            size = 56.dp,
+        )
 
         Spacer(Modifier.width(16.dp))
 
@@ -591,6 +610,7 @@ private fun serverSubtitle(server: Server): String = when (server.availabilitySt
 @Composable
 private fun ServerImage(
     name: String,
+    imageUrl: String?,
     modifier: Modifier = Modifier,
     size: Dp = 56.dp,
 ) {
@@ -600,19 +620,30 @@ private fun ServerImage(
         .mapNotNull { it.firstOrNull()?.uppercaseChar() }
         .joinToString("")
 
-    Surface(
-        modifier = modifier.size(size),
-        shape = RoundedCornerShape(12.dp),
-        color = bgColor,
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Text(
-                text = initials,
-                color = Color.White,
-                style = MaterialTheme.typography.titleSmall.copy(
-                    fontWeight = FontWeight.SemiBold,
-                ),
-            )
+    if (!imageUrl.isNullOrBlank()) {
+        AsyncImage(
+            model = imageUrl,
+            contentDescription = "Изображение сервера $name",
+            modifier = modifier
+                .size(size)
+                .clip(RoundedCornerShape(12.dp)),
+            contentScale = ContentScale.Crop,
+        )
+    } else {
+        Surface(
+            modifier = modifier.size(size),
+            shape = RoundedCornerShape(12.dp),
+            color = bgColor,
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Text(
+                    text = initials,
+                    color = Color.White,
+                    style = MaterialTheme.typography.titleSmall.copy(
+                        fontWeight = FontWeight.SemiBold,
+                    ),
+                )
+            }
         }
     }
 }
@@ -767,7 +798,7 @@ private fun AvatarOnlinePreview() {
             color = AleAppTheme.colors.card,
             modifier = Modifier.padding(16.dp),
         ) {
-            ContactAvatar(name = "Анна Смирнова", status = UserStatus.ONLINE)
+            ContactAvatar(name = "Анна Смирнова", avatarUrl = null, status = UserStatus.ONLINE)
         }
     }
 }
@@ -781,9 +812,9 @@ private fun AvatarStatusesPreview() {
                 modifier = Modifier.padding(16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                ContactAvatar(name = "Анна С", status = UserStatus.ONLINE)
-                ContactAvatar(name = "Дмитрий П", status = UserStatus.DO_NOT_DISTURB)
-                ContactAvatar(name = "Елена И", status = UserStatus.INVISIBLE)
+                ContactAvatar(name = "Анна С", avatarUrl = null, status = UserStatus.ONLINE)
+                ContactAvatar(name = "Дмитрий П", avatarUrl = null, status = UserStatus.DO_NOT_DISTURB)
+                ContactAvatar(name = "Елена И", avatarUrl = null, status = UserStatus.INVISIBLE)
             }
         }
     }
@@ -824,10 +855,10 @@ private fun ServerImagesPreview() {
                 modifier = Modifier.padding(16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                ServerImage(name = "Tech Community")
-                ServerImage(name = "Creative Studio")
-                ServerImage(name = "Music Production")
-                ServerImage(name = "Game Dev Hub")
+                ServerImage(name = "Tech Community", imageUrl = null)
+                ServerImage(name = "Creative Studio", imageUrl = null)
+                ServerImage(name = "Music Production", imageUrl = null)
+                ServerImage(name = "Game Dev Hub", imageUrl = null)
             }
         }
     }

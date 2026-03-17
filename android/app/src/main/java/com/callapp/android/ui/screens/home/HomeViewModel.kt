@@ -23,6 +23,7 @@ import kotlinx.coroutines.launch
 interface HomeDependencies {
     fun observeConnectedServers(): Flow<List<Server>>
     fun observeFavoriteUpdates(): Flow<String>
+    fun observeUserUpdates(): Flow<String>
     suspend fun processPendingApprovals()
     suspend fun refreshConnectedServersAvailability()
     suspend fun getFavorites(serverAddress: String): ApiResult<List<User>>
@@ -36,6 +37,8 @@ object DefaultHomeDependencies : HomeDependencies {
     override fun observeConnectedServers(): Flow<List<Server>> = repo.observeConnectedServers()
 
     override fun observeFavoriteUpdates(): Flow<String> = repo.favoriteUpdates
+
+    override fun observeUserUpdates(): Flow<String> = repo.userUpdates
 
     override suspend fun processPendingApprovals() = repo.processPendingApprovals()
 
@@ -71,6 +74,7 @@ class HomeViewModel(
     init {
         observeServers()
         observeFavoriteUpdates()
+        observeUserUpdates()
         loadData()
     }
 
@@ -94,6 +98,18 @@ class HomeViewModel(
     private fun observeFavoriteUpdates() {
         viewModelScope.launch {
             dependencies.observeFavoriteUpdates()
+                .filter { updatedServerAddress ->
+                    updatedServerAddress == dependencies.activeServerAddress()
+                }
+                .collectLatest {
+                    refresh()
+                }
+        }
+    }
+
+    private fun observeUserUpdates() {
+        viewModelScope.launch {
+            dependencies.observeUserUpdates()
                 .filter { updatedServerAddress ->
                     updatedServerAddress == dependencies.activeServerAddress()
                 }

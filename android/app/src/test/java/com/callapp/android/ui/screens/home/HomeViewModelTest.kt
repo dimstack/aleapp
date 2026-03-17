@@ -229,6 +229,32 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun userUpdate_refreshesFavoritesImmediately() = runTest {
+        val server = testServer()
+        val userUpdates = MutableSharedFlow<String>(extraBufferCapacity = 1)
+        val dependencies = FakeHomeDependencies(
+            serversFlow = MutableStateFlow(listOf(server)),
+            userUpdates = userUpdates,
+            activeServerAddress = server.address,
+        ).apply {
+            favoritesResult = ApiResult.Success(emptyList())
+        }
+
+        val viewModel = HomeViewModel(dependencies)
+        advanceUntilIdle()
+
+        dependencies.favoritesResult = ApiResult.Success(
+            listOf(testUser(avatarUrl = "https://server.example.com/uploads/profile/new.jpg")),
+        )
+        userUpdates.tryEmit(server.address)
+        advanceUntilIdle()
+
+        assertEquals(2, dependencies.getFavoritesCalls)
+        val favorites = (viewModel.favoritesState.value as UiState.Success).data
+        assertEquals("https://server.example.com/uploads/profile/new.jpg", favorites.single().avatarUrl)
+    }
+
+    @Test
     fun refresh_keepsContentVisibleWhileReloading() = runTest {
         val server = testServer()
         val gate = CompletableDeferred<Unit>()
@@ -259,6 +285,7 @@ class HomeViewModelTest {
     private class FakeHomeDependencies(
         private val serversFlow: Flow<List<Server>> = MutableStateFlow(emptyList()),
         private val favoriteUpdates: Flow<String> = MutableSharedFlow(),
+        private val userUpdates: Flow<String> = MutableSharedFlow(),
         private val activeServerAddress: String = "",
     ) : HomeDependencies {
         var favoritesResult: ApiResult<List<User>> = ApiResult.Success(emptyList())
@@ -273,6 +300,8 @@ class HomeViewModelTest {
         override fun observeConnectedServers(): Flow<List<Server>> = serversFlow
 
         override fun observeFavoriteUpdates(): Flow<String> = favoriteUpdates
+
+        override fun observeUserUpdates(): Flow<String> = userUpdates
 
         override suspend fun processPendingApprovals() {
             processPendingApprovalsCalls += 1
@@ -310,10 +339,11 @@ class HomeViewModelTest {
         availabilityMessage = availabilityMessage,
     )
 
-    private fun testUser() = User(
+    private fun testUser(avatarUrl: String? = null) = User(
         id = "user-1",
         name = "Alex",
         username = "@alex",
+        avatarUrl = avatarUrl,
     )
 
     private fun testNotification(

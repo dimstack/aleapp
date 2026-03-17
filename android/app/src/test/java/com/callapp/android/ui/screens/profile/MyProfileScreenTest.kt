@@ -1,9 +1,13 @@
 package com.callapp.android.ui.screens.profile
 
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import com.callapp.android.ui.testutil.setAleAppContent
 import org.junit.Rule
 import org.junit.Test
+import org.junit.Assert.assertTrue
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
@@ -22,6 +26,7 @@ class MyProfileScreenTest {
                 profile = MyProfileData(
                     name = "Alex Admin",
                     username = "alex_admin",
+                    avatarUrl = "",
                     serverName = "Tech Community",
                     isAdmin = true,
                 ),
@@ -38,6 +43,7 @@ class MyProfileScreenTest {
                 profile = MyProfileData(
                     name = "Maria",
                     username = "maria",
+                    avatarUrl = "",
                     serverName = "Creative Studio",
                     isAdmin = false,
                 ),
@@ -45,5 +51,27 @@ class MyProfileScreenTest {
         }
 
         composeRule.waitForIdle()
+    }
+
+    @Test
+    fun changePhotoButton_opensPhotoDialogInEditMode() {
+        var pickerRequested = false
+
+        composeRule.setAleAppContent {
+            MyProfileScreen(
+                profile = MyProfileData(
+                    name = "Alex Admin",
+                    username = "alex_admin",
+                    avatarUrl = "",
+                    serverName = "Tech Community",
+                    isAdmin = true,
+                ),
+                onPhotoPickerRequest = { pickerRequested = true },
+            )
+        }
+
+        composeRule.onNodeWithText("Редактировать профиль").performClick()
+        composeRule.onNodeWithContentDescription("Изменить фото").performClick()
+        assertTrue(pickerRequested)
     }
 }
