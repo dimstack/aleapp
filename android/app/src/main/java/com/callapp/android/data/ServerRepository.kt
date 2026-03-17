@@ -44,6 +44,8 @@ class ServerRepository(private val connectionManager: ServerConnectionManager) {
     val availabilityByAddress: StateFlow<Map<String, ServerAvailabilityInfo>> = _availabilityByAddress.asStateFlow()
     private val _pendingApprovalEvents = MutableSharedFlow<PendingApprovalEvent>(extraBufferCapacity = 1)
     val pendingApprovalEvents: SharedFlow<PendingApprovalEvent> = _pendingApprovalEvents.asSharedFlow()
+    private val _favoriteUpdates = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val favoriteUpdates: SharedFlow<String> = _favoriteUpdates.asSharedFlow()
 
     fun getConnectedServers(): List<Server> {
         val store = getSessionStoreOrNull() ?: return emptyList()
@@ -255,11 +257,19 @@ class ServerRepository(private val connectionManager: ServerConnectionManager) {
     }
 
     suspend fun addFavorite(serverAddress: String, userId: String): ApiResult<Unit> {
-        return connectionManager.getClient(serverAddress).addFavorite(userId)
+        return connectionManager.getClient(serverAddress).addFavorite(userId).also { result ->
+            if (result is ApiResult.Success) {
+                _favoriteUpdates.tryEmit(serverAddress)
+            }
+        }
     }
 
     suspend fun removeFavorite(serverAddress: String, userId: String): ApiResult<Unit> {
-        return connectionManager.getClient(serverAddress).removeFavorite(userId)
+        return connectionManager.getClient(serverAddress).removeFavorite(userId).also { result ->
+            if (result is ApiResult.Success) {
+                _favoriteUpdates.tryEmit(serverAddress)
+            }
+        }
     }
 
     fun disconnect(serverAddress: String) {

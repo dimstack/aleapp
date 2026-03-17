@@ -12,6 +12,7 @@ import com.callapp.android.ui.common.UiState
 import com.callapp.android.ui.screens.connect.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -203,8 +204,32 @@ class HomeViewModelTest {
         assertEquals(2, dependencies.getNotificationsCalls)
     }
 
+    @Test
+    fun favoriteUpdate_refreshesFavoritesImmediately() = runTest {
+        val server = testServer()
+        val favoriteUpdates = MutableSharedFlow<String>(extraBufferCapacity = 1)
+        val dependencies = FakeHomeDependencies(
+            serversFlow = MutableStateFlow(listOf(server)),
+            favoriteUpdates = favoriteUpdates,
+            activeServerAddress = server.address,
+        ).apply {
+            favoritesResult = ApiResult.Success(emptyList())
+        }
+
+        val viewModel = HomeViewModel(dependencies)
+        advanceUntilIdle()
+
+        dependencies.favoritesResult = ApiResult.Success(listOf(testUser()))
+        favoriteUpdates.tryEmit(server.address)
+        advanceUntilIdle()
+
+        assertEquals(2, dependencies.getFavoritesCalls)
+        assertEquals(UiState.Success(listOf(testUser())), viewModel.favoritesState.value)
+    }
+
     private class FakeHomeDependencies(
         private val serversFlow: Flow<List<Server>> = MutableStateFlow(emptyList()),
+        private val favoriteUpdates: Flow<String> = MutableSharedFlow(),
         private val activeServerAddress: String = "",
     ) : HomeDependencies {
         var favoritesResult: ApiResult<List<User>> = ApiResult.Success(emptyList())
@@ -216,6 +241,8 @@ class HomeViewModelTest {
         var getNotificationsCalls = 0
 
         override fun observeConnectedServers(): Flow<List<Server>> = serversFlow
+
+        override fun observeFavoriteUpdates(): Flow<String> = favoriteUpdates
 
         override suspend fun processPendingApprovals() {
             processPendingApprovalsCalls += 1
