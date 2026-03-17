@@ -86,6 +86,19 @@ class ProfileViewModelTest {
     }
 
     @Test
+    fun loadProfile_missingServer_setsError() = runTest {
+        val dependencies = FakeMyProfileDependencies().apply {
+            server = null
+        }
+
+        val viewModel = createMyProfileViewModel(dependencies)
+        advanceUntilIdle()
+
+        assertTrue(viewModel.state.value.error != null)
+        assertNull(viewModel.state.value.profile)
+    }
+
+    @Test
     fun addToFavorites_success() = runTest {
         val dependencies = FakeUserProfileDependencies().apply {
             favoritesResult = ApiResult.Success(emptyList())
@@ -150,6 +163,19 @@ class ProfileViewModelTest {
     }
 
     @Test
+    fun loadUser_missingServer_setsError() = runTest {
+        val dependencies = FakeUserProfileDependencies().apply {
+            server = null
+        }
+
+        val viewModel = createUserProfileViewModel(dependencies)
+        advanceUntilIdle()
+
+        assertTrue(viewModel.state.value.error != null)
+        assertNull(viewModel.state.value.user)
+    }
+
+    @Test
     fun favoritesLoadFailure_keepsProfileLoaded() = runTest {
         val dependencies = FakeUserProfileDependencies().apply {
             favoritesResult = ApiResult.Failure(ApiError.NetworkError)
@@ -200,7 +226,7 @@ class ProfileViewModelTest {
     )
 
     private class FakeMyProfileDependencies : MyProfileDependencies {
-        private val server = Server(
+        var server: Server? = Server(
             id = "srv-1",
             name = "Test Server",
             username = "@test",
@@ -210,7 +236,7 @@ class ProfileViewModelTest {
         var userResult: ApiResult<User> = ApiResult.Success(testUser())
         var updateUserResult: ApiResult<User> = ApiResult.Success(testUser())
 
-        override fun getServerById(serverId: String): Server = server
+        override fun getServerById(serverId: String): Server? = server
 
         override fun currentUserId(): String = "user-1"
 
@@ -225,7 +251,7 @@ class ProfileViewModelTest {
     }
 
     private class FakeUserProfileDependencies : UserProfileDependencies {
-        private val server = Server(
+        var server: Server? = Server(
             id = "srv-1",
             name = "Test Server",
             username = "@test",
@@ -240,7 +266,7 @@ class ProfileViewModelTest {
         var addFavoriteCalls = 0
         var removeFavoriteCalls = 0
 
-        override fun getServerById(serverId: String): Server = server
+        override fun getServerById(serverId: String): Server? = server
 
         override suspend fun getUser(serverAddress: String, userId: String): ApiResult<User> = userResult
 

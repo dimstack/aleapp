@@ -54,7 +54,11 @@ kover {
             excludes {
                 classes(
                     "*.ApplicationKt",
-                    "*.AppDependenciesKt"
+                    "*.AppDependenciesKt",
+                    "*.routes.*Dto",
+                    "*.routes.ErrorResponse",
+                    "*.routes.HealthResponse",
+                    "*.database.DatabaseHealth"
                 )
             }
         }
@@ -69,7 +73,14 @@ kover {
             verify {
                 rule {
                     bound {
-                        minValue = 0
+                        coverageUnits = kotlinx.kover.gradle.plugin.dsl.CoverageUnit.LINE
+                        aggregationForGroup = kotlinx.kover.gradle.plugin.dsl.AggregationType.COVERED_PERCENTAGE
+                        minValue = 92
+                    }
+                    bound {
+                        coverageUnits = kotlinx.kover.gradle.plugin.dsl.CoverageUnit.BRANCH
+                        aggregationForGroup = kotlinx.kover.gradle.plugin.dsl.AggregationType.COVERED_PERCENTAGE
+                        minValue = 45
                     }
                 }
             }

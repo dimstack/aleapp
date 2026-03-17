@@ -3,6 +3,7 @@ package com.callapp.android.network
 import com.callapp.android.network.result.ApiError
 import io.ktor.http.HttpStatusCode
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -84,6 +85,31 @@ class ApiClientErrorMappingTest {
         )
 
         assertTrue(error is ApiError.ServerError)
+    }
+
+    @Test
+    fun `parse error response returns null for blank body`() {
+        assertNull(parseErrorResponse(""))
+    }
+
+    @Test
+    fun `maps not found without body`() {
+        val error = mapApiError(
+            status = HttpStatusCode.NotFound,
+            body = "",
+        )
+
+        assertEquals(ApiError.NotFound, error)
+    }
+
+    @Test
+    fun `maps forbidden fallback message when body is empty`() {
+        val error = mapApiError(
+            status = HttpStatusCode.Forbidden,
+            body = "",
+        )
+
+        assertTrue(error is ApiError.Forbidden)
     }
 
     @Test

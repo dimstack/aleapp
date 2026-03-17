@@ -72,7 +72,13 @@ val coverageClassExcludes = listOf(
     "**/Manifest*.*",
     "**/*Test*.*",
     "**/*Preview*.*",
-    "**/*ComposableSingletons*.*"
+    "**/*ComposableSingletons*.*",
+    "**/ui/theme/**",
+    "**/ui/preview/**",
+    "**/network/dto/**",
+    "**/domain/model/**",
+    "**/ui/common/UiState*",
+    "**/ui/navigation/Route*"
 )
 
 tasks.register<JacocoReport>("jacocoDebugUnitTestReport") {
@@ -108,6 +114,54 @@ tasks.register<JacocoReport>("jacocoDebugUnitTestReport") {
             )
         }
     )
+}
+
+tasks.register<JacocoCoverageVerification>("jacocoDebugCoverageVerification") {
+    group = "verification"
+    description = "Verifies JaCoCo coverage thresholds for debug unit tests."
+    dependsOn("jacocoDebugUnitTestReport")
+
+    val javaClasses = fileTree("${layout.buildDirectory.get().asFile}/intermediates/javac/debug/compileDebugJavaWithJavac/classes") {
+        exclude(coverageClassExcludes)
+    }
+    val kotlinClasses = fileTree("${layout.buildDirectory.get().asFile}/intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes") {
+        exclude(coverageClassExcludes)
+    }
+
+    classDirectories.setFrom(files(javaClasses, kotlinClasses))
+    sourceDirectories.setFrom(
+        files(
+            "src/main/java",
+            "src/main/kotlin"
+        )
+    )
+    executionData.setFrom(
+        fileTree(layout.buildDirectory) {
+            include(
+                "outputs/unit_test_code_coverage/debugUnitTest/testDebugUnitTest.exec",
+                "outputs/unit_test_code_coverage/debugUnitTest/**/*.exec"
+            )
+        }
+    )
+
+    violationRules {
+        rule {
+            limit {
+                counter = "LINE"
+                value = "COVEREDRATIO"
+                minimum = "0.65".toBigDecimal()
+            }
+            limit {
+                counter = "BRANCH"
+                value = "COVEREDRATIO"
+                minimum = "0.35".toBigDecimal()
+            }
+        }
+    }
+}
+
+tasks.named("check") {
+    dependsOn("jacocoDebugCoverageVerification")
 }
 
 dependencies {
