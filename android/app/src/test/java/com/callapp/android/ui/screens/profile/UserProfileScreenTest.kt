@@ -1,5 +1,8 @@
 package com.callapp.android.ui.screens.profile
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -42,6 +45,7 @@ class UserProfileScreenTest {
     @Test
     fun toggleFavorite_updatesButtonTextAndCallsCallback() {
         var toggledUserId = ""
+        var isFavorite by mutableStateOf(false)
 
         composeRule.setAleAppContent {
             UserProfileScreen(
@@ -51,15 +55,44 @@ class UserProfileScreenTest {
                     username = "maria",
                     serverName = "Creative Studio",
                     isAdmin = false,
-                    isFavorite = false,
+                    isFavorite = isFavorite,
                 ),
-                onToggleFavorite = { toggledUserId = it },
+                onToggleFavorite = {
+                    toggledUserId = it
+                    isFavorite = !isFavorite
+                },
             )
         }
 
         composeRule.onNodeWithText("Добавить в избранное").performClick()
 
         assertEquals("user-42", toggledUserId)
+        composeRule.onNodeWithText("Удалить из избранного").assertIsDisplayed()
+    }
+
+    @Test
+    fun updatesButtonWhenFavoriteStateChangesFromViewModel() {
+        var isFavorite by mutableStateOf(false)
+
+        composeRule.setAleAppContent {
+            UserProfileScreen(
+                user = UserProfileData(
+                    userId = "user-1",
+                    name = "Maria",
+                    username = "maria",
+                    serverName = "Creative Studio",
+                    isAdmin = false,
+                    isFavorite = isFavorite,
+                ),
+            )
+        }
+
+        composeRule.onNodeWithText("Добавить в избранное").assertIsDisplayed()
+
+        composeRule.runOnIdle {
+            isFavorite = true
+        }
+
         composeRule.onNodeWithText("Удалить из избранного").assertIsDisplayed()
     }
 }

@@ -22,15 +22,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -43,10 +38,6 @@ import com.callapp.android.ui.components.AleAppButtonVariant
 import com.callapp.android.ui.components.AleAppCard
 import com.callapp.android.ui.theme.AleAppTheme
 
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/*  Data                                                                      */
-/* ═══════════════════════════════════════════════════════════════════════════ */
-
 data class UserProfileData(
     val userId: String,
     val name: String,
@@ -55,10 +46,6 @@ data class UserProfileData(
     val isAdmin: Boolean,
     val isFavorite: Boolean,
 )
-
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/*  Mock data                                                                 */
-/* ═══════════════════════════════════════════════════════════════════════════ */
 
 internal val sampleUserProfileFavorite = UserProfileData(
     userId = "u1",
@@ -78,10 +65,6 @@ internal val sampleUserProfileNotFavorite = UserProfileData(
     isFavorite = false,
 )
 
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/*  UserProfileScreen                                                         */
-/* ═══════════════════════════════════════════════════════════════════════════ */
-
 @Composable
 fun UserProfileScreen(
     user: UserProfileData = sampleUserProfileNotFavorite,
@@ -90,7 +73,6 @@ fun UserProfileScreen(
     modifier: Modifier = Modifier,
 ) {
     val colors = AleAppTheme.colors
-    var isFavorite by remember { mutableStateOf(user.isFavorite) }
 
     Scaffold(
         containerColor = colors.background,
@@ -107,7 +89,6 @@ fun UserProfileScreen(
         ) {
             Spacer(Modifier.height(32.dp))
 
-            // ── Avatar ────────────────────────────────────────────────────
             ProfileAvatar(
                 name = user.name,
                 size = 128.dp,
@@ -115,7 +96,6 @@ fun UserProfileScreen(
 
             Spacer(Modifier.height(16.dp))
 
-            // ── Name + username ───────────────────────────────────────────
             Text(
                 text = user.name,
                 style = MaterialTheme.typography.headlineSmall.copy(
@@ -134,30 +114,33 @@ fun UserProfileScreen(
 
             Spacer(Modifier.height(20.dp))
 
-            // ── Favorite toggle button ────────────────────────────────────
             AleAppButton(
-                onClick = {
-                    isFavorite = !isFavorite
-                    onToggleFavorite(user.userId)
+                onClick = { onToggleFavorite(user.userId) },
+                variant = if (user.isFavorite) {
+                    AleAppButtonVariant.Outline
+                } else {
+                    AleAppButtonVariant.Primary
                 },
-                variant = if (isFavorite) AleAppButtonVariant.Outline else AleAppButtonVariant.Primary,
                 size = AleAppButtonSize.Default,
             ) {
                 Icon(
-                    imageVector = if (isFavorite) Icons.Default.Star else Icons.Default.StarBorder,
+                    imageVector = if (user.isFavorite) Icons.Default.Star else Icons.Default.StarBorder,
                     contentDescription = null,
                     modifier = Modifier.size(16.dp),
-                    tint = if (isFavorite) colors.accent else colors.primaryForeground,
+                    tint = if (user.isFavorite) colors.accent else colors.primaryForeground,
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    text = if (isFavorite) "Удалить из избранного" else "Добавить в избранное",
+                    text = if (user.isFavorite) {
+                        "Удалить из избранного"
+                    } else {
+                        "Добавить в избранное"
+                    },
                 )
             }
 
             Spacer(Modifier.height(24.dp))
 
-            // ── Server + Role card ────────────────────────────────────────
             AleAppCard(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -167,7 +150,6 @@ fun UserProfileScreen(
                     modifier = Modifier.padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
-                    // Server
                     Column {
                         Text(
                             text = "Сервер",
@@ -184,7 +166,6 @@ fun UserProfileScreen(
                         )
                     }
 
-                    // Role
                     Column {
                         Text(
                             text = "Роль",
@@ -203,10 +184,6 @@ fun UserProfileScreen(
         }
     }
 }
-
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/*  Top bar                                                                   */
-/* ═══════════════════════════════════════════════════════════════════════════ */
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -244,11 +221,7 @@ private fun UserProfileTopBar(
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/*  Previews                                                                  */
-/* ═══════════════════════════════════════════════════════════════════════════ */
-
-@Preview(name = "UserProfile — not favorite, Light", showBackground = true, showSystemUi = true)
+@Preview(name = "UserProfile - not favorite, Light", showBackground = true, showSystemUi = true)
 @Composable
 private fun UserProfileNotFavLightPreview() {
     AleAppTheme(darkTheme = false) {
@@ -257,7 +230,7 @@ private fun UserProfileNotFavLightPreview() {
 }
 
 @Preview(
-    name = "UserProfile — not favorite, Dark",
+    name = "UserProfile - not favorite, Dark",
     showBackground = true,
     showSystemUi = true,
     uiMode = Configuration.UI_MODE_NIGHT_YES,
@@ -269,7 +242,7 @@ private fun UserProfileNotFavDarkPreview() {
     }
 }
 
-@Preview(name = "UserProfile — favorite, Light", showBackground = true, showSystemUi = true)
+@Preview(name = "UserProfile - favorite, Light", showBackground = true, showSystemUi = true)
 @Composable
 private fun UserProfileFavLightPreview() {
     AleAppTheme(darkTheme = false) {
@@ -278,7 +251,7 @@ private fun UserProfileFavLightPreview() {
 }
 
 @Preview(
-    name = "UserProfile — favorite, Dark",
+    name = "UserProfile - favorite, Dark",
     showBackground = true,
     showSystemUi = true,
     uiMode = Configuration.UI_MODE_NIGHT_YES,
@@ -290,7 +263,7 @@ private fun UserProfileFavDarkPreview() {
     }
 }
 
-@Preview(name = "UserProfileTopBar — Light", showBackground = true)
+@Preview(name = "UserProfileTopBar - Light", showBackground = true)
 @Composable
 private fun UserTopBarLightPreview() {
     AleAppTheme(darkTheme = false) {
@@ -298,7 +271,7 @@ private fun UserTopBarLightPreview() {
     }
 }
 
-@Preview(name = "UserProfileTopBar — Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Preview(name = "UserProfileTopBar - Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 private fun UserTopBarDarkPreview() {
     AleAppTheme(darkTheme = true) {
