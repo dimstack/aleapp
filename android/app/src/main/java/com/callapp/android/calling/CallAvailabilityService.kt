@@ -6,6 +6,8 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.media.AudioAttributes
+import android.media.RingtoneManager
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
@@ -185,6 +187,7 @@ class CallAvailabilityService : Service() {
     }
 
     private fun showIncomingCallNotification(payload: IncomingCallPayload) {
+        val ringtoneUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
         val launchIntent = IncomingCallIntentContract.putExtras(
             Intent(this, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -213,6 +216,7 @@ class CallAvailabilityService : Service() {
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setContentIntent(fullScreenIntent)
             .setFullScreenIntent(fullScreenIntent, true)
+            .setSound(ringtoneUri)
             .build()
 
         activeIncomingNotificationIds += payload.notificationId
@@ -284,6 +288,13 @@ class CallAvailabilityService : Service() {
             ).apply {
                 description = "Показывает входящие вызовы"
                 lockscreenVisibility = AndroidNotification.VISIBILITY_PUBLIC
+                setSound(
+                    RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE),
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build(),
+                )
             },
         )
         manager.createNotificationChannel(
@@ -311,7 +322,7 @@ class CallAvailabilityService : Service() {
         const val ACTION_STOP = "com.callapp.android.action.STOP_CALL_AVAILABILITY"
 
         private const val SERVICE_CHANNEL_ID = "call_service_channel"
-        private const val CALL_CHANNEL_ID = "incoming_call_channel"
+        private const val CALL_CHANNEL_ID = "incoming_call_channel_v2"
         private const val ALERTS_CHANNEL_ID = "app_alerts_channel"
         private const val SERVICE_NOTIFICATION_ID = 1001
         private const val NOTIFICATION_POLL_INTERVAL_MS = 30_000L

@@ -1,9 +1,14 @@
 package com.callapp.android
 
+import android.content.Intent
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import com.callapp.android.calling.IncomingCallIntentContract
+import com.callapp.android.calling.IncomingCallPayload
 import com.callapp.android.data.ServiceLocator
 import com.callapp.android.data.SessionStore
 import com.callapp.android.testutil.InMemorySharedPreferences
-import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -59,6 +64,112 @@ class MainActivityTest {
         assertEquals("token-1", ServiceLocator.connectionManager.getClient("https://alpha.example.com").sessionToken)
         assertEquals("", ServiceLocator.activeServerAddress)
         assertEquals("", ServiceLocator.currentUserId)
+    }
+
+    @Test
+    fun incomingCallIntentEnablesShowWhenLockedAndTurnScreenOn() {
+        val intent = IncomingCallIntentContract.putExtras(
+            Intent(),
+            IncomingCallPayload(
+                serverAddress = "https://alpha.example.com",
+                userId = "user-1",
+                contactName = "Alex",
+                serverName = "Tech Community",
+                notificationId = 42,
+            ),
+        )
+
+        var showWhenLocked: Boolean? = null
+        var turnScreenOn: Boolean? = null
+        var addedFlags: Int? = null
+        var clearedFlags: Int? = null
+
+        IncomingCallWindowBehavior.apply(
+            enabled = IncomingCallWindowBehavior.shouldEnable(intent),
+            sdkInt = 34,
+            setShowWhenLocked = { showWhenLocked = it },
+            setTurnScreenOn = { turnScreenOn = it },
+            addLegacyFlags = { addedFlags = it },
+            clearLegacyFlags = { clearedFlags = it },
+        )
+
+        assertTrue(showWhenLocked == true)
+        assertTrue(turnScreenOn == true)
+        assertEquals(null, addedFlags)
+        assertEquals(null, clearedFlags)
+    }
+
+    @Test
+    fun regularLaunchKeepsLockScreenOverridesDisabled() {
+        var showWhenLocked: Boolean? = null
+        var turnScreenOn: Boolean? = null
+        var addedFlags: Int? = null
+        var clearedFlags: Int? = null
+
+        IncomingCallWindowBehavior.apply(
+            enabled = IncomingCallWindowBehavior.shouldEnable(null),
+            sdkInt = 34,
+            setShowWhenLocked = { showWhenLocked = it },
+            setTurnScreenOn = { turnScreenOn = it },
+            addLegacyFlags = { addedFlags = it },
+            clearLegacyFlags = { clearedFlags = it },
+        )
+
+        assertFalse(showWhenLocked == true)
+        assertFalse(turnScreenOn == true)
+        assertEquals(null, addedFlags)
+        assertEquals(null, clearedFlags)
+    }
+
+    @Test
+    fun legacyDevicesToggleWindowFlags() {
+        var addedFlags: Int? = null
+        var clearedFlags: Int? = null
+
+        IncomingCallWindowBehavior.apply(
+            enabled = true,
+            sdkInt = 26,
+            setShowWhenLocked = {},
+            setTurnScreenOn = {},
+            addLegacyFlags = { addedFlags = it },
+            clearLegacyFlags = { clearedFlags = it },
+        )
+
+        assertTrue((addedFlags ?: 0) != 0)
+        assertEquals(null, clearedFlags)
+
+        IncomingCallWindowBehavior.apply(
+            enabled = false,
+            sdkInt = 26,
+            setShowWhenLocked = {},
+            setTurnScreenOn = {},
+            addLegacyFlags = { addedFlags = it },
+            clearLegacyFlags = { clearedFlags = it },
+        )
+
+        assertTrue((clearedFlags ?: 0) != 0)
+    }
+
+    @Test
+    fun closesAfterIncomingFlowOnlyWhenStillLocked() {
+        assertTrue(
+            IncomingCallWindowBehavior.shouldCloseActivityAfterIncomingCallEnds(
+                openedFromIncomingCallWhileLocked = true,
+                isKeyguardLocked = true,
+            ),
+        )
+        assertFalse(
+            IncomingCallWindowBehavior.shouldCloseActivityAfterIncomingCallEnds(
+                openedFromIncomingCallWhileLocked = true,
+                isKeyguardLocked = false,
+            ),
+        )
+        assertFalse(
+            IncomingCallWindowBehavior.shouldCloseActivityAfterIncomingCallEnds(
+                openedFromIncomingCallWhileLocked = false,
+                isKeyguardLocked = true,
+            ),
+        )
     }
 
     private fun invokeRestoreSessions(activity: MainActivity, store: SessionStore) {

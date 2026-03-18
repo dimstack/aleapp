@@ -33,9 +33,15 @@ sealed class Route(val route: String) {
         fun createRoute(serverAddress: String, userId: String, contactName: String) =
             "call/${java.net.URLEncoder.encode(serverAddress, "UTF-8")}/$userId/${java.net.URLEncoder.encode(contactName, "UTF-8")}"
     }
-    data object IncomingCall : Route("incoming_call/{serverAddress}/{userId}/{contactName}/{serverName}") {
-        fun createRoute(serverAddress: String, userId: String, contactName: String, serverName: String) =
-            "incoming_call/${java.net.URLEncoder.encode(serverAddress, "UTF-8")}/$userId/${java.net.URLEncoder.encode(contactName, "UTF-8")}/${java.net.URLEncoder.encode(serverName, "UTF-8")}"
+    data object IncomingCall : Route("incoming_call/{serverAddress}/{userId}/{contactName}/{serverName}/{notificationId}") {
+        fun createRoute(
+            serverAddress: String,
+            userId: String,
+            contactName: String,
+            serverName: String,
+            notificationId: Int = 0,
+        ) =
+            "incoming_call/${java.net.URLEncoder.encode(serverAddress, "UTF-8")}/$userId/${java.net.URLEncoder.encode(contactName, "UTF-8")}/${java.net.URLEncoder.encode(serverName, "UTF-8")}/$notificationId"
     }
     data object JoinRequests : Route("join_requests/{serverId}") {
         fun createRoute(serverId: String) = "join_requests/$serverId"

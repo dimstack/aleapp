@@ -1,6 +1,7 @@
 package com.callapp.android.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -9,6 +10,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.core.app.NotificationManagerCompat
 import com.callapp.android.ui.IncomingCallHandler
 import com.callapp.android.ui.components.RequestCallPermissions
 import com.callapp.android.ui.components.videoCallPermissions
@@ -66,6 +68,8 @@ fun AppNavGraph(
     pendingIncomingCall: IncomingCallPayload? = null,
     pendingNotificationsServerId: String? = null,
     onIncomingCallConsumed: () -> Unit = {},
+    onIncomingCallUiVisibilityChanged: (Boolean) -> Unit = {},
+    onIncomingCallFlowFinished: () -> Unit = {},
     onNotificationsDestinationConsumed: () -> Unit = {},
     onThemeChange: (Boolean) -> Unit = {},
     onStatusChange: (UserStatus) -> Unit = {},
@@ -88,6 +92,7 @@ fun AppNavGraph(
                 payload.userId,
                 payload.contactName,
                 payload.serverName,
+                payload.notificationId,
             ),
         ) {
             launchSingleTop = true
@@ -574,7 +579,10 @@ fun AppNavGraph(
             RequestCallPermissions(
                 permissions = videoCallPermissions,
                 onAllGranted = { permissionsGranted = true },
-                onDenied = { navController.popBackStack() },
+                onDenied = {
+                    onIncomingCallFlowFinished()
+                    navController.popBackStack()
+                },
             )
 
             if (permissionsGranted) {
@@ -622,9 +630,20 @@ fun AppNavGraph(
                 navArgument("userId") { type = NavType.StringType },
                 navArgument("contactName") { type = NavType.StringType },
                 navArgument("serverName") { type = NavType.StringType },
+                navArgument("notificationId") { type = NavType.IntType },
             )
         ) {
             var permissionsGranted by remember { mutableStateOf(false) }
+            val notificationId = remember(it) {
+                it.arguments?.getInt("notificationId") ?: 0
+            }
+            val dismissIncomingNotification = remember(notificationId) {
+                {
+                    if (notificationId != 0) {
+                        NotificationManagerCompat.from(navController.context).cancel(notificationId)
+                    }
+                }
+            }
 
             RequestCallPermissions(
                 permissions = videoCallPermissions,
@@ -642,9 +661,21 @@ fun AppNavGraph(
                 val remoteVideoTrack by viewModel.remoteVideoTrack.collectAsState()
                 val contactAvatarUrl by viewModel.contactAvatarUrl.collectAsState()
 
+                LaunchedEffect(callPhase) {
+                    onIncomingCallUiVisibilityChanged(callPhase == CallPhase.INCOMING)
+                }
+                DisposableEffect(Unit) {
+                    onDispose {
+                        onIncomingCallUiVisibilityChanged(false)
+                    }
+                }
+
                 when (callPhase) {
                     CallPhase.ENDED -> {
-                        LaunchedEffect(Unit) { navController.popBackStack() }
+                        LaunchedEffect(Unit) {
+                            onIncomingCallFlowFinished()
+                            navController.popBackStack()
+                        }
                     }
                     CallPhase.CONNECTED -> {
                         CallScreen(
@@ -668,8 +699,14 @@ fun AppNavGraph(
                             contactName = viewModel.contactName,
                             contactAvatarUrl = contactAvatarUrl,
                             serverName = viewModel.serverName ?: "",
-                            onAccept = viewModel::acceptCall,
-                            onDecline = viewModel::declineCall,
+                            onAccept = {
+                                dismissIncomingNotification()
+                                viewModel.acceptCall()
+                            },
+                            onDecline = {
+                                dismissIncomingNotification()
+                                viewModel.declineCall()
+                            },
                         )
                     }
                 }

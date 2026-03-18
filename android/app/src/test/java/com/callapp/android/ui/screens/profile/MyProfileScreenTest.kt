@@ -1,7 +1,9 @@
 package com.callapp.android.ui.screens.profile
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -68,7 +70,8 @@ class MyProfileScreenTest {
             )
         }
 
-        composeRule.onNodeWithText("@alex_admin").assertIsDisplayed()
+        composeRule.onAllNodesWithText("@alex_admin").assertCountEquals(2)
+        composeRule.onAllNodesWithText("@@alex_admin").assertCountEquals(0)
     }
 
     @Test

@@ -1,16 +1,17 @@
 package com.callapp.android
 
 import android.Manifest
+import android.app.KeyguardManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -33,9 +34,14 @@ class MainActivity : ComponentActivity() {
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
     private val pendingIncomingCallState = mutableStateOf<IncomingCallPayload?>(null)
     private val pendingNotificationsServerIdState = mutableStateOf<String?>(null)
+    private val keyguardManager by lazy { getSystemService(KeyguardManager::class.java) }
+    private var incomingCallUiVisible = false
+    private var openedFromIncomingCallWhileLocked = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        updateIncomingCallLaunchState(intent)
+        updateIncomingCallWindowBehavior(intent)
 
         // Initialize WebRTC factory (app-scoped, survives across calls)
         WebRtcFactory.init(applicationContext)
@@ -89,6 +95,8 @@ class MainActivity : ComponentActivity() {
                     pendingIncomingCall = pendingIncomingCall,
                     pendingNotificationsServerId = pendingNotificationsServerId,
                     onIncomingCallConsumed = { pendingIncomingCallState.value = null },
+                    onIncomingCallUiVisibilityChanged = ::setIncomingCallUiVisible,
+                    onIncomingCallFlowFinished = ::handleIncomingCallFlowFinished,
                     onNotificationsDestinationConsumed = { pendingNotificationsServerIdState.value = null },
                     onThemeChange = {
                         isDarkTheme = it
@@ -106,6 +114,8 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        updateIncomingCallLaunchState(intent)
+        updateIncomingCallWindowBehavior(intent)
         pendingIncomingCallState.value = extractIncomingCall(intent)
         pendingNotificationsServerIdState.value = extractNotificationsServerId(intent)
     }
@@ -126,6 +136,50 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun updateIncomingCallWindowBehavior(intent: Intent?) {
+        configureIncomingCallWindowBehavior(
+            IncomingCallWindowBehavior.shouldEnable(intent) || incomingCallUiVisible,
+        )
+    }
+
+    private fun updateIncomingCallLaunchState(intent: Intent?) {
+        if (IncomingCallWindowBehavior.shouldEnable(intent) && keyguardManager.isKeyguardLockedCompat()) {
+            openedFromIncomingCallWhileLocked = true
+        }
+    }
+
+    private fun configureIncomingCallWindowBehavior(enabled: Boolean) {
+        IncomingCallWindowBehavior.apply(
+            enabled = enabled,
+            sdkInt = Build.VERSION.SDK_INT,
+            setShowWhenLocked = ::setShowWhenLocked,
+            setTurnScreenOn = ::setTurnScreenOn,
+            addLegacyFlags = window::addFlags,
+            clearLegacyFlags = window::clearFlags,
+        )
+    }
+
+    private fun setIncomingCallUiVisible(visible: Boolean) {
+        if (incomingCallUiVisible == visible) return
+        incomingCallUiVisible = visible
+        updateIncomingCallWindowBehavior(intent)
+    }
+
+    private fun handleIncomingCallFlowFinished() {
+        setIncomingCallUiVisible(false)
+        if (IncomingCallWindowBehavior.shouldCloseActivityAfterIncomingCallEnds(
+                openedFromIncomingCallWhileLocked = openedFromIncomingCallWhileLocked,
+                isKeyguardLocked = keyguardManager.isKeyguardLockedCompat(),
+            )
+        ) {
+            openedFromIncomingCallWhileLocked = false
+            moveTaskToBack(true)
+            finish()
+            return
+        }
+        openedFromIncomingCallWhileLocked = false
+    }
+
     private fun requestNotificationsPermissionIfNeeded() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
         if (
@@ -140,11 +194,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun extractIncomingCall(intent: Intent?): IncomingCallPayload? {
-        val payload = IncomingCallIntentContract.fromIntent(intent) ?: return null
-        if (payload.notificationId != 0) {
-            NotificationManagerCompat.from(this).cancel(payload.notificationId)
-        }
-        return payload
+        return IncomingCallIntentContract.fromIntent(intent)
     }
 
     private fun extractNotificationsServerId(intent: Intent?): String? =
@@ -154,3 +204,36 @@ class MainActivity : ComponentActivity() {
         const val ACTION_OPEN_NOTIFICATIONS = "com.callapp.android.action.OPEN_NOTIFICATIONS"
     }
 }
+
+internal object IncomingCallWindowBehavior {
+    private const val LEGACY_FLAGS =
+        WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+            WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+
+    fun shouldEnable(intent: Intent?): Boolean = IncomingCallIntentContract.fromIntent(intent) != null
+
+    fun shouldCloseActivityAfterIncomingCallEnds(
+        openedFromIncomingCallWhileLocked: Boolean,
+        isKeyguardLocked: Boolean,
+    ): Boolean = openedFromIncomingCallWhileLocked && isKeyguardLocked
+
+    fun apply(
+        enabled: Boolean,
+        sdkInt: Int,
+        setShowWhenLocked: (Boolean) -> Unit,
+        setTurnScreenOn: (Boolean) -> Unit,
+        addLegacyFlags: (Int) -> Unit,
+        clearLegacyFlags: (Int) -> Unit,
+    ) {
+        if (sdkInt >= Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(enabled)
+            setTurnScreenOn(enabled)
+        } else if (enabled) {
+            addLegacyFlags(LEGACY_FLAGS)
+        } else {
+            clearLegacyFlags(LEGACY_FLAGS)
+        }
+    }
+}
+
+private fun KeyguardManager?.isKeyguardLockedCompat(): Boolean = this?.isKeyguardLocked == true
