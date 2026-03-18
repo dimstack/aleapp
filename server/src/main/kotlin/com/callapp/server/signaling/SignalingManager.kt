@@ -18,6 +18,7 @@ class SignalingManager(
     private val notificationRepository: NotificationRepository,
 ) {
     private val sessions = ConcurrentHashMap<String, ConnectedClient>()
+    private val pendingCalls = ConcurrentHashMap<String, PendingCall>()
 
     suspend fun connect(principal: SessionPrincipal, session: WebSocketSession) {
         val userId = requireNotNull(principal.userId)
@@ -27,6 +28,8 @@ class SignalingManager(
     suspend fun disconnect(principal: SessionPrincipal?) {
         val userId = principal?.userId ?: return
         val removed = sessions.remove(userId) ?: return
+        pendingCalls.remove(userId)
+        pendingCalls.entries.removeIf { (_, pendingCall) -> pendingCall.callerUserId == userId }
         if (removed.principal.serverId == principal.serverId) {
             broadcastStatus(
                 serverId = principal.serverId,
@@ -55,21 +58,51 @@ class SignalingManager(
             return
         }
 
+        when (message) {
+            is SignalMessage.CallRequest -> {
+                pendingCalls[message.targetUserId] = PendingCall(
+                    callerUserId = senderId,
+                )
+            }
+            is SignalMessage.CallResponse -> {
+                pendingCalls.remove(senderId)
+            }
+            is SignalMessage.CallDecline -> {
+                pendingCalls.remove(senderId)
+            }
+            is SignalMessage.CallEnd -> {
+                val pendingCall = pendingCalls[message.targetUserId]
+                if (pendingCall?.callerUserId == senderId) {
+                    pendingCalls.remove(message.targetUserId)
+                    createMissedCallNotification(message.targetUserId)
+                }
+            }
+            is SignalMessage.CallBusy -> {
+                pendingCalls.remove(message.targetUserId)
+            }
+            else -> Unit
+        }
+
         if (target == null || target.principal.serverId != principal.serverId) {
             sessions[senderId]?.session?.send(Frame.Text(SignalMessage.CallBusy(targetUserId = message.targetUserId).toJson()))
             if (message is SignalMessage.CallRequest || message is SignalMessage.Offer) {
-                val serverName = serverRepository.getCurrentServer()?.name ?: "CallApp Server"
-                notificationRepository.create(
-                    userId = message.targetUserId,
-                    type = NotificationType.MISSED_CALL,
-                    serverName = serverName,
-                    message = "You missed a call while offline",
-                )
+                pendingCalls.remove(message.targetUserId)
+                createMissedCallNotification(message.targetUserId)
             }
             return
         }
 
         target.session.send(Frame.Text(message.toJson()))
+    }
+
+    private fun createMissedCallNotification(userId: String) {
+        val serverName = serverRepository.getCurrentServer()?.name ?: "CallApp Server"
+        notificationRepository.create(
+            userId = userId,
+            type = NotificationType.MISSED_CALL,
+            serverName = serverName,
+            message = "You missed a call",
+        )
     }
 
     private suspend fun broadcastStatus(serverId: String, message: SignalMessage.StatusUpdate) {
@@ -86,6 +119,10 @@ class SignalingManager(
 private data class ConnectedClient(
     val principal: SessionPrincipal,
     val session: WebSocketSession,
+)
+
+private data class PendingCall(
+    val callerUserId: String,
 )
 
 private fun SignalMessage.withSender(

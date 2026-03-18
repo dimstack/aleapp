@@ -74,6 +74,88 @@ class NotificationsEdgeCasesTest {
     }
 
     @Test
+    fun `missedCallNotification_createdWhenCallerEndsUnansweredOnlineCall`() = testWithDatabase("test-notifications-edge") { dbPath ->
+        application { module() }
+        client.get("/health")
+        seedInviteToken(dbPath, "NOTIFY01")
+        seedUser(dbPath, "@caller", "verysecure")
+        val calleeId = seedUser(dbPath, "@callee", "verysecure")
+        val callerToken = login("NOTIFY01", "caller", "verysecure")
+        val calleeToken = login("NOTIFY01", "callee", "verysecure")
+
+        val wsClient = createClient {
+            install(WebSockets)
+        }
+
+        wsClient.webSocket("/ws?token=$calleeToken") {
+            val receiveJob = async {
+                withTimeout(5_000) {
+                    val frame = incoming.receive() as Frame.Text
+                    SignalMessage.fromJson(frame.readText())
+                }
+            }
+
+            wsClient.webSocket("/ws?token=$callerToken") {
+                send(Frame.Text(SignalMessage.CallRequest(targetUserId = calleeId).toJson()))
+                send(Frame.Text(SignalMessage.CallEnd(targetUserId = calleeId).toJson()))
+            }
+
+            val delivered = receiveJob.await() as SignalMessage.CallRequest
+            assertEquals(calleeId, delivered.targetUserId)
+        }
+
+        val notificationsResponse = client.get("/api/notifications") {
+            bearerAuth(calleeToken)
+        }
+        val notifications = testJson.parseToJsonElement(notificationsResponse.bodyAsText()).jsonArray
+        assertEquals(1, notifications.size)
+        assertEquals("MISSED_CALL", notifications.first().jsonObject["type"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `declinedOnlineCall_doesNotCreateMissedCallNotification`() = testWithDatabase("test-notifications-edge") { dbPath ->
+        application { module() }
+        client.get("/health")
+        seedInviteToken(dbPath, "NOTIFY01")
+        val callerId = seedUser(dbPath, "@caller", "verysecure")
+        val calleeId = seedUser(dbPath, "@callee", "verysecure")
+        val callerToken = login("NOTIFY01", "caller", "verysecure")
+        val calleeToken = login("NOTIFY01", "callee", "verysecure")
+
+        val wsClient = createClient {
+            install(WebSockets)
+        }
+
+        wsClient.webSocket("/ws?token=$callerToken") {
+            val receiveJob = async {
+                withTimeout(5_000) {
+                    val frame = incoming.receive() as Frame.Text
+                    SignalMessage.fromJson(frame.readText())
+                }
+            }
+
+            send(Frame.Text(SignalMessage.CallRequest(targetUserId = calleeId).toJson()))
+
+            wsClient.webSocket("/ws?token=$calleeToken") {
+                val incomingCall = withTimeout(5_000) {
+                    SignalMessage.fromJson((incoming.receive() as Frame.Text).readText())
+                } as SignalMessage.CallRequest
+                assertEquals(callerId, incomingCall.fromUserId)
+                send(Frame.Text(SignalMessage.CallDecline(targetUserId = callerId).toJson()))
+            }
+
+            val delivered = receiveJob.await() as SignalMessage.CallDecline
+            assertEquals(callerId, delivered.targetUserId)
+        }
+
+        val notificationsResponse = client.get("/api/notifications") {
+            bearerAuth(calleeToken)
+        }
+        val notifications = testJson.parseToJsonElement(notificationsResponse.bodyAsText()).jsonArray
+        assertEquals(0, notifications.size)
+    }
+
+    @Test
     fun `clearNotifications_alsoResetsUnreadCount`() = testWithDatabase("test-notifications-edge") { dbPath ->
         application { module() }
         client.get("/health")

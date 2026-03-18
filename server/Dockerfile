@@ -1,6 +1,6 @@
 FROM gradle:9.0.0-jdk21 AS build
 WORKDIR /app
-COPY . .
+COPY server/ ./
 RUN gradle --no-daemon installDist
 
 FROM eclipse-temurin:21-jre
