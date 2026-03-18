@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.callapp.android.data.ServiceLocator
 import com.callapp.android.domain.model.Notification
 import com.callapp.android.domain.model.Server
+import com.callapp.android.domain.model.User
 import com.callapp.android.network.result.ApiResult
 import com.callapp.android.ui.common.apiErrorMessage
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,12 +16,14 @@ import kotlinx.coroutines.launch
 
 data class NotificationsUiState(
     val notifications: List<Notification> = emptyList(),
+    val server: Server? = null,
     val isLoading: Boolean = false,
     val error: String? = null,
 )
 
 interface NotificationsDependencies {
     fun getServerById(serverId: String): Server?
+    suspend fun getUsers(serverAddress: String): ApiResult<List<User>>
     suspend fun getNotifications(serverAddress: String): ApiResult<List<Notification>>
     suspend fun markNotificationsRead(serverAddress: String): ApiResult<Unit>
     suspend fun clearNotifications(serverAddress: String): ApiResult<Unit>
@@ -29,6 +32,9 @@ interface NotificationsDependencies {
 object DefaultNotificationsDependencies : NotificationsDependencies {
     override fun getServerById(serverId: String): Server? =
         ServiceLocator.serverRepository.getServerById(serverId)
+
+    override suspend fun getUsers(serverAddress: String): ApiResult<List<User>> =
+        ServiceLocator.serverRepository.getUsers(serverAddress)
 
     override suspend fun getNotifications(serverAddress: String): ApiResult<List<Notification>> =
         ServiceLocator.connectionManager.getClient(serverAddress).getNotifications()
@@ -51,13 +57,11 @@ class NotificationsViewModel(
     )
 
     private val serverId: String = savedStateHandle["serverId"] ?: ""
-    private val serverAddress: String = dependencies.getServerById(serverId)?.address.orEmpty()
+    private val server: Server? = dependencies.getServerById(serverId)
+    private val serverAddress: String = server?.address.orEmpty()
 
     private val _state = MutableStateFlow(NotificationsUiState())
     val state: StateFlow<NotificationsUiState> = _state.asStateFlow()
-
-    private val _unreadCount = MutableStateFlow(0)
-    val unreadCount: StateFlow<Int> = _unreadCount.asStateFlow()
 
     init {
         loadNotifications()
@@ -68,24 +72,30 @@ class NotificationsViewModel(
             _state.value = _state.value.copy(isLoading = true, error = null)
             if (serverAddress.isBlank()) {
                 _state.value = _state.value.copy(
+                    server = server,
                     isLoading = false,
                     error = "Сервер не найден",
                 )
-                _unreadCount.value = 0
                 return@launch
             }
 
             when (val result = dependencies.getNotifications(serverAddress)) {
                 is ApiResult.Success -> {
+                    val notifications = enrichNotifications(result.data).map { it.copy(isRead = true) }
                     _state.value = _state.value.copy(
-                        notifications = result.data,
+                        notifications = notifications,
+                        server = server,
                         isLoading = false,
                     )
-                    updateUnreadCount(result.data)
+
+                    if (result.data.any { !it.isRead }) {
+                        dependencies.markNotificationsRead(serverAddress)
+                    }
                 }
 
                 is ApiResult.Failure -> {
                     _state.value = _state.value.copy(
+                        server = server,
                         isLoading = false,
                         error = apiErrorMessage(
                             error = result.error,
@@ -93,23 +103,8 @@ class NotificationsViewModel(
                             notFound = "Сервер не найден",
                         ),
                     )
-                    _unreadCount.value = 0
                 }
             }
-        }
-    }
-
-    fun markAsRead(notificationId: String) {
-        _state.value = _state.value.copy(
-            notifications = _state.value.notifications.map {
-                if (it.id == notificationId) it.copy(isRead = true) else it
-            },
-        )
-        updateUnreadCount(_state.value.notifications)
-
-        viewModelScope.launch {
-            if (serverAddress.isBlank()) return@launch
-            dependencies.markNotificationsRead(serverAddress)
         }
     }
 
@@ -117,7 +112,6 @@ class NotificationsViewModel(
         _state.value = _state.value.copy(
             notifications = _state.value.notifications.map { it.copy(isRead = true) },
         )
-        updateUnreadCount(_state.value.notifications)
 
         viewModelScope.launch {
             if (serverAddress.isBlank()) return@launch
@@ -131,7 +125,6 @@ class NotificationsViewModel(
             when (val result = dependencies.clearNotifications(serverAddress)) {
                 is ApiResult.Success -> {
                     _state.value = _state.value.copy(notifications = emptyList())
-                    _unreadCount.value = 0
                 }
 
                 is ApiResult.Failure -> {
@@ -147,7 +140,25 @@ class NotificationsViewModel(
         }
     }
 
-    private fun updateUnreadCount(notifications: List<Notification>) {
-        _unreadCount.value = notifications.count { !it.isRead }
+    private suspend fun enrichNotifications(notifications: List<Notification>): List<Notification> {
+        val missingUsernames = notifications.filter {
+            it.type == com.callapp.android.domain.model.NotificationType.MISSED_CALL &&
+                it.actorUserId != null &&
+                it.actorUsername.isNullOrBlank()
+        }
+        if (missingUsernames.isEmpty()) return notifications
+
+        val usersById = when (val usersResult = dependencies.getUsers(serverAddress)) {
+            is ApiResult.Success -> usersResult.data.associateBy { it.id }
+            is ApiResult.Failure -> return notifications
+        }
+
+        return notifications.map { notification ->
+            val actorUserId = notification.actorUserId ?: return@map notification
+            val username = notification.actorUsername
+                ?: usersById[actorUserId]?.username
+                ?: return@map notification
+            notification.copy(actorUsername = username)
+        }
     }
 }

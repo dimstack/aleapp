@@ -129,6 +129,10 @@ data class NotificationDto(
     val type: String,
     @SerialName("server_name") val serverName: String = "",
     val message: String = "",
+    @SerialName("actor_user_id") val actorUserId: String? = null,
+    @SerialName("actor_username") val actorUsername: String? = null,
+    @SerialName("actor_display_name") val actorDisplayName: String? = null,
+    @SerialName("actor_avatar_url") val actorAvatarUrl: String? = null,
     @SerialName("is_read") val isRead: Boolean = false,
     @SerialName("created_at") val createdAt: String = "",
 )

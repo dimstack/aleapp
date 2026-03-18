@@ -141,7 +141,10 @@ class SignalingRoutesTest {
         assertEquals(io.ktor.http.HttpStatusCode.OK, notificationsResponse.status)
         val notifications = json.parseToJsonElement(notificationsResponse.bodyAsText()).jsonArray
         assertEquals(1, notifications.size)
-        assertEquals("MISSED_CALL", notifications.first().jsonObject["type"]!!.jsonPrimitive.content)
+        val missedCall = notifications.first().jsonObject
+        assertEquals("MISSED_CALL", missedCall["type"]!!.jsonPrimitive.content)
+        assertEquals("Caller", missedCall["actor_display_name"]!!.jsonPrimitive.content)
+        assertEquals("@caller", missedCall["actor_username"]!!.jsonPrimitive.content)
 
         val callerNotificationsResponse = client.get("/api/notifications") {
             header(HttpHeaders.Authorization, "Bearer $callerToken")

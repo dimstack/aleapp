@@ -1,6 +1,7 @@
 package com.callapp.android.ui.screens.notifications
 
 import android.content.res.Configuration
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,10 +17,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.InlineTextContent
+import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.automirrored.filled.CallMissed
 import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -35,35 +40,37 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.Placeholder
+import androidx.compose.ui.text.PlaceholderVerticalAlign
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import coil3.compose.AsyncImage
+import com.callapp.android.domain.model.Notification
+import com.callapp.android.domain.model.NotificationType
+import com.callapp.android.domain.model.Server
 import com.callapp.android.ui.components.AleAppButton
 import com.callapp.android.ui.components.AleAppButtonSize
 import com.callapp.android.ui.components.AleAppButtonVariant
 import com.callapp.android.ui.components.AleAppCard
 import com.callapp.android.ui.theme.AleAppTheme
-
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/*  Data                                                                      */
-/* ═══════════════════════════════════════════════════════════════════════════ */
-
-import com.callapp.android.domain.model.Notification
-import com.callapp.android.domain.model.NotificationType
-
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/*  NotificationsScreen                                                       */
-/* ═══════════════════════════════════════════════════════════════════════════ */
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 @Composable
 fun NotificationsScreen(
     notifications: List<Notification> = emptyList(),
+    server: Server? = null,
     onBack: () -> Unit = {},
-    onMarkAsRead: (String) -> Unit = {},
     onClearAll: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -73,7 +80,6 @@ fun NotificationsScreen(
         containerColor = colors.background,
         topBar = {
             NotificationsTopBar(
-                unreadCount = notifications.count { !it.isRead },
                 showClearAll = notifications.isNotEmpty(),
                 onBack = onBack,
                 onClearAll = onClearAll,
@@ -87,6 +93,7 @@ fun NotificationsScreen(
                     .padding(padding),
             )
         } else {
+            val sections = notificationSections(notifications)
             LazyColumn(
                 modifier = modifier
                     .fillMaxSize()
@@ -94,27 +101,26 @@ fun NotificationsScreen(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                items(notifications, key = { it.id }) { notification ->
-                    NotificationCard(
-                        notification = notification,
-                        onClick = {
-                            if (!notification.isRead) onMarkAsRead(notification.id)
-                        },
-                    )
+                sections.forEach { section ->
+                    item(key = "header_${section.label}") {
+                        NotificationDateHeader(text = section.label)
+                    }
+                    items(section.items, key = { it.id }) { item ->
+                        NotificationCard(
+                            item = item,
+                            server = server,
+                            onClick = {},
+                        )
+                    }
                 }
             }
         }
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/*  Top bar                                                                   */
-/* ═══════════════════════════════════════════════════════════════════════════ */
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun NotificationsTopBar(
-    unreadCount: Int,
     showClearAll: Boolean,
     onBack: () -> Unit,
     onClearAll: () -> Unit,
@@ -125,21 +131,12 @@ private fun NotificationsTopBar(
     Column(modifier) {
         TopAppBar(
             title = {
-                Column {
-                    Text(
-                        text = "Уведомления",
-                        style = MaterialTheme.typography.headlineMedium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    if (unreadCount > 0) {
-                        Text(
-                            text = "$unreadCount непрочитанных",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = colors.mutedForeground,
-                        )
-                    }
-                }
+                Text(
+                    text = "Уведомления",
+                    style = MaterialTheme.typography.headlineMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             },
             navigationIcon = {
                 IconButton(onClick = onBack) {
@@ -171,65 +168,215 @@ private fun NotificationsTopBar(
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/*  Notification card                                                         */
-/* ═══════════════════════════════════════════════════════════════════════════ */
-
 @Composable
-private fun NotificationCard(
-    notification: Notification,
-    onClick: () -> Unit,
+private fun NotificationDateHeader(
+    text: String,
     modifier: Modifier = Modifier,
 ) {
     val colors = AleAppTheme.colors
 
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        HorizontalDivider(
+            modifier = Modifier.weight(1f),
+            color = colors.border,
+        )
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+            color = colors.mutedForeground,
+        )
+        HorizontalDivider(
+            modifier = Modifier.weight(1f),
+            color = colors.border,
+        )
+    }
+}
+
+@Composable
+private fun NotificationCard(
+    item: NotificationListItem,
+    server: Server?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    when (item.notification.type) {
+        NotificationType.MISSED_CALL -> MissedCallNotificationCard(
+            item = item,
+            server = server,
+            onClick = onClick,
+            modifier = modifier,
+        )
+
+        else -> DefaultNotificationCard(
+            item = item,
+            onClick = onClick,
+            modifier = modifier,
+        )
+    }
+}
+
+@Composable
+private fun MissedCallNotificationCard(
+    item: NotificationListItem,
+    server: Server?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = AleAppTheme.colors
+    val notification = item.notification
+    val actorName = notification.actorDisplayName.orEmpty().ifBlank { "Неизвестный контакт" }
+    val actorUsername = notification.actorUsername
+        ?.trim()
+        ?.takeIf { it.isNotBlank() && it != notification.actorUserId }
+    val serverHandle = server?.username?.removePrefix("@").orEmpty().ifBlank {
+        notification.serverName.lowercase(Locale.forLanguageTag("ru"))
+    }
+
+    val metadataText = buildAnnotatedString {
+        if (actorUsername != null) {
+            append(actorUsername)
+            append(" • ")
+        }
+        appendInlineContent("serverIcon", "[server]")
+        append(" ")
+        append(serverHandle)
+    }
+    val metadataInlineContent = mapOf(
+        "serverIcon" to InlineTextContent(
+            placeholder = Placeholder(
+                width = 18.sp,
+                height = 18.sp,
+                placeholderVerticalAlign = PlaceholderVerticalAlign.Center,
+            ),
+        ) {
+            NotificationServerImage(
+                name = server?.name ?: notification.serverName,
+                imageUrl = server?.imageUrl,
+            )
+        },
+    )
+
     AleAppCard(
-        modifier = modifier
-            .fillMaxWidth()
-            .alpha(if (notification.isRead) 0.6f else 1f),
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth(),
     ) {
         Row(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Icon
-            NotificationIcon(type = notification.type)
+            NotificationAvatar(
+                name = actorName,
+                avatarUrl = notification.actorAvatarUrl,
+                modifier = Modifier.size(56.dp),
+            )
 
             Spacer(Modifier.width(16.dp))
 
-            // Content
-            Column(modifier = Modifier.weight(1f)) {
-                Row(
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(
+                    text = actorName,
+                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
+                    color = colors.cardForeground,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = metadataText,
+                    inlineContent = metadataInlineContent,
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Top,
-                ) {
-                    Text(
-                        text = when (notification.type) {
-                            NotificationType.REQUEST_APPROVED -> "Заявка одобрена"
-                            NotificationType.REQUEST_DECLINED -> "Заявка отклонена"
-                            NotificationType.REQUEST_SENT -> "Заявка отправлена"
-                            NotificationType.INCOMING_CALL -> "Входящий вызов"
-                            NotificationType.MISSED_CALL -> "Пропущенный вызов"
-                        },
-                        style = MaterialTheme.typography.bodyLarge.copy(
-                            fontWeight = FontWeight.Medium,
-                        ),
-                        color = colors.cardForeground,
-                        modifier = Modifier.weight(1f),
-                    )
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.mutedForeground,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = if (item.count > 1) {
+                        "Пропущено вызовов: ${item.count}"
+                    } else {
+                        "Пропущенный вызов"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.destructive,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
 
-                    // Unread indicator
-                    if (!notification.isRead) {
-                        Spacer(Modifier.width(8.dp))
-                        Surface(
-                            modifier = Modifier.size(8.dp),
-                            shape = CircleShape,
-                            color = colors.primary,
-                        ) {}
+            Spacer(Modifier.width(12.dp))
+
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = colors.destructive.copy(alpha = 0.12f),
+                    contentColor = colors.destructive,
+                ) {
+                    Box(
+                        modifier = Modifier.size(42.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.CallMissed,
+                            contentDescription = null,
+                            modifier = Modifier.size(22.dp),
+                        )
                     }
                 }
 
-                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = formatNotificationTimestamp(notification.createdAt),
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
+                    color = colors.mutedForeground,
+                    maxLines = 1,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DefaultNotificationCard(
+    item: NotificationListItem,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = AleAppTheme.colors
+    val notification = item.notification
+
+    AleAppCard(
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            NotificationIcon(type = notification.type)
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = notificationTitle(notification.type),
+                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+                    color = colors.cardForeground,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                Spacer(Modifier.height(6.dp))
 
                 Text(
                     text = notification.message,
@@ -237,33 +384,16 @@ private fun NotificationCard(
                     color = colors.mutedForeground,
                 )
 
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(12.dp))
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Text(
-                        text = notification.serverName,
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontWeight = FontWeight.Medium,
-                        ),
-                        color = colors.mutedForeground,
-                    )
-                    Text(
-                        text = notification.createdAt,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = colors.mutedForeground,
-                    )
-                }
+                NotificationMetaRow(
+                    serverName = notification.serverName,
+                    createdAt = notification.createdAt,
+                )
             }
         }
     }
 }
-
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/*  Notification icon                                                         */
-/* ═══════════════════════════════════════════════════════════════════════════ */
 
 @Composable
 private fun NotificationIcon(
@@ -278,25 +408,29 @@ private fun NotificationIcon(
             colors.statusOnline,
             Icons.Default.CheckCircle,
         )
+
         NotificationType.REQUEST_DECLINED -> Triple(
             colors.destructive.copy(alpha = 0.1f),
             colors.destructive,
             Icons.Default.Cancel,
         )
+
         NotificationType.REQUEST_SENT -> Triple(
             colors.accent.copy(alpha = 0.1f),
             colors.accent,
             Icons.Default.Schedule,
         )
+
         NotificationType.INCOMING_CALL -> Triple(
             colors.statusOnline.copy(alpha = 0.1f),
             colors.statusOnline,
             Icons.Default.Notifications,
         )
+
         NotificationType.MISSED_CALL -> Triple(
             colors.destructive.copy(alpha = 0.1f),
             colors.destructive,
-            Icons.Default.Notifications,
+            Icons.AutoMirrored.Filled.CallMissed,
         )
     }
 
@@ -316,9 +450,107 @@ private fun NotificationIcon(
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/*  Empty state                                                               */
-/* ═══════════════════════════════════════════════════════════════════════════ */
+@Composable
+private fun NotificationAvatar(
+    name: String,
+    avatarUrl: String?,
+    modifier: Modifier = Modifier,
+) {
+    val colors = AleAppTheme.colors
+    val initials = initialsOf(name)
+
+    Surface(
+        modifier = modifier,
+        shape = CircleShape,
+        color = colors.secondary,
+    ) {
+        if (!avatarUrl.isNullOrBlank()) {
+            AsyncImage(
+                model = avatarUrl,
+                contentDescription = name,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(CircleShape),
+                contentScale = ContentScale.Crop,
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(colors.secondary),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = initials,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = colors.cardForeground,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun NotificationMetaRow(
+    serverName: String,
+    createdAt: String,
+    modifier: Modifier = Modifier,
+) {
+    val colors = AleAppTheme.colors
+
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = serverName,
+            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+            color = colors.mutedForeground,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Spacer(Modifier.width(12.dp))
+        Text(
+            text = formatNotificationTimestamp(createdAt),
+            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
+            color = colors.mutedForeground,
+            maxLines = 1,
+        )
+    }
+}
+
+@Composable
+private fun NotificationServerImage(
+    name: String,
+    imageUrl: String?,
+    modifier: Modifier = Modifier,
+) {
+    if (!imageUrl.isNullOrBlank()) {
+        AsyncImage(
+            model = imageUrl,
+            contentDescription = name,
+            modifier = modifier
+                .size(18.dp)
+                .clip(RoundedCornerShape(5.dp)),
+            contentScale = ContentScale.Crop,
+        )
+    } else {
+        Surface(
+            modifier = modifier.size(18.dp),
+            shape = RoundedCornerShape(5.dp),
+            color = AleAppTheme.colors.secondary,
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Text(
+                    text = initialsOf(name).take(1),
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                    color = AleAppTheme.colors.cardForeground,
+                )
+            }
+        }
+    }
+}
 
 @Composable
 private fun EmptyState(modifier: Modifier = Modifier) {
@@ -358,16 +590,14 @@ private fun EmptyState(modifier: Modifier = Modifier) {
 
                 Text(
                     text = "Уведомлений нет",
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        fontWeight = FontWeight.Medium,
-                    ),
+                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
                     color = colors.mutedForeground,
                 )
 
                 Spacer(Modifier.height(4.dp))
 
                 Text(
-                    text = "Здесь будут отображаться уведомления о статусе ваших заявок",
+                    text = "Здесь будут появляться пропущенные звонки и изменения по вашим заявкам",
                     style = MaterialTheme.typography.bodySmall,
                     color = colors.mutedForeground,
                 )
@@ -376,67 +606,186 @@ private fun EmptyState(modifier: Modifier = Modifier) {
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/*  Previews                                                                  */
-/* ═══════════════════════════════════════════════════════════════════════════ */
+private fun notificationTitle(type: NotificationType): String = when (type) {
+    NotificationType.REQUEST_APPROVED -> "Заявка одобрена"
+    NotificationType.REQUEST_DECLINED -> "Заявка отклонена"
+    NotificationType.REQUEST_SENT -> "Заявка отправлена"
+    NotificationType.INCOMING_CALL -> "Входящий вызов"
+    NotificationType.MISSED_CALL -> "Пропущенный вызов"
+}
 
-private val previewNotifications = listOf(
-    Notification("n1", NotificationType.REQUEST_DECLINED, "Creative Studio", "Ваша заявка отклонена", false, "15 марта, 14:30"),
-    Notification("n2", NotificationType.REQUEST_APPROVED, "Tech Community", "Ваша заявка одобрена", false, "14 марта, 10:15"),
-    Notification("n3", NotificationType.REQUEST_SENT, "Game Dev Hub", "Заявка отправлена", true, "13 марта, 18:45"),
+private fun formatNotificationTimestamp(value: String): String {
+    if (value.isBlank()) return ""
+    return runCatching {
+        val localDateTime = Instant.parse(value).atZone(ZoneId.systemDefault())
+        localDateTime.format(DateTimeFormatter.ofPattern("HH:mm", Locale.forLanguageTag("ru")))
+    }.getOrElse { value }
+}
+
+private fun notificationSections(notifications: List<Notification>): List<NotificationSection> {
+    return notifications
+        .groupBy { notificationDateKey(it.createdAt) }
+        .toList()
+        .sortedByDescending { (date, _) -> date }
+        .map { (date, items) ->
+            NotificationSection(
+                label = formatNotificationDateHeader(date),
+                items = aggregateNotifications(items),
+            )
+        }
+}
+
+private fun aggregateNotifications(notifications: List<Notification>): List<NotificationListItem> {
+    val sorted = notifications.sortedByDescending { notificationSortInstant(it.createdAt) }
+    val result = mutableListOf<NotificationListItem>()
+
+    sorted.forEach { notification ->
+        if (notification.type != NotificationType.MISSED_CALL) {
+            result += NotificationListItem(notification = notification)
+            return@forEach
+        }
+
+        val index = result.indexOfFirst { current ->
+            current.notification.type == NotificationType.MISSED_CALL &&
+                current.notification.actorUserId == notification.actorUserId &&
+                current.notification.actorUsername == notification.actorUsername &&
+                current.notification.actorDisplayName == notification.actorDisplayName &&
+                current.notification.serverName == notification.serverName
+        }
+
+        if (index >= 0) {
+            val current = result[index]
+            result[index] = current.copy(count = current.count + 1)
+        } else {
+            result += NotificationListItem(notification = notification)
+        }
+    }
+
+    return result
+}
+
+private fun notificationDateKey(value: String): LocalDate =
+    runCatching { Instant.parse(value).atZone(ZoneId.systemDefault()).toLocalDate() }
+        .getOrElse { LocalDate.MIN }
+
+private fun notificationSortInstant(value: String): Instant =
+    runCatching { Instant.parse(value) }.getOrElse { Instant.EPOCH }
+
+private fun formatNotificationDateHeader(date: LocalDate): String {
+    if (date == LocalDate.MIN) return "Без даты"
+    val today = LocalDate.now(ZoneId.systemDefault())
+    val yesterday = today.minusDays(1)
+    return when (date) {
+        today -> "Сегодня"
+        yesterday -> "Вчера"
+        else -> date.format(DateTimeFormatter.ofPattern("d MMMM", Locale.forLanguageTag("ru")))
+    }
+}
+
+private fun initialsOf(name: String): String {
+    val parts = name.trim()
+        .split(Regex("\\s+"))
+        .filter { it.isNotBlank() }
+        .take(2)
+    if (parts.isEmpty()) return "?"
+    return parts.joinToString("") { it.take(1).uppercase(Locale.forLanguageTag("ru")) }
+}
+
+private data class NotificationSection(
+    val label: String,
+    val items: List<NotificationListItem>,
 )
 
-@Preview(name = "Notifications — Light", showBackground = true, showSystemUi = true)
+private data class NotificationListItem(
+    val notification: Notification,
+    val count: Int = 1,
+) {
+    val id: String = if (count > 1) {
+        buildString {
+            append("agg:")
+            append(notification.actorUserId ?: notification.actorDisplayName ?: notification.id)
+            append(":")
+            append(notification.serverName)
+            append(":")
+            append(notificationDateKey(notification.createdAt))
+        }
+    } else {
+        notification.id
+    }
+}
+
+private val previewNotifications = listOf(
+    Notification(
+        id = "n1",
+        type = NotificationType.MISSED_CALL,
+        serverName = "Горилла",
+        message = "Missed call from Макак",
+        actorUserId = "user-1",
+        actorUsername = "@makak",
+        actorDisplayName = "Макак",
+        isRead = false,
+        createdAt = "2026-03-18T19:51:00Z",
+    ),
+    Notification(
+        id = "n1b",
+        type = NotificationType.MISSED_CALL,
+        serverName = "Горилла",
+        message = "Missed call from Макак",
+        actorUserId = "user-1",
+        actorUsername = "@makak",
+        actorDisplayName = "Макак",
+        isRead = false,
+        createdAt = "2026-03-18T19:45:00Z",
+    ),
+    Notification(
+        id = "n2",
+        type = NotificationType.REQUEST_APPROVED,
+        serverName = "Tech Community",
+        message = "Ваша заявка одобрена",
+        isRead = false,
+        createdAt = "2026-03-14T10:15:00Z",
+    ),
+)
+
+@Preview(name = "Notifications - Light", showBackground = true, showSystemUi = true)
 @Composable
 private fun NotificationsLightPreview() {
     AleAppTheme(darkTheme = false) {
-        NotificationsScreen(notifications = previewNotifications)
+        NotificationsScreen(
+            notifications = previewNotifications,
+            server = Server(
+                id = "srv-1",
+                name = "Горилла",
+                username = "@gorilla",
+            ),
+        )
     }
 }
 
-@Preview(name = "Notifications — Dark", showBackground = true, showSystemUi = true, uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Preview(
+    name = "Notifications - Dark",
+    showBackground = true,
+    showSystemUi = true,
+    uiMode = Configuration.UI_MODE_NIGHT_YES,
+)
 @Composable
 private fun NotificationsDarkPreview() {
     AleAppTheme(darkTheme = true) {
-        NotificationsScreen(notifications = previewNotifications)
+        NotificationsScreen(
+            notifications = previewNotifications,
+            server = Server(
+                id = "srv-1",
+                name = "Горилла",
+                username = "@gorilla",
+            ),
+        )
     }
 }
 
-@Preview(name = "Notifications — Empty", showBackground = true, showSystemUi = true)
+@Preview(name = "Notifications - Empty", showBackground = true, showSystemUi = true)
 @Composable
 private fun NotificationsEmptyPreview() {
     AleAppTheme(darkTheme = false) {
         NotificationsScreen(notifications = emptyList())
-    }
-}
-
-@Preview(name = "NotificationCard — unread", showBackground = true)
-@Composable
-private fun NotificationCardUnreadPreview() {
-    AleAppTheme(darkTheme = false) {
-        Surface(color = AleAppTheme.colors.background) {
-            NotificationCard(
-                notification = previewNotifications[0],
-                onClick = {},
-                modifier = Modifier.padding(16.dp),
-            )
-        }
-    }
-}
-
-@Preview(name = "NotificationIcon — all types", showBackground = true)
-@Composable
-private fun NotificationIconPreview() {
-    AleAppTheme(darkTheme = false) {
-        Surface(color = AleAppTheme.colors.card) {
-            Row(
-                modifier = Modifier.padding(16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                NotificationIcon(type = NotificationType.REQUEST_APPROVED)
-                NotificationIcon(type = NotificationType.REQUEST_DECLINED)
-                NotificationIcon(type = NotificationType.REQUEST_SENT)
-            }
-        }
     }
 }

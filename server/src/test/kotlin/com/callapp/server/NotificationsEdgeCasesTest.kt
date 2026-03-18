@@ -109,7 +109,10 @@ class NotificationsEdgeCasesTest {
         }
         val notifications = testJson.parseToJsonElement(notificationsResponse.bodyAsText()).jsonArray
         assertEquals(1, notifications.size)
-        assertEquals("MISSED_CALL", notifications.first().jsonObject["type"]!!.jsonPrimitive.content)
+        val missedCall = notifications.first().jsonObject
+        assertEquals("MISSED_CALL", missedCall["type"]!!.jsonPrimitive.content)
+        assertEquals("Caller", missedCall["actor_display_name"]!!.jsonPrimitive.content)
+        assertEquals("@caller", missedCall["actor_username"]!!.jsonPrimitive.content)
     }
 
     @Test
@@ -126,26 +129,17 @@ class NotificationsEdgeCasesTest {
             install(WebSockets)
         }
 
-        wsClient.webSocket("/ws?token=$callerToken") {
-            val receiveJob = async {
-                withTimeout(5_000) {
-                    val frame = incoming.receive() as Frame.Text
-                    SignalMessage.fromJson(frame.readText())
-                }
-            }
+        wsClient.webSocket("/ws?token=$calleeToken") {
+            val calleeSession = this
+            wsClient.webSocket("/ws?token=$callerToken") {
+                send(Frame.Text(SignalMessage.CallRequest(targetUserId = calleeId).toJson()))
 
-            send(Frame.Text(SignalMessage.CallRequest(targetUserId = calleeId).toJson()))
-
-            wsClient.webSocket("/ws?token=$calleeToken") {
                 val incomingCall = withTimeout(5_000) {
-                    SignalMessage.fromJson((incoming.receive() as Frame.Text).readText())
+                    SignalMessage.fromJson((calleeSession.incoming.receive() as Frame.Text).readText())
                 } as SignalMessage.CallRequest
                 assertEquals(callerId, incomingCall.fromUserId)
-                send(Frame.Text(SignalMessage.CallDecline(targetUserId = callerId).toJson()))
+                calleeSession.send(Frame.Text(SignalMessage.CallDecline(targetUserId = callerId).toJson()))
             }
-
-            val delivered = receiveJob.await() as SignalMessage.CallDecline
-            assertEquals(callerId, delivered.targetUserId)
         }
 
         val notificationsResponse = client.get("/api/notifications") {

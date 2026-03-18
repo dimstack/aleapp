@@ -17,6 +17,10 @@ data class NotificationRecord(
     val type: NotificationType,
     val serverName: String,
     val message: String,
+    val actorUserId: String?,
+    val actorUsername: String?,
+    val actorDisplayName: String?,
+    val actorAvatarUrl: String?,
     val isRead: Boolean,
     val createdAt: Instant,
 )

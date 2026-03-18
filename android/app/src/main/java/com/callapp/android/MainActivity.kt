@@ -20,6 +20,7 @@ import androidx.navigation.compose.rememberNavController
 import com.callapp.android.calling.CallAvailabilityServiceController
 import com.callapp.android.calling.IncomingCallIntentContract
 import com.callapp.android.calling.IncomingCallPayload
+import com.callapp.android.calling.NotificationsIntentContract
 import com.callapp.android.data.ServiceLocator
 import com.callapp.android.data.SessionStore
 import com.callapp.android.ui.navigation.AppNavGraph
@@ -31,6 +32,7 @@ class MainActivity : ComponentActivity() {
     private val notificationsPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
     private val pendingIncomingCallState = mutableStateOf<IncomingCallPayload?>(null)
+    private val pendingNotificationsServerIdState = mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -45,6 +47,7 @@ class MainActivity : ComponentActivity() {
         CallAvailabilityServiceController.sync(applicationContext)
         requestNotificationsPermissionIfNeeded()
         pendingIncomingCallState.value = extractIncomingCall(intent)
+        pendingNotificationsServerIdState.value = extractNotificationsServerId(intent)
 
         setContent {
             var isDarkTheme by remember { mutableStateOf(sessionStore.isDarkTheme) }
@@ -55,6 +58,7 @@ class MainActivity : ComponentActivity() {
                 )
             }
             val pendingIncomingCall = pendingIncomingCallState.value
+            val pendingNotificationsServerId = pendingNotificationsServerIdState.value
 
             // Update edge-to-edge based on theme
             enableEdgeToEdge(
@@ -83,7 +87,9 @@ class MainActivity : ComponentActivity() {
                     isDarkTheme = isDarkTheme,
                     userStatus = userStatus,
                     pendingIncomingCall = pendingIncomingCall,
+                    pendingNotificationsServerId = pendingNotificationsServerId,
                     onIncomingCallConsumed = { pendingIncomingCallState.value = null },
+                    onNotificationsDestinationConsumed = { pendingNotificationsServerIdState.value = null },
                     onThemeChange = {
                         isDarkTheme = it
                         sessionStore.isDarkTheme = it
@@ -101,6 +107,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         pendingIncomingCallState.value = extractIncomingCall(intent)
+        pendingNotificationsServerIdState.value = extractNotificationsServerId(intent)
     }
 
     private fun restoreSessions(sessionStore: SessionStore) {
@@ -138,5 +145,12 @@ class MainActivity : ComponentActivity() {
             NotificationManagerCompat.from(this).cancel(payload.notificationId)
         }
         return payload
+    }
+
+    private fun extractNotificationsServerId(intent: Intent?): String? =
+        NotificationsIntentContract.fromIntent(intent)
+
+    companion object {
+        const val ACTION_OPEN_NOTIFICATIONS = "com.callapp.android.action.OPEN_NOTIFICATIONS"
     }
 }

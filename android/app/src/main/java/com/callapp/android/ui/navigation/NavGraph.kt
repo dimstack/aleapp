@@ -64,7 +64,9 @@ fun AppNavGraph(
     isDarkTheme: Boolean = false,
     userStatus: UserStatus = UserStatus.ONLINE,
     pendingIncomingCall: IncomingCallPayload? = null,
+    pendingNotificationsServerId: String? = null,
     onIncomingCallConsumed: () -> Unit = {},
+    onNotificationsDestinationConsumed: () -> Unit = {},
     onThemeChange: (Boolean) -> Unit = {},
     onStatusChange: (UserStatus) -> Unit = {},
 ) {
@@ -91,6 +93,14 @@ fun AppNavGraph(
             launchSingleTop = true
         }
         onIncomingCallConsumed()
+    }
+
+    LaunchedEffect(pendingNotificationsServerId) {
+        val serverId = pendingNotificationsServerId ?: return@LaunchedEffect
+        navController.navigate(Route.Notifications.createRoute(serverId)) {
+            launchSingleTop = true
+        }
+        onNotificationsDestinationConsumed()
     }
 
     NavHost(
@@ -545,8 +555,8 @@ fun AppNavGraph(
 
             NotificationsScreen(
                 notifications = state.notifications,
+                server = state.server,
                 onBack = { navController.popBackStack() },
-                onMarkAsRead = { notificationId -> viewModel.markAsRead(notificationId) },
                 onClearAll = { viewModel.clearAll() },
             )
         }

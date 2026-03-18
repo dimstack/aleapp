@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import com.callapp.android.domain.model.Notification
 import com.callapp.android.domain.model.NotificationType
 import com.callapp.android.domain.model.Server
+import com.callapp.android.domain.model.User
 import com.callapp.android.network.result.ApiError
 import com.callapp.android.network.result.ApiResult
 import com.callapp.android.ui.screens.connect.MainDispatcherRule
@@ -35,8 +36,8 @@ class NotificationsViewModelTest {
         val viewModel = createViewModel(dependencies)
         advanceUntilIdle()
 
-        assertEquals(notifications, viewModel.state.value.notifications)
-        assertEquals(1, viewModel.unreadCount.value)
+        assertTrue(viewModel.state.value.notifications.all { it.isRead })
+        assertEquals(1, dependencies.markReadCalls)
     }
 
     @Test
@@ -56,8 +57,7 @@ class NotificationsViewModelTest {
         advanceUntilIdle()
 
         assertTrue(viewModel.state.value.notifications.all { it.isRead })
-        assertEquals(0, viewModel.unreadCount.value)
-        assertEquals(1, dependencies.markReadCalls)
+        assertEquals(2, dependencies.markReadCalls)
     }
 
     @Test
@@ -77,12 +77,11 @@ class NotificationsViewModelTest {
         advanceUntilIdle()
 
         assertTrue(viewModel.state.value.notifications.isEmpty())
-        assertEquals(0, viewModel.unreadCount.value)
         assertEquals(1, dependencies.clearCalls)
     }
 
     @Test
-    fun unreadCount_calculatesCorrectly() = runTest {
+    fun loadNotifications_marksEverythingReadImmediately() = runTest {
         val dependencies = FakeNotificationsDependencies().apply {
             notificationsResult = ApiResult.Success(
                 listOf(
@@ -95,12 +94,8 @@ class NotificationsViewModelTest {
         val viewModel = createViewModel(dependencies)
         advanceUntilIdle()
 
-        assertEquals(2, viewModel.unreadCount.value)
-
-        viewModel.markAsRead("n1")
-        advanceUntilIdle()
-
-        assertEquals(1, viewModel.unreadCount.value)
+        assertTrue(viewModel.state.value.notifications.all { it.isRead })
+        assertEquals(1, dependencies.markReadCalls)
     }
 
     @Test
@@ -114,7 +109,6 @@ class NotificationsViewModelTest {
 
         assertTrue(viewModel.state.value.error != null)
         assertTrue(viewModel.state.value.notifications.isEmpty())
-        assertEquals(0, viewModel.unreadCount.value)
     }
 
     @Test
@@ -134,18 +128,36 @@ class NotificationsViewModelTest {
         viewModel.clearAll()
         advanceUntilIdle()
 
-        assertEquals(notifications, viewModel.state.value.notifications)
+        assertTrue(viewModel.state.value.notifications.all { it.isRead })
         assertTrue(viewModel.state.value.error != null)
         assertFalse(viewModel.state.value.notifications.isEmpty())
     }
 
     @Test
-    fun markAsRead_marksSingleNotification() = runTest {
+    fun loadNotifications_restoresUsernameFromServerUsers() = runTest {
         val dependencies = FakeNotificationsDependencies().apply {
             notificationsResult = ApiResult.Success(
                 listOf(
-                    testNotification(id = "n1", isRead = false),
-                    testNotification(id = "n2", isRead = false),
+                    Notification(
+                        id = "missed-1",
+                        type = NotificationType.MISSED_CALL,
+                        serverName = "Test Server",
+                        message = "Missed call",
+                        actorUserId = "user-1",
+                        actorDisplayName = "Caller",
+                        isRead = false,
+                        createdAt = "2026-03-16T10:00:00Z",
+                    ),
+                ),
+            )
+            usersResult = ApiResult.Success(
+                listOf(
+                    User(
+                        id = "user-1",
+                        name = "Caller",
+                        username = "@caller",
+                        serverId = "srv-1",
+                    ),
                 ),
             )
         }
@@ -153,11 +165,7 @@ class NotificationsViewModelTest {
         val viewModel = createViewModel(dependencies)
         advanceUntilIdle()
 
-        viewModel.markAsRead("n2")
-        advanceUntilIdle()
-
-        assertEquals(listOf(false, true), viewModel.state.value.notifications.map { it.isRead })
-        assertEquals(1, viewModel.unreadCount.value)
+        assertEquals("@caller", viewModel.state.value.notifications.single().actorUsername)
     }
 
     private fun createViewModel(
@@ -175,12 +183,15 @@ class NotificationsViewModelTest {
             address = "https://server.example.com",
         )
         var notificationsResult: ApiResult<List<Notification>> = ApiResult.Success(emptyList())
+        var usersResult: ApiResult<List<User>> = ApiResult.Success(emptyList())
         var markNotificationsReadResult: ApiResult<Unit> = ApiResult.Success(Unit)
         var clearNotificationsResult: ApiResult<Unit> = ApiResult.Success(Unit)
         var markReadCalls = 0
         var clearCalls = 0
 
         override fun getServerById(serverId: String): Server = server
+
+        override suspend fun getUsers(serverAddress: String): ApiResult<List<User>> = usersResult
 
         override suspend fun getNotifications(serverAddress: String): ApiResult<List<Notification>> =
             notificationsResult

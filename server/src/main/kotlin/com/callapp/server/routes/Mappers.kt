@@ -52,6 +52,10 @@ fun NotificationRecord.toDto(): NotificationDto = NotificationDto(
     type = type.name,
     serverName = serverName,
     message = message,
+    actorUserId = actorUserId,
+    actorUsername = actorUsername,
+    actorDisplayName = actorDisplayName,
+    actorAvatarUrl = actorAvatarUrl,
     isRead = isRead,
     createdAt = createdAt.toString(),
 )

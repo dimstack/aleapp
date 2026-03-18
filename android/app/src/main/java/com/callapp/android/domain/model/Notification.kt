@@ -13,6 +13,10 @@ data class Notification(
     val type: NotificationType,
     val serverName: String,
     val message: String,
+    val actorUserId: String? = null,
+    val actorUsername: String? = null,
+    val actorDisplayName: String? = null,
+    val actorAvatarUrl: String? = null,
     val isRead: Boolean,
     val createdAt: String,
 )

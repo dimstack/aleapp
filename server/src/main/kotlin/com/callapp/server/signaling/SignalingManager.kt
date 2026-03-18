@@ -74,7 +74,10 @@ class SignalingManager(
                 val pendingCall = pendingCalls[message.targetUserId]
                 if (pendingCall?.callerUserId == senderId) {
                     pendingCalls.remove(message.targetUserId)
-                    createMissedCallNotification(message.targetUserId)
+                    createMissedCallNotification(
+                        userId = message.targetUserId,
+                        callerUserId = senderId,
+                    )
                 }
             }
             is SignalMessage.CallBusy -> {
@@ -87,7 +90,10 @@ class SignalingManager(
             sessions[senderId]?.session?.send(Frame.Text(SignalMessage.CallBusy(targetUserId = message.targetUserId).toJson()))
             if (message is SignalMessage.CallRequest || message is SignalMessage.Offer) {
                 pendingCalls.remove(message.targetUserId)
-                createMissedCallNotification(message.targetUserId)
+                createMissedCallNotification(
+                    userId = message.targetUserId,
+                    callerUserId = senderId,
+                )
             }
             return
         }
@@ -95,13 +101,19 @@ class SignalingManager(
         target.session.send(Frame.Text(message.toJson()))
     }
 
-    private fun createMissedCallNotification(userId: String) {
+    private fun createMissedCallNotification(userId: String, callerUserId: String) {
         val serverName = serverRepository.getCurrentServer()?.name ?: "CallApp Server"
+        val caller = userRepository.findById(callerUserId)
         notificationRepository.create(
             userId = userId,
             type = NotificationType.MISSED_CALL,
             serverName = serverName,
-            message = "You missed a call",
+            message = caller?.displayName?.takeIf { it.isNotBlank() }?.let { "Missed call from $it" }
+                ?: "You missed a call",
+            actorUserId = callerUserId,
+            actorUsername = caller?.username,
+            actorDisplayName = caller?.displayName,
+            actorAvatarUrl = caller?.avatarUrl,
         )
     }
 

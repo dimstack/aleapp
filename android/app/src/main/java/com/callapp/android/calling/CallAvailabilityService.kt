@@ -1,6 +1,6 @@
 package com.callapp.android.calling
 
-import android.app.Notification
+import android.app.Notification as AndroidNotification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -13,7 +13,10 @@ import androidx.core.app.NotificationManagerCompat
 import com.callapp.android.MainActivity
 import com.callapp.android.R
 import com.callapp.android.data.ServiceLocator
+import com.callapp.android.data.ServerSession
 import com.callapp.android.data.SessionStore
+import com.callapp.android.domain.model.Notification as AppNotification
+import com.callapp.android.network.result.ApiResult
 import com.callapp.android.network.signaling.ConnectionState
 import com.callapp.android.network.signaling.SignalMessage
 import kotlinx.coroutines.CoroutineScope
@@ -21,13 +24,21 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 class CallAvailabilityService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val sessionStore by lazy { ensureSessionStore() }
+    private val missedCallTracker by lazy {
+        MissedCallNotificationTracker(
+            getSharedPreferences(PUSH_PREFS_NAME, MODE_PRIVATE),
+        )
+    }
     private val listenerJobs = linkedMapOf<String, kotlinx.coroutines.Job>()
     private val activeIncomingNotificationIds = linkedSetOf<Int>()
+    private var notificationsPollingJob: kotlinx.coroutines.Job? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -52,10 +63,12 @@ class CallAvailabilityService : Service() {
         restoreSessions()
         startForeground(SERVICE_NOTIFICATION_ID, buildServiceNotification(sessions.size))
         syncListeners(sessions.keys)
+        syncNotificationsPolling(sessions.values)
         return START_STICKY
     }
 
     override fun onDestroy() {
+        notificationsPollingJob?.cancel()
         listenerJobs.values.forEach { it.cancel() }
         listenerJobs.clear()
         scope.cancel()
@@ -99,6 +112,37 @@ class CallAvailabilityService : Service() {
         }
     }
 
+    private fun syncNotificationsPolling(sessions: Collection<ServerSession>) {
+        notificationsPollingJob?.cancel()
+        if (sessions.isEmpty()) return
+
+        val snapshots = sessions.toList()
+        notificationsPollingJob = scope.launch {
+            while (isActive) {
+                snapshots.forEach { session ->
+                    pollNotifications(session)
+                }
+                delay(NOTIFICATION_POLL_INTERVAL_MS)
+            }
+        }
+    }
+
+    private suspend fun pollNotifications(session: ServerSession) {
+        val client = ServiceLocator.connectionManager.restoreSession(
+            session.serverAddress,
+            session.sessionToken,
+        )
+        val result = client.getNotifications()
+        val notifications = when (result) {
+            is ApiResult.Success -> result.data
+            is ApiResult.Failure -> return
+        }
+        val freshMissedCalls = missedCallTracker.consumeNew(session.serverAddress, notifications)
+        freshMissedCalls.forEach { notification ->
+            showMissedCallNotification(session, notification)
+        }
+    }
+
     private fun handleSignalMessage(serverAddress: String, message: SignalMessage) {
         when (message) {
             is SignalMessage.CallRequest -> {
@@ -123,7 +167,7 @@ class CallAvailabilityService : Service() {
         }
     }
 
-    private fun buildServiceNotification(sessionCount: Int): Notification {
+    private fun buildServiceNotification(sessionCount: Int): AndroidNotification {
         return NotificationCompat.Builder(this, SERVICE_CHANNEL_ID)
             .setSmallIcon(android.R.drawable.sym_action_call)
             .setContentTitle(getString(R.string.app_name))
@@ -175,6 +219,44 @@ class CallAvailabilityService : Service() {
         NotificationManagerCompat.from(this).notify(payload.notificationId, notification)
     }
 
+    private fun showMissedCallNotification(
+        session: ServerSession,
+        notification: AppNotification,
+    ) {
+        val serverId = session.serverId.ifBlank { session.serverAddress }
+        val launchIntent = NotificationsIntentContract.createIntent(serverId).apply {
+            setClass(this@CallAvailabilityService, MainActivity::class.java)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val contentIntent = PendingIntent.getActivity(
+            this,
+            missedNotificationIdFor(session.serverAddress, notification.id),
+            launchIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
+        val contactName = notification.actorDisplayName?.takeIf { it.isNotBlank() } ?: "Неизвестный контакт"
+        val contentText = session.serverName.takeIf { it.isNotBlank() }
+            ?.let { "Пропущенный вызов • $it" }
+            ?: "Пропущенный вызов"
+
+        val systemNotification = NotificationCompat.Builder(this, ALERTS_CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.sym_call_missed)
+            .setContentTitle(contactName)
+            .setContentText(contentText)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(contentText))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_CALL)
+            .setAutoCancel(true)
+            .setContentIntent(contentIntent)
+            .build()
+
+        NotificationManagerCompat.from(this).notify(
+            missedNotificationIdFor(session.serverAddress, notification.id),
+            systemNotification,
+        )
+    }
+
     private fun cancelIncomingCallNotifications() {
         val manager = NotificationManagerCompat.from(this)
         activeIncomingNotificationIds.forEach(manager::cancel)
@@ -201,7 +283,17 @@ class CallAvailabilityService : Service() {
                 NotificationManager.IMPORTANCE_HIGH,
             ).apply {
                 description = "Показывает входящие вызовы"
-                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                lockscreenVisibility = AndroidNotification.VISIBILITY_PUBLIC
+            },
+        )
+        manager.createNotificationChannel(
+            NotificationChannel(
+                ALERTS_CHANNEL_ID,
+                "Notifications",
+                NotificationManager.IMPORTANCE_HIGH,
+            ).apply {
+                description = "Показывает пропущенные вызовы и другие важные уведомления"
+                lockscreenVisibility = AndroidNotification.VISIBILITY_PRIVATE
             },
         )
     }
@@ -210,12 +302,19 @@ class CallAvailabilityService : Service() {
         return ("$serverAddress:$userId").hashCode()
     }
 
+    private fun missedNotificationIdFor(serverAddress: String, notificationId: String): Int {
+        return ("missed:$serverAddress:$notificationId").hashCode()
+    }
+
     companion object {
         const val ACTION_START = "com.callapp.android.action.START_CALL_AVAILABILITY"
         const val ACTION_STOP = "com.callapp.android.action.STOP_CALL_AVAILABILITY"
 
         private const val SERVICE_CHANNEL_ID = "call_service_channel"
         private const val CALL_CHANNEL_ID = "incoming_call_channel"
+        private const val ALERTS_CHANNEL_ID = "app_alerts_channel"
         private const val SERVICE_NOTIFICATION_ID = 1001
+        private const val NOTIFICATION_POLL_INTERVAL_MS = 30_000L
+        private const val PUSH_PREFS_NAME = "callapp_notification_pushes"
     }
 }

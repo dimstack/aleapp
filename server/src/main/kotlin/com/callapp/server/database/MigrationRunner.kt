@@ -9,6 +9,8 @@ class MigrationRunner(
     private val migrations = listOf(
         "V1__bootstrap.sql",
         "V2__auth_foundation.sql",
+        "V3__notification_actor_metadata.sql",
+        "V4__notification_actor_username.sql",
     )
 
     fun run() {
