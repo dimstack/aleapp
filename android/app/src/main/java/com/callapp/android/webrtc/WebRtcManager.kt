@@ -24,7 +24,7 @@ import org.webrtc.VideoTrack
 class WebRtcManager(
     private val context: Context,
     private val listener: Listener,
-) {
+) : CallPeerConnection {
 
     interface Listener {
         fun onIceCandidate(candidate: IceCandidate)
@@ -36,7 +36,7 @@ class WebRtcManager(
     }
 
     /** EglBase from app-scoped [WebRtcFactory]. Do NOT release — it outlives any single call. */
-    val eglBase: EglBase get() = WebRtcFactory.eglBase
+    override val eglBase: EglBase get() = WebRtcFactory.eglBase
 
     private val peerConnectionFactory: PeerConnectionFactory get() = WebRtcFactory.factory
 
@@ -48,7 +48,7 @@ class WebRtcManager(
     private var localVideoSender: RtpSender? = null
     private var isVideoCapturing = false
 
-    var localVideoTrack: VideoTrack? = null
+    override var localVideoTrack: VideoTrack? = null
         private set
     var localAudioTrack: AudioTrack? = null
         private set
@@ -57,7 +57,7 @@ class WebRtcManager(
 
     // ── PeerConnection ───────────────────────────────────────────────────
 
-    fun createPeerConnection(
+    override fun createPeerConnection(
         serverAddress: String,
         turnUsername: String,
         turnPassword: String,
@@ -105,7 +105,7 @@ class WebRtcManager(
 
     // ── Media capture ────────────────────────────────────────────────────
 
-    fun startCapture(enableVideo: Boolean = true, enableAudio: Boolean = true) {
+    override fun startCapture(enableVideo: Boolean, enableAudio: Boolean) {
         if (enableAudio) initAudio()
         if (enableVideo) initVideo()
     }
@@ -147,11 +147,11 @@ class WebRtcManager(
 
     // ── Camera control ───────────────────────────────────────────────────
 
-    fun switchCamera() {
+    override fun switchCamera() {
         videoCapturer?.switchCamera(null)
     }
 
-    fun setVideoEnabled(enabled: Boolean) {
+    override fun setVideoEnabled(enabled: Boolean) {
         if (enabled) {
             if (localVideoTrack == null) {
                 // Camera was never initialized — lazy init on first enable
@@ -198,49 +198,90 @@ class WebRtcManager(
         }
     }
 
-    fun setAudioEnabled(enabled: Boolean) {
+    override fun setAudioEnabled(enabled: Boolean) {
         localAudioTrack?.setEnabled(enabled)
     }
 
     // ── SDP negotiation ──────────────────────────────────────────────────
 
-    fun createOffer(callback: (SessionDescription) -> Unit) {
+    override fun createOffer(
+        callback: (SessionDescription) -> Unit,
+        onFailure: ((String?) -> Unit)?,
+    ) {
         val constraints = MediaConstraints().apply {
             mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"))
             mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveVideo", "true"))
         }
         peerConnection?.createOffer(createSdpObserver(
             onCreateSuccess = { sdp ->
-                peerConnection?.setLocalDescription(createSdpObserver(), sdp)
-                callback(sdp)
-            }
+                setLocalDescription(
+                    sdp = sdp,
+                    onSuccess = { callback(sdp) },
+                    onFailure = onFailure,
+                )
+            },
+            onCreateFailure = onFailure,
         ), constraints)
     }
 
-    fun createAnswer(callback: (SessionDescription) -> Unit) {
+    override fun createAnswer(
+        callback: (SessionDescription) -> Unit,
+        onFailure: ((String?) -> Unit)?,
+    ) {
         val constraints = MediaConstraints().apply {
             mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"))
             mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveVideo", "true"))
         }
         peerConnection?.createAnswer(createSdpObserver(
             onCreateSuccess = { sdp ->
-                peerConnection?.setLocalDescription(createSdpObserver(), sdp)
-                callback(sdp)
-            }
+                setLocalDescription(
+                    sdp = sdp,
+                    onSuccess = { callback(sdp) },
+                    onFailure = onFailure,
+                )
+            },
+            onCreateFailure = onFailure,
         ), constraints)
     }
 
-    fun setRemoteDescription(sdp: SessionDescription) {
-        peerConnection?.setRemoteDescription(createSdpObserver(), sdp)
+    override fun setRemoteDescription(
+        sdp: SessionDescription,
+        onSuccess: (() -> Unit)?,
+        onFailure: ((String?) -> Unit)?,
+    ) {
+        peerConnection?.setRemoteDescription(
+            createSdpObserver(
+                onSetSuccess = onSuccess,
+                onSetFailure = onFailure,
+            ),
+            sdp,
+        )
     }
 
-    fun addIceCandidate(candidate: IceCandidate) {
+    override fun rollbackLocalDescription(
+        onSuccess: (() -> Unit)?,
+        onFailure: ((String?) -> Unit)?,
+    ) {
+        val connection = peerConnection ?: return
+        connection.setLocalDescription(
+            createSdpObserver(
+                onSetSuccess = onSuccess,
+                onSetFailure = onFailure,
+            ),
+            SessionDescription(SessionDescription.Type.ROLLBACK, ""),
+        )
+    }
+
+    override fun addIceCandidate(candidate: IceCandidate) {
         peerConnection?.addIceCandidate(candidate)
     }
 
+    override fun currentSignalingState(): PeerConnection.SignalingState? =
+        peerConnection?.signalingState()
+
     // ── Cleanup ──────────────────────────────────────────────────────────
 
-    fun dispose() {
+    override fun dispose() {
         if (isVideoCapturing) {
             try {
                 videoCapturer?.stopCapture()
@@ -325,20 +366,41 @@ class WebRtcManager(
 
     internal fun createSdpObserver(
         onCreateSuccess: ((SessionDescription) -> Unit)? = null,
+        onSetSuccess: (() -> Unit)? = null,
+        onCreateFailure: ((String?) -> Unit)? = null,
+        onSetFailure: ((String?) -> Unit)? = null,
     ): SdpObserver = object : SdpObserver {
         override fun onCreateSuccess(sdp: SessionDescription) {
             onCreateSuccess?.invoke(sdp)
         }
 
-        override fun onSetSuccess() {}
+        override fun onSetSuccess() {
+            onSetSuccess?.invoke()
+        }
 
         override fun onCreateFailure(error: String?) {
             Log.e(TAG, "SDP create failure: $error")
+            onCreateFailure?.invoke(error)
         }
 
         override fun onSetFailure(error: String?) {
             Log.e(TAG, "SDP set failure: $error")
+            onSetFailure?.invoke(error)
         }
+    }
+
+    private fun setLocalDescription(
+        sdp: SessionDescription,
+        onSuccess: (() -> Unit)? = null,
+        onFailure: ((String?) -> Unit)? = null,
+    ) {
+        peerConnection?.setLocalDescription(
+            createSdpObserver(
+                onSetSuccess = onSuccess,
+                onSetFailure = onFailure,
+            ),
+            sdp,
+        )
     }
 
     companion object {

@@ -36,11 +36,13 @@ class WebRtcManagerTest {
     @Test
     fun createSdpObserverInvokesSuccessCallback() {
         val manager = createManager()
-        var createdDescriptionType: String? = null
+        var createdDescription: String? = null
 
-        val observer = manager.createSdpObserver { sdp ->
-            createdDescriptionType = sdp.type.canonicalForm()
-        }
+        val observer = manager.createSdpObserver(
+            onCreateSuccess = { sdp: org.webrtc.SessionDescription ->
+                createdDescription = sdp.description
+            },
+        )
 
         observer.onCreateSuccess(
             org.webrtc.SessionDescription(
@@ -51,7 +53,7 @@ class WebRtcManagerTest {
         observer.onCreateFailure("failed")
         observer.onSetFailure("failed")
 
-        assertEquals("offer", createdDescriptionType)
+        assertEquals("v=0", createdDescription)
     }
 
     @Test
@@ -68,8 +70,14 @@ class WebRtcManagerTest {
                 "v=0",
             ),
         )
-        manager.createOffer { error("callback should not be called without peer connection") }
-        manager.createAnswer { error("callback should not be called without peer connection") }
+        manager.createOffer(
+            callback = { error("callback should not be called without peer connection") },
+            onFailure = null,
+        )
+        manager.createAnswer(
+            callback = { error("callback should not be called without peer connection") },
+            onFailure = null,
+        )
         manager.dispose()
     }
 
