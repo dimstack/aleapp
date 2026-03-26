@@ -10,7 +10,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.core.app.NotificationManagerCompat
+import androidx.navigation.NavBackStackEntry
 import com.callapp.android.ui.IncomingCallHandler
 import com.callapp.android.ui.components.RequestCallPermissions
 import com.callapp.android.ui.components.videoCallPermissions
@@ -20,6 +20,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.callapp.android.calling.IncomingCallPayload
+import com.callapp.android.calling.IncomingCallNotificationManager
 import com.callapp.android.data.ServiceLocator
 import com.callapp.android.ui.screens.home.HomeScreen
 import com.callapp.android.ui.screens.home.HomeViewModel
@@ -634,14 +635,9 @@ fun AppNavGraph(
             )
         ) {
             var permissionsGranted by remember { mutableStateOf(false) }
-            val notificationId = remember(it) {
-                it.arguments?.getInt("notificationId") ?: 0
-            }
-            val dismissIncomingNotification = remember(notificationId) {
+            val dismissIncomingNotification = remember(it) {
                 {
-                    if (notificationId != 0) {
-                        NotificationManagerCompat.from(navController.context).cancel(notificationId)
-                    }
+                    dismissIncomingCallNotification(navController.context, it)
                 }
             }
 
@@ -713,4 +709,18 @@ fun AppNavGraph(
             }
         }
     }
+}
+
+private fun dismissIncomingCallNotification(
+    context: android.content.Context,
+    backStackEntry: NavBackStackEntry,
+) {
+    val arguments = backStackEntry.arguments
+    IncomingCallNotificationManager.dismiss(
+        context = context,
+        notificationId = arguments?.getInt("notificationId") ?: 0,
+        serverAddress = arguments?.getString("serverAddress")
+            ?.let { java.net.URLDecoder.decode(it, "UTF-8") },
+        userId = arguments?.getString("userId"),
+    )
 }

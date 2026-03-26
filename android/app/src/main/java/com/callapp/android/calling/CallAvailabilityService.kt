@@ -148,7 +148,10 @@ class CallAvailabilityService : Service() {
     private fun handleSignalMessage(serverAddress: String, message: SignalMessage) {
         when (message) {
             is SignalMessage.CallRequest -> {
-                val notificationId = notificationIdFor(serverAddress, message.fromUserId)
+                val notificationId = IncomingCallNotificationManager.notificationIdFor(
+                    serverAddress = serverAddress,
+                    userId = message.fromUserId,
+                )
                 val payload = IncomingCallPayload(
                     serverAddress = serverAddress,
                     userId = message.fromUserId,
@@ -307,10 +310,6 @@ class CallAvailabilityService : Service() {
                 lockscreenVisibility = AndroidNotification.VISIBILITY_PRIVATE
             },
         )
-    }
-
-    private fun notificationIdFor(serverAddress: String, userId: String): Int {
-        return ("$serverAddress:$userId").hashCode()
     }
 
     private fun missedNotificationIdFor(serverAddress: String, notificationId: String): Int {
