@@ -900,6 +900,33 @@ The install script is Linux-oriented and:
 - creates and prints the initial admin invite token
 - supports update-in-place or destructive reinstall with explicit confirmation
 
+### Test Deployment Server
+
+- Test backend deployments may be performed on the dedicated server `144.31.181.69` over SSH port `12234`.
+- SSH user for this server is `ivanzolo`.
+- From this Windows workspace, prefer running SSH through WSL because the configured key lives there.
+- Preferred connection pattern:
+
+```bash
+wsl ssh -p 12234 ivanzolo@144.31.181.69
+```
+
+- Docker Engine and Docker Compose plugin are already installed on that server from the official Docker Ubuntu repository.
+- User `ivanzolo` is already in the `docker` group, so Docker commands should work without `sudo` in a fresh SSH session.
+- Before deploying backend changes, first verify the backend locally when feasible:
+  - on Windows: `cd server` then `gradlew.bat test` and `gradlew.bat build`
+- For backend deployment requests, unless the user says otherwise:
+  - build and push `dmitri1000/aleapp:latest` from `server/Dockerfile`
+  - connect to `ivanzolo@144.31.181.69:12234`
+  - pull the latest image on the server
+  - restart the backend using the deployment assets in `server/`
+  - verify the container is healthy after restart
+- After remote deployment, always perform a basic smoke check, at minimum:
+  - `docker ps`
+  - backend container logs
+  - health check against `/health` when the service is reachable
+- If a deployment requires secrets or env changes that are not present locally, inspect the existing server-side deployment files first and avoid destructive replacement unless the user explicitly requests reinstall/reset.
+
 ### Tests Already Present
 
 Server tests currently cover:
