@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.PhoneDisabled
 import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -252,17 +253,17 @@ private fun ActionButton(
     modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = modifier,
+        modifier = modifier.clickable(onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Surface(
+        FloatingActionButton(
+            onClick = onClick,
             modifier = Modifier
                 .size(72.dp)
-                .clip(CircleShape)
-                .clickable(onClick = onClick),
+                .clip(CircleShape),
             shape = CircleShape,
-            color = backgroundColor,
-            shadowElevation = 8.dp,
+            containerColor = backgroundColor,
+            contentColor = iconTint,
         ) {
             Box(contentAlignment = Alignment.Center) {
                 icon(iconTint)

@@ -17,6 +17,7 @@ import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.TimeUnit
 
 enum class ConnectionState { Disconnected, Connecting, Connected, Error }
@@ -44,6 +45,7 @@ class SignalingClient(
     private var autoReconnect = true
     private var retryDelay = initialRetryDelayMillis
     private var reconnectAttempts = 0
+    private val pendingMessages = ConcurrentLinkedQueue<String>()
 
     fun connect() {
         if (_connectionState.value == ConnectionState.Connecting) return
@@ -54,12 +56,20 @@ class SignalingClient(
     }
 
     fun send(message: SignalMessage) {
-        webSocket?.send(message.toJson())
+        val payload = message.toJson()
+        val sent = webSocket?.send(payload) == true
+        if (sent) return
+
+        pendingMessages += payload
+        if (_connectionState.value == ConnectionState.Disconnected || _connectionState.value == ConnectionState.Error) {
+            connect()
+        }
     }
 
     fun disconnect() {
         autoReconnect = false
         scope.coroutineContext.cancelChildren()
+        pendingMessages.clear()
         webSocket?.close(NORMAL_CLOSURE, null)
         webSocket = null
         _connectionState.value = ConnectionState.Disconnected
@@ -114,6 +124,7 @@ class SignalingClient(
 
         override fun onOpen(webSocket: WebSocket, response: Response) {
             _connectionState.value = ConnectionState.Connected
+            flushPendingMessages(webSocket)
         }
 
         override fun onMessage(webSocket: WebSocket, text: String) {
@@ -140,6 +151,16 @@ class SignalingClient(
             this@SignalingClient.webSocket = null
             _connectionState.value = ConnectionState.Error
             scheduleReconnect()
+        }
+    }
+
+    private fun flushPendingMessages(webSocket: WebSocket) {
+        while (true) {
+            val payload = pendingMessages.poll() ?: return
+            if (!webSocket.send(payload)) {
+                pendingMessages.add(payload)
+                return
+            }
         }
     }
 

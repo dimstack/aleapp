@@ -6,7 +6,6 @@ import com.callapp.android.network.ServerConnectionManager
 import com.callapp.android.network.result.ApiResult
 import com.callapp.android.network.signaling.SignalingClient
 import com.callapp.android.network.signaling.SignalMessage
-import com.callapp.android.webrtc.CallPeerConnection
 import com.callapp.android.webrtc.WebRtcManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -42,8 +41,6 @@ class CallRepository(
     private val signalingClient: SignalingClient,
     private val serverAddress: String,
     private val connectionManager: ServerConnectionManager = ServiceLocator.connectionManager,
-    private val peerConnectionFactory: (Context, WebRtcManager.Listener) -> CallPeerConnection =
-        { appContext, listener -> WebRtcManager(appContext, listener) },
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
@@ -78,15 +75,19 @@ class CallRepository(
     /** True once [WebRtcManager.createPeerConnection] has been called. */
     private var peerConnectionReady = false
 
+    /** True once the current remote SDP has been applied successfully. */
+    private var remoteDescriptionSet = false
+
+    /** True once the current local SDP has been applied successfully. */
+    private var localDescriptionSet = false
+
     /** True once the first offer/answer exchange is complete and renegotiation is safe. */
     private var initialNegotiationDone = false
-    private var isPolitePeer = false
-    private var makingOffer = false
-    private var ignoreIncomingOffer = false
-    private var isSettingRemoteAnswerPending = false
-    private var pendingRenegotiation = false
 
-    val webRtcManager: CallPeerConnection = peerConnectionFactory(context, object : WebRtcManager.Listener {
+    /** Prevents concurrent offers when camera toggles and WebRTC both trigger renegotiation. */
+    private var renegotiationInProgress = false
+
+    val webRtcManager: WebRtcManager = WebRtcManager(context, object : WebRtcManager.Listener {
         override fun onIceCandidate(candidate: IceCandidate) {
             val message = SignalMessage.IceCandidate(
                 candidate = candidate.sdp,
@@ -142,16 +143,12 @@ class CallRepository(
     // ── TURN credentials ─────────────────────────────────────────────────
 
     private fun onWebRtcRenegotiationNeeded() {
-        if (!initialNegotiationDone || targetUserId.isEmpty()) return
-        if (makingOffer || !isPeerStableForOffer()) {
-            pendingRenegotiation = true
-            return
-        }
+        if (!initialNegotiationDone || targetUserId.isEmpty() || renegotiationInProgress) return
+        renegotiationInProgress = true
         scope.launch {
-            makingOffer = true
             webRtcManager.createOffer(
-                callback = { sdp ->
-                    makingOffer = false
+                onSuccess = { sdp ->
+                    localDescriptionSet = true
                     signalingClient.send(
                         SignalMessage.Offer(
                             sdp = sdp.description,
@@ -159,10 +156,9 @@ class CallRepository(
                         )
                     )
                 },
-                onFailure = {
-                    makingOffer = false
-                    pendingRenegotiation = true
-                    Log.w(TAG, "Failed to create renegotiation offer: $it")
+                onFailure = { error ->
+                    Log.e(TAG, "Renegotiation offer failed: $error")
+                    renegotiationInProgress = false
                 },
             )
         }
@@ -170,16 +166,19 @@ class CallRepository(
 
     private var turnUsername: String = ""
     private var turnPassword: String = ""
+    private var turnUrls: List<String> = emptyList()
 
     private suspend fun fetchTurnCredentials() {
         val client = connectionManager.getClient(serverAddress)
         when (val result = client.getTurnCredentials()) {
             is ApiResult.Success -> {
+                turnUrls = result.data.urls
                 turnUsername = result.data.username
                 turnPassword = result.data.credential
             }
             is ApiResult.Failure -> {
                 Log.w(TAG, "Failed to fetch TURN credentials, calls may fail behind strict NAT")
+                turnUrls = emptyList()
                 turnUsername = ""
                 turnPassword = ""
             }
@@ -190,7 +189,6 @@ class CallRepository(
 
     suspend fun startOutgoingCall(targetUserId: String, enableVideo: Boolean) {
         this.targetUserId = targetUserId
-        isPolitePeer = false
         pendingOutgoingVideoEnabled = enableVideo
         outgoingOfferStarted = false
         _connectionState.value = CallConnectionState.CONNECTING
@@ -209,19 +207,9 @@ class CallRepository(
     // ── Incoming call ────────────────────────────────────────────────────
 
     suspend fun acceptIncomingCall(callerUserId: String, enableVideo: Boolean) {
+        Log.i(TAG, "acceptIncomingCall caller=$callerUserId enableVideo=$enableVideo hasPendingOffer=${pendingRemoteOffer != null} pendingIce=${pendingIceCandidates.size}")
         this.targetUserId = callerUserId
-        isPolitePeer = true
         _connectionState.value = CallConnectionState.CONNECTING
-
-        fetchTurnCredentials()
-        webRtcManager.startCapture(enableVideo = enableVideo, enableAudio = true)
-        webRtcManager.createPeerConnection(serverAddress, turnUsername, turnPassword)
-        peerConnectionReady = true
-
-        val offer = pendingRemoteOffer
-        if (offer != null) {
-            applyRemoteOfferAndAnswer(offer, callerUserId)
-        }
 
         signalingClient.send(
             SignalMessage.CallResponse(
@@ -230,6 +218,19 @@ class CallRepository(
                 targetUserId = callerUserId,
             ),
         )
+
+        fetchTurnCredentials()
+        webRtcManager.startCapture(enableVideo = enableVideo, enableAudio = true)
+        webRtcManager.createPeerConnection(serverAddress, turnUrls, turnUsername, turnPassword)
+        peerConnectionReady = true
+
+        val offer = pendingRemoteOffer
+        if (offer != null) {
+            Log.i(TAG, "Applying pending remote offer after accept")
+            applyRemoteOfferAndAnswer(offer, callerUserId)
+        } else {
+            Log.w(TAG, "Accepted incoming call without pending remote offer")
+        }
     }
 
     fun declineIncomingCall(callerUserId: String) {
@@ -254,7 +255,12 @@ class CallRepository(
     // ── Media controls (delegate to WebRtcManager) ───────────────────────
 
     fun setMicEnabled(enabled: Boolean) = webRtcManager.setAudioEnabled(enabled)
-    fun setVideoEnabled(enabled: Boolean) = webRtcManager.setVideoEnabled(enabled)
+
+    fun setVideoEnabled(enabled: Boolean) {
+        webRtcManager.setVideoEnabled(enabled)
+        onWebRtcRenegotiationNeeded()
+    }
+
     fun switchCamera() = webRtcManager.switchCamera()
 
     // ── Cleanup ──────────────────────────────────────────────────────────
@@ -272,14 +278,15 @@ class CallRepository(
         pendingRemoteOffer = null
         pendingIceCandidates.clear()
         peerConnectionReady = false
+        remoteDescriptionSet = false
+        localDescriptionSet = false
         initialNegotiationDone = false
-        isPolitePeer = false
-        makingOffer = false
-        ignoreIncomingOffer = false
-        isSettingRemoteAnswerPending = false
-        pendingRenegotiation = false
+        renegotiationInProgress = false
         pendingOutgoingVideoEnabled = false
         outgoingOfferStarted = false
+        turnUrls = emptyList()
+        turnUsername = ""
+        turnPassword = ""
     }
 
     // ── Signaling message handler ────────────────────────────────────────
@@ -291,7 +298,7 @@ class CallRepository(
                 val sdp = SessionDescription(SessionDescription.Type.OFFER, message.sdp)
 
                 if (peerConnectionReady) {
-                    handleIncomingOffer(sdp, message.fromUserId)
+                    applyRemoteOfferAndAnswer(sdp, message.fromUserId)
                 } else {
                     pendingRemoteOffer = sdp
                     Log.d(TAG, "Buffered incoming offer from ${message.fromUserId}")
@@ -299,18 +306,20 @@ class CallRepository(
             }
 
             is SignalMessage.Answer -> {
-                _events.tryEmit(CallRepositoryEvent.AnswerReceived)
                 val sdp = SessionDescription(SessionDescription.Type.ANSWER, message.sdp)
-                isSettingRemoteAnswerPending = true
                 webRtcManager.setRemoteDescription(
                     sdp = sdp,
                     onSuccess = {
-                        isSettingRemoteAnswerPending = false
-                        flushPendingRenegotiation()
+                        remoteDescriptionSet = true
+                        initialNegotiationDone = true
+                        renegotiationInProgress = false
+                        applyPendingIceCandidates()
+                        _events.tryEmit(CallRepositoryEvent.AnswerReceived)
                     },
-                    onFailure = {
-                        isSettingRemoteAnswerPending = false
-                        Log.w(TAG, "Failed to apply remote answer: $it")
+                    onFailure = { error ->
+                        Log.e(TAG, "Failed to apply remote answer: $error")
+                        renegotiationInProgress = false
+                        _connectionState.value = CallConnectionState.FAILED
                     },
                 )
             }
@@ -321,7 +330,7 @@ class CallRepository(
                     message.sdpMLineIndex,
                     message.candidate,
                 )
-                if (peerConnectionReady) {
+                if (peerConnectionReady && remoteDescriptionSet) {
                     webRtcManager.addIceCandidate(candidate)
                 } else {
                     // Buffer until PeerConnection is created
@@ -372,95 +381,77 @@ class CallRepository(
 
         fetchTurnCredentials()
         webRtcManager.startCapture(enableVideo = pendingOutgoingVideoEnabled, enableAudio = true)
-        webRtcManager.createPeerConnection(serverAddress, turnUsername, turnPassword)
+        webRtcManager.createPeerConnection(serverAddress, turnUrls, turnUsername, turnPassword)
         peerConnectionReady = true
-        makingOffer = true
 
         webRtcManager.createOffer(
-            callback = { sdp ->
-                makingOffer = false
+            onSuccess = { sdp ->
+                localDescriptionSet = true
                 signalingClient.send(
                     SignalMessage.Offer(
                         sdp = sdp.description,
                         targetUserId = targetUserId,
                     ),
                 )
-                initialNegotiationDone = true
             },
-            onFailure = {
-                makingOffer = false
-                Log.w(TAG, "Failed to begin outgoing offer: $it")
+            onFailure = { error ->
+                Log.e(TAG, "Failed to create outgoing offer: $error")
+                _connectionState.value = CallConnectionState.FAILED
+                outgoingOfferStarted = false
             },
         )
     }
 
     private fun applyRemoteOfferAndAnswer(offer: SessionDescription, callerUserId: String) {
         pendingRemoteOffer = null
+        remoteDescriptionSet = false
+        localDescriptionSet = false
+
         webRtcManager.setRemoteDescription(
             sdp = offer,
             onSuccess = {
-                pendingIceCandidates.forEach { candidate ->
-                    webRtcManager.addIceCandidate(candidate)
-                }
-                pendingIceCandidates.clear()
-
+                remoteDescriptionSet = true
+                applyPendingIceCandidates()
                 webRtcManager.createAnswer(
-                    callback = { sdp ->
+                    onSuccess = { sdp ->
+                        localDescriptionSet = true
+                        initialNegotiationDone = true
+                        renegotiationInProgress = false
                         signalingClient.send(
                             SignalMessage.Answer(
                                 sdp = sdp.description,
                                 targetUserId = callerUserId,
                             ),
                         )
-                        initialNegotiationDone = true
-                        flushPendingRenegotiation()
                     },
-                    onFailure = {
-                        Log.w(TAG, "Failed to create answer: $it")
+                    onFailure = { error ->
+                        Log.e(TAG, "Failed to create answer: $error")
+                        renegotiationInProgress = false
+                        _connectionState.value = CallConnectionState.FAILED
                     },
                 )
             },
-            onFailure = {
-                Log.w(TAG, "Failed to apply remote offer: $it")
+            onFailure = { error ->
+                Log.e(TAG, "Failed to apply remote offer: $error")
+                renegotiationInProgress = false
+                _connectionState.value = CallConnectionState.FAILED
             },
         )
     }
 
-    private fun handleIncomingOffer(offer: SessionDescription, callerUserId: String) {
-        val offerCollision = makingOffer || !isPeerStableForOffer()
-        ignoreIncomingOffer = !isPolitePeer && offerCollision
+    private fun applyPendingIceCandidates() {
+        if (!peerConnectionReady || !remoteDescriptionSet || pendingIceCandidates.isEmpty()) return
 
-        if (ignoreIncomingOffer) {
-            Log.d(TAG, "Ignoring incoming offer collision from $callerUserId")
-            return
-        }
-
-        if (offerCollision) {
-            webRtcManager.rollbackLocalDescription(
-                onSuccess = {
-                    applyRemoteOfferAndAnswer(offer, callerUserId)
-                },
-                onFailure = {
-                    Log.w(TAG, "Failed to rollback local description: $it")
+        val candidates = pendingIceCandidates.toList()
+        pendingIceCandidates.clear()
+        candidates.forEach { candidate ->
+            webRtcManager.addIceCandidate(
+                candidate = candidate,
+                onFailure = { error ->
+                    Log.e(TAG, "Failed to apply buffered ICE candidate: $error")
                 },
             )
-            return
         }
-
-        applyRemoteOfferAndAnswer(offer, callerUserId)
-    }
-
-    private fun isPeerStableForOffer(): Boolean {
-        val signalingState = webRtcManager.currentSignalingState()
-        return signalingState == null ||
-            signalingState == PeerConnection.SignalingState.STABLE ||
-            isSettingRemoteAnswerPending
-    }
-
-    private fun flushPendingRenegotiation() {
-        if (!pendingRenegotiation || makingOffer || !isPeerStableForOffer()) return
-        pendingRenegotiation = false
-        onWebRtcRenegotiationNeeded()
     }
 
     companion object {

@@ -159,7 +159,9 @@ class CallAvailabilityService : Service() {
                     serverName = message.fromServerName,
                     notificationId = notificationId,
                 )
-                showIncomingCallNotification(payload)
+                if (!AppForegroundTracker.isStarted) {
+                    showIncomingCallNotification(payload)
+                }
             }
 
             is SignalMessage.CallEnd,

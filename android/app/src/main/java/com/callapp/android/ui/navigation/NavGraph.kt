@@ -80,9 +80,21 @@ fun AppNavGraph(
 
     // Listen for incoming calls globally and navigate to IncomingCallScreen
     IncomingCallHandler { serverAddress, userId, contactName, serverName ->
-        navController.navigate(
-            Route.IncomingCall.createRoute(serverAddress, userId, contactName, serverName)
+        val notificationId = IncomingCallNotificationManager.notificationIdFor(
+            serverAddress = serverAddress,
+            userId = userId,
         )
+        navController.navigate(
+            Route.IncomingCall.createRoute(
+                serverAddress,
+                userId,
+                contactName,
+                serverName,
+                notificationId,
+            )
+        ) {
+            launchSingleTop = true
+        }
     }
 
     LaunchedEffect(pendingIncomingCall) {
@@ -657,6 +669,9 @@ fun AppNavGraph(
                 val remoteVideoTrack by viewModel.remoteVideoTrack.collectAsState()
                 val contactAvatarUrl by viewModel.contactAvatarUrl.collectAsState()
 
+                LaunchedEffect(Unit) {
+                    dismissIncomingNotification()
+                }
                 LaunchedEffect(callPhase) {
                     onIncomingCallUiVisibilityChanged(callPhase == CallPhase.INCOMING)
                 }
@@ -673,11 +688,18 @@ fun AppNavGraph(
                             navController.popBackStack()
                         }
                     }
-                    CallPhase.CONNECTED -> {
+                    CallPhase.CONNECTED,
+                    CallPhase.RINGING,
+                    CallPhase.CALLING -> {
+                        val callStatus = when (callPhase) {
+                            CallPhase.CONNECTED -> CallStatus.CONNECTED
+                            CallPhase.RINGING -> CallStatus.RINGING
+                            else -> CallStatus.CALLING
+                        }
                         CallScreen(
                             contactName = viewModel.contactName,
                             contactAvatarUrl = contactAvatarUrl,
-                            callStatus = CallStatus.CONNECTED,
+                            callStatus = callStatus,
                             elapsedSeconds = elapsedSeconds,
                             isMicOn = isMicOn,
                             isCameraOn = isCameraOn,
@@ -696,12 +718,12 @@ fun AppNavGraph(
                             contactAvatarUrl = contactAvatarUrl,
                             serverName = viewModel.serverName ?: "",
                             onAccept = {
-                                dismissIncomingNotification()
                                 viewModel.acceptCall()
+                                dismissIncomingNotification()
                             },
                             onDecline = {
-                                dismissIncomingNotification()
                                 viewModel.declineCall()
+                                dismissIncomingNotification()
                             },
                         )
                     }

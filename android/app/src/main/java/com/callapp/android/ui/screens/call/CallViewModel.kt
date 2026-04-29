@@ -1,6 +1,7 @@
 package com.callapp.android.ui.screens.call
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
@@ -251,9 +252,7 @@ class CallViewModel(
             session.events.collect { event ->
                 when (event) {
                     CallRepositoryEvent.AnswerReceived -> {
-                        _callPhase.value = CallPhase.CONNECTED
-                        cancelTimeout()
-                        startTimer()
+                        // SDP answer is not a media connection yet. Wait for PeerConnection.CONNECTED.
                     }
 
                     CallRepositoryEvent.CallDeclined -> {
@@ -288,8 +287,12 @@ class CallViewModel(
     }
 
     fun acceptCall() {
-        if (_callPhase.value != CallPhase.INCOMING) return
+        val currentPhase = _callPhase.value
+        logInfo("acceptCall clicked phase=$currentPhase userId=$userId serverAddress=$serverAddress")
+        if (currentPhase != CallPhase.INCOMING) return
 
+        _callPhase.value = CallPhase.RINGING
+        logInfo("acceptCall moved UI to RINGING")
         viewModelScope.launch {
             val session = getOrCreateCallSession()
             session.acceptIncomingCall(
@@ -381,5 +384,13 @@ class CallViewModel(
         timerJob?.cancel()
         cancelTimeout()
         cleanupSession()
+    }
+
+    private fun logInfo(message: String) {
+        runCatching { Log.i(TAG, message) }
+    }
+
+    companion object {
+        private const val TAG = "CallViewModel"
     }
 }

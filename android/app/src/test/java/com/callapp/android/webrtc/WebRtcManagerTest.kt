@@ -17,32 +17,54 @@ import org.webrtc.VideoTrack
 class WebRtcManagerTest {
 
     @Test
-    fun buildIceServersUsesHostWithoutSchemeOrPort() {
+    fun buildIceServersUsesBackendTurnUrls() {
         val manager = createManager()
 
         val iceServers = manager.buildIceServers(
             serverAddress = "https://calls.example.com:3000",
+            turnUrls = listOf(
+                "turn:relay.example.com:3478?transport=udp",
+                "turn:relay.example.com:3478?transport=tcp",
+            ),
             turnUsername = "turn-user",
             turnPassword = "turn-pass",
         )
 
         assertEquals(2, iceServers.size)
         assertEquals(listOf("stun:stun.l.google.com:19302"), iceServers[0].urls)
-        assertEquals(listOf("turn:calls.example.com:3478"), iceServers[1].urls)
+        assertEquals(
+            listOf(
+                "turn:relay.example.com:3478?transport=udp",
+                "turn:relay.example.com:3478?transport=tcp",
+            ),
+            iceServers[1].urls,
+        )
         assertEquals("turn-user", iceServers[1].username)
         assertEquals("turn-pass", iceServers[1].password)
     }
 
     @Test
+    fun buildIceServersFallsBackToServerHostWhenBackendUrlsMissing() {
+        val manager = createManager()
+
+        val iceServers = manager.buildIceServers(
+            serverAddress = "https://calls.example.com:3000",
+            turnUrls = emptyList(),
+            turnUsername = "turn-user",
+            turnPassword = "turn-pass",
+        )
+
+        assertEquals(listOf("turn:calls.example.com:3478"), iceServers[1].urls)
+    }
+
+    @Test
     fun createSdpObserverInvokesSuccessCallback() {
         val manager = createManager()
-        var createdDescription: String? = null
+        var createdDescriptionType: String? = null
 
-        val observer = manager.createSdpObserver(
-            onCreateSuccess = { sdp: org.webrtc.SessionDescription ->
-                createdDescription = sdp.description
-            },
-        )
+        val observer = manager.createSdpObserver(onCreateSuccess = { sdp ->
+            createdDescriptionType = sdp.type.canonicalForm()
+        })
 
         observer.onCreateSuccess(
             org.webrtc.SessionDescription(
@@ -53,7 +75,7 @@ class WebRtcManagerTest {
         observer.onCreateFailure("failed")
         observer.onSetFailure("failed")
 
-        assertEquals("v=0", createdDescription)
+        assertEquals("offer", createdDescriptionType)
     }
 
     @Test
@@ -70,15 +92,27 @@ class WebRtcManagerTest {
                 "v=0",
             ),
         )
-        manager.createOffer(
-            callback = { error("callback should not be called without peer connection") },
-            onFailure = null,
-        )
-        manager.createAnswer(
-            callback = { error("callback should not be called without peer connection") },
-            onFailure = null,
-        )
+        manager.createOffer(onSuccess = { error("callback should not be called without peer connection") })
+        manager.createAnswer(onSuccess = { error("callback should not be called without peer connection") })
         manager.dispose()
+    }
+
+    @Test
+    fun createSdpObserverInvokesSetCallbacks() {
+        val manager = createManager()
+        var setSuccess = false
+        var setFailure: String? = null
+
+        val observer = manager.createSdpObserver(
+            onSetSuccess = { setSuccess = true },
+            onSetFailure = { setFailure = it },
+        )
+
+        observer.onSetSuccess()
+        observer.onSetFailure("failed")
+
+        assertTrue(setSuccess)
+        assertEquals("failed", setFailure)
     }
 
     @Test

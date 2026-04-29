@@ -106,6 +106,40 @@ class SignalingClientTest {
     }
 
     @Test
+    fun sendBeforeConnected_messageDeliveredAfterWebSocketOpens() = runTest {
+        testScope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
+        val messageLatch = CountDownLatch(1)
+        val receivedMessages = CopyOnWriteArrayList<String>()
+        server.enqueue(
+            MockResponse().withWebSocketUpgrade(
+                object : WebSocketListener() {
+                    override fun onMessage(webSocket: WebSocket, text: String) {
+                        receivedMessages += text
+                        messageLatch.countDown()
+                    }
+                },
+            ),
+        )
+        val client = createClient()
+
+        client.send(
+            SignalMessage.CallResponse(
+                accepted = true,
+                fromUserId = "callee-1",
+                targetUserId = "caller-1",
+            ),
+        )
+
+        assertTrue(messageLatch.await(3, TimeUnit.SECONDS))
+        val sentMessage = SignalMessage.fromJson(receivedMessages.single())
+        require(sentMessage is SignalMessage.CallResponse)
+        assertTrue(sentMessage.accepted)
+        assertEquals("callee-1", sentMessage.fromUserId)
+        assertEquals("caller-1", sentMessage.targetUserId)
+        client.disconnect()
+    }
+
+    @Test
     fun receiveOffer_messageEmitted() = runTest {
         testScope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
         val offerJson = SignalMessage.Offer(

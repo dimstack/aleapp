@@ -49,7 +49,7 @@ class CallViewModelTest {
     }
 
     @Test
-    fun receiveAnswer_setsConnectedState() = runTest {
+    fun receiveAnswer_doesNotSetConnectedUntilPeerConnectionConnects() = runTest {
         val fakeSession = FakeCallSession()
         val viewModel = createViewModel(
             dependencies = FakeCallViewModelDependencies(fakeSession = fakeSession),
@@ -57,6 +57,11 @@ class CallViewModelTest {
         runCurrent()
 
         fakeSession.receiveAnswer()
+        runCurrent()
+
+        assertEquals(CallPhase.RINGING, viewModel.callPhase.value)
+
+        fakeSession.connect()
         runCurrent()
 
         assertEquals(CallPhase.CONNECTED, viewModel.callPhase.value)
@@ -204,6 +209,24 @@ class CallViewModelTest {
         runCurrent()
     }
 
+    @Test
+    fun acceptIncomingCall_acceptsOnlyOnceAndLeavesIncomingPhase() = runTest {
+        val fakeSession = FakeCallSession()
+        val viewModel = createIncomingViewModel(
+            dependencies = FakeCallViewModelDependencies(fakeSession = fakeSession),
+        )
+        runCurrent()
+
+        viewModel.acceptCall()
+        viewModel.acceptCall()
+        runCurrent()
+
+        assertEquals(CallPhase.RINGING, viewModel.callPhase.value)
+        assertEquals(listOf("user-42" to false), fakeSession.acceptedIncomingCalls)
+        viewModel.endCall()
+        runCurrent()
+    }
+
     private fun createViewModel(
         dependencies: CallViewModelDependencies,
     ) = CallViewModel(
@@ -213,6 +236,21 @@ class CallViewModelTest {
                 "serverAddress" to "https%3A%2F%2Fserver.example.com",
                 "contactName" to "Maria",
                 "userId" to "user-42",
+            ),
+        ),
+        dependencies = dependencies,
+    )
+
+    private fun createIncomingViewModel(
+        dependencies: CallViewModelDependencies,
+    ) = CallViewModel(
+        application = Application(),
+        savedStateHandle = SavedStateHandle(
+            mapOf(
+                "serverAddress" to "https%3A%2F%2Fserver.example.com",
+                "contactName" to "Maria",
+                "userId" to "user-42",
+                "serverName" to "Test%20Server",
             ),
         ),
         dependencies = dependencies,
@@ -269,6 +307,7 @@ class CallViewModelTest {
         override val eglBase: EglBase? = null
 
         val outgoingCalls = mutableListOf<Pair<String, Boolean>>()
+        val acceptedIncomingCalls = mutableListOf<Pair<String, Boolean>>()
         val micStates = mutableListOf<Boolean>()
         val videoStates = mutableListOf<Boolean>()
         var endCallCalled = false
@@ -278,7 +317,9 @@ class CallViewModelTest {
             outgoingCalls += targetUserId to enableVideo
         }
 
-        override suspend fun acceptIncomingCall(callerUserId: String, enableVideo: Boolean) = Unit
+        override suspend fun acceptIncomingCall(callerUserId: String, enableVideo: Boolean) {
+            acceptedIncomingCalls += callerUserId to enableVideo
+        }
 
         override fun declineIncomingCall(callerUserId: String) = Unit
 
@@ -302,6 +343,10 @@ class CallViewModelTest {
 
         fun receiveAnswer() {
             _events.tryEmit(CallRepositoryEvent.AnswerReceived)
+        }
+
+        fun connect() {
+            _connectionState.value = CallConnectionState.CONNECTED
         }
 
         fun receiveDecline() {

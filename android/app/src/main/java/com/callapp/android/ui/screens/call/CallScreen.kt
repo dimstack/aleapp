@@ -1,6 +1,8 @@
 package com.callapp.android.ui.screens.call
 
 import android.content.res.Configuration
+import android.os.Handler
+import android.os.Looper
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -42,6 +44,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -84,10 +87,17 @@ private fun WebRtcVideoRenderer(
     modifier: Modifier = Modifier,
     scalingType: RendererCommon.ScalingType = RendererCommon.ScalingType.SCALE_ASPECT_FILL,
     mirror: Boolean = false,
+    onFirstFrameRendered: (() -> Unit)? = null,
 ) {
+    val currentOnFirstFrameRendered = rememberUpdatedState(onFirstFrameRendered)
+    val mainHandler = remember { Handler(Looper.getMainLooper()) }
     val rendererEvents = remember {
         object : RendererCommon.RendererEvents {
-            override fun onFirstFrameRendered() = Unit
+            override fun onFirstFrameRendered() {
+                mainHandler.post {
+                    currentOnFirstFrameRendered.value?.invoke()
+                }
+            }
 
             override fun onFrameResolutionChanged(
                 videoWidth: Int,
@@ -133,6 +143,8 @@ fun CallScreen(
 ) {
     val colors = AleAppTheme.colors
     var showInfo by remember { mutableStateOf(false) }
+    var hasRemoteVideoFrame by remember(remoteVideoTrack) { mutableStateOf(false) }
+    val hasRemoteVideo = remoteVideoTrack != null && hasRemoteVideoFrame
 
     Box(
         modifier = modifier
@@ -147,6 +159,7 @@ fun CallScreen(
                     eglBase = eglBase,
                     modifier = Modifier.fillMaxSize(),
                     scalingType = RendererCommon.ScalingType.SCALE_ASPECT_FILL,
+                    onFirstFrameRendered = { hasRemoteVideoFrame = true },
                 )
             }
         }
@@ -161,12 +174,12 @@ fun CallScreen(
             Header(
                 callStatus = callStatus,
                 elapsedSeconds = elapsedSeconds,
-                contentColor = if (remoteVideoTrack != null) Color.White else colors.foreground,
+                contentColor = if (hasRemoteVideo) Color.White else colors.foreground,
                 onInfoClick = { showInfo = !showInfo },
             )
 
             // ── Center: avatar + name (hidden when remote video is active)
-            if (remoteVideoTrack == null) {
+            if (!hasRemoteVideo) {
                 Column(
                     modifier = Modifier
                         .weight(1f)
@@ -211,7 +224,7 @@ fun CallScreen(
                 isMicOn = isMicOn,
                 isCameraOn = isCameraOn,
                 colors = colors,
-                hasRemoteVideo = remoteVideoTrack != null,
+                hasRemoteVideo = hasRemoteVideo,
                 onMicToggle = onMicToggle,
                 onCameraToggle = onCameraToggle,
                 onSwitchCamera = onSwitchCamera,

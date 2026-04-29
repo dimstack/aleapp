@@ -18,6 +18,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.navigation.compose.rememberNavController
+import com.callapp.android.calling.AppForegroundTracker
 import com.callapp.android.calling.CallAvailabilityServiceController
 import com.callapp.android.calling.IncomingCallIntentContract
 import com.callapp.android.calling.IncomingCallPayload
@@ -120,6 +121,16 @@ class MainActivity : ComponentActivity() {
         pendingNotificationsServerIdState.value = extractNotificationsServerId(intent)
     }
 
+    override fun onStart() {
+        super.onStart()
+        AppForegroundTracker.onActivityStarted()
+    }
+
+    override fun onStop() {
+        AppForegroundTracker.onActivityStopped()
+        super.onStop()
+    }
+
     private fun restoreSessions(sessionStore: SessionStore) {
         val sessions = sessionStore.getSessions()
         val connectionManager = ServiceLocator.connectionManager
@@ -137,8 +148,12 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun updateIncomingCallWindowBehavior(intent: Intent?) {
+        val isLocked = keyguardManager.isKeyguardLockedCompat()
         configureIncomingCallWindowBehavior(
-            IncomingCallWindowBehavior.shouldEnable(intent) || incomingCallUiVisible,
+            isLocked && (
+                IncomingCallWindowBehavior.shouldEnable(intent) ||
+                    (incomingCallUiVisible && openedFromIncomingCallWhileLocked)
+                ),
         )
     }
 
